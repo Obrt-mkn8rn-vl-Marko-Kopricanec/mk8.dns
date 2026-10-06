@@ -10,11 +10,8 @@ using Xunit;
 
 namespace Mk8.Dns.IntegrationTests;
 
-public sealed class PublicationHostTests : IAsyncLifetime
+public sealed class PublicationHostTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
-    private readonly PostgresFixture postgres = new();
-    public Task InitializeAsync() => postgres.InitializeAsync();
-    public Task DisposeAsync() => postgres.DisposeAsync();
     [Fact]
     public async Task OperatorEditsReachLiveGatewayAndSurviveControllerAndReplicaRestarts()
     {

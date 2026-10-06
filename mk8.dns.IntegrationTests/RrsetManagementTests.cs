@@ -8,11 +8,8 @@ using Xunit;
 
 namespace Mk8.Dns.IntegrationTests;
 
-public sealed class RrsetManagementTests : IAsyncLifetime
+public sealed class RrsetManagementTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
-    private readonly PostgresFixture postgres = new();
-    public Task InitializeAsync() => postgres.InitializeAsync();
-    public Task DisposeAsync() => postgres.DisposeAsync();
 
     [Fact]
     public async Task RecordReplacementAndScopedReadPreserveTheRestOfTheZone()

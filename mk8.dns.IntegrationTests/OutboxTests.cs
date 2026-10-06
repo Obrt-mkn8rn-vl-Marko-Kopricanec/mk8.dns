@@ -6,11 +6,8 @@ using Xunit;
 
 namespace Mk8.Dns.IntegrationTests;
 
-public sealed class OutboxTests : IAsyncLifetime
+public sealed class OutboxTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
-    private readonly PostgresFixture postgres = new();
-    public Task InitializeAsync() => postgres.InitializeAsync();
-    public Task DisposeAsync() => postgres.DisposeAsync();
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

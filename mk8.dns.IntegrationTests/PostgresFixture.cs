@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Mk8.Dns.IntegrationTests;
 
-internal sealed class PostgresFixture : IAsyncLifetime
+public sealed class PostgresFixture : IAsyncLifetime
 {
     private const string Bin = "/usr/lib/postgresql/17/bin/";
     private string? root;
@@ -43,6 +43,30 @@ internal sealed class PostgresFixture : IAsyncLifetime
         return builder.ConnectionString;
     }
 
+    [Fact]
+    public async Task ClusterUsesPrivateSocketsAndSynchronousStorage()
+    {
+        if (!OperatingSystem.IsLinux())
+            throw new PlatformNotSupportedException("The PostgreSQL integration profile requires Linux.");
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(root!));
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(Path.Combine(root!, ".s.PGSQL.5432")));
+        var connection = new NpgsqlConnection(await ResetDatabaseAsync().ConfigureAwait(true));
+        await using (connection.ConfigureAwait(true))
+        {
+            await connection.OpenAsync().ConfigureAwait(true);
+            using var command = new NpgsqlCommand("SELECT current_setting('listen_addresses'), current_setting('fsync')::boolean, current_setting('full_page_writes')::boolean, current_setting('synchronous_commit')", connection);
+            var reader = await command.ExecuteReaderAsync().ConfigureAwait(true);
+            await using (reader.ConfigureAwait(true))
+            {
+                Assert.True(await reader.ReadAsync().ConfigureAwait(true));
+                Assert.Equal(string.Empty, reader.GetString(0));
+                Assert.True(reader.GetBoolean(1));
+                Assert.True(reader.GetBoolean(2));
+                Assert.Equal("on", reader.GetString(3));
+            }
+        }
+    }
+
     public async Task DisposeAsync()
     {
         if (root is null)
@@ -64,7 +88,7 @@ internal sealed class PostgresFixture : IAsyncLifetime
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start the owned PostgreSQL development process.");
         var output = process.StandardOutput.ReadToEndAsync();
         var errors = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         try
         {
             await process.WaitForExitAsync(timeout.Token).ConfigureAwait(true);
