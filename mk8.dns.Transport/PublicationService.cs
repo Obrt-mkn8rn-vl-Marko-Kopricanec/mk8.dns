@@ -7,14 +7,18 @@ using Mk8.Dns.Contracts;
 
 namespace Mk8.Dns.Transport;
 
-internal sealed class PublicationService(IZonePublication source) : ZonePublication.ZonePublicationBase, IDisposable
+internal sealed class PublicationService(IZonePublication source) : ZonePublication.ZonePublicationBase
 {
-    private readonly SemaphoreSlim admission = new(4, 4);
+    private int active;
 
     public override async Task<ControlFrame> Execute(ControlFrame request, ServerCallContext context)
     {
-        if (!await admission.WaitAsync(0, context.CancellationToken).ConfigureAwait(false))
+        context.CancellationToken.ThrowIfCancellationRequested();
+        if (Interlocked.Increment(ref active) > 4)
+        {
+            _ = Interlocked.Decrement(ref active);
             throw new RpcException(new Status(StatusCode.ResourceExhausted, "Publication admission is full."));
+        }
         try
         {
             ControlErrors.Validate(request, ControlHostingExtensions.MaximumPublicationBytes);
@@ -30,9 +34,7 @@ internal sealed class PublicationService(IZonePublication source) : ZonePublicat
         }
         finally
         {
-            admission.Release();
+            _ = Interlocked.Decrement(ref active);
         }
     }
-
-    public void Dispose() => admission.Dispose();
 }

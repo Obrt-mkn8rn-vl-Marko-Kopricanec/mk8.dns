@@ -7,14 +7,18 @@ using Mk8.Dns.Contracts;
 
 namespace Mk8.Dns.Transport;
 
-internal sealed class ManagementService(IZoneManagement source) : ZoneManagement.ZoneManagementBase, IDisposable
+internal sealed class ManagementService(IZoneManagement source) : ZoneManagement.ZoneManagementBase
 {
-    private readonly SemaphoreSlim admission = new(4, 4);
+    private int active;
 
     public override async Task<ControlFrame> Execute(ControlFrame request, ServerCallContext context)
     {
-        if (!await admission.WaitAsync(0, context.CancellationToken).ConfigureAwait(false))
+        context.CancellationToken.ThrowIfCancellationRequested();
+        if (Interlocked.Increment(ref active) > 4)
+        {
+            _ = Interlocked.Decrement(ref active);
             throw new RpcException(new Status(StatusCode.ResourceExhausted, "Management admission is full."));
+        }
         try
         {
             ControlErrors.Validate(request, ControlHostingExtensions.MaximumManagementBytes);
@@ -28,9 +32,7 @@ internal sealed class ManagementService(IZoneManagement source) : ZoneManagement
         }
         finally
         {
-            admission.Release();
+            _ = Interlocked.Decrement(ref active);
         }
     }
-
-    public void Dispose() => admission.Dispose();
 }

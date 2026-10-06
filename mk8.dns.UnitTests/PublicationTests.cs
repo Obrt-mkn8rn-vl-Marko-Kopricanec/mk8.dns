@@ -106,6 +106,22 @@ public sealed class PublicationTests
         _ = Assert.Throws<InvalidOperationException>(() => fixture.Verifier.Sign("body"u8));
     }
 
+    [Theory]
+    [InlineData("incomplete-marker")]
+    [InlineData("mixed-key-blocks")]
+    public async Task PublicKeyProfileRejectsPrivateKeyWithMisleadingPublicMarker(string layout)
+    {
+        var fixture = new PublicationFixture();
+        await using var fixtureLifetime = fixture.ConfigureAwait(true);
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var privateKey = key.ExportPkcs8PrivateKeyPem();
+        var pem = string.Equals(layout, "incomplete-marker", StringComparison.Ordinal)
+            ? privateKey + "\n-----BEGIN PUBLIC KEY-----"
+            : fixture.PublicKey + "\n" + privateKey;
+        var scope = new Dictionary<Guid, DnsName> { [PublicationFixture.ZoneId] = DnsName.Parse("example.") };
+        _ = Assert.Throws<ArgumentException>(() => new P256PublicationAuthenticator(PublicationFixture.Epoch, PublicationFixture.Node, scope, pem, canSign: false));
+    }
+
     [Fact]
     public async Task SignedPayloadStillRequiresAuthoritativeAdmission()
     {

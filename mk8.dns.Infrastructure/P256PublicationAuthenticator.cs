@@ -19,8 +19,8 @@ public sealed class P256PublicationAuthenticator : IPublicationAuthenticator, ID
         ArgumentNullException.ThrowIfNull(zones);
         ArgumentException.ThrowIfNullOrEmpty(node);
         ArgumentException.ThrowIfNullOrEmpty(pem);
-        if (!canSign && !pem.Contains("-----BEGIN PUBLIC KEY-----", StringComparison.Ordinal))
-            throw new ArgumentException("A serving replica requires a public publisher key.", nameof(pem));
+        if (!canSign)
+            RequirePublicKeyOnly(pem);
         if (epoch == Guid.Empty || node.Length > 128 || node.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not '-' and not '_')
             || zones.Count is 0 or > 64 || zones.Any(pair => pair.Key == Guid.Empty || pair.Value is null))
             throw new ArgumentException("Invalid publisher trust scope.", nameof(zones));
@@ -138,5 +138,13 @@ public sealed class P256PublicationAuthenticator : IPublicationAuthenticator, ID
     {
         if (!zones.TryGetValue(id, out var expected) || !expected.Equals(origin))
             throw new UnauthorizedAccessException("Publication zone is outside this node's configured scope.");
+    }
+
+    private static void RequirePublicKeyOnly(string pem)
+    {
+        if (!PemEncoding.TryFind(pem, out var fields) || !pem.AsSpan()[fields.Label].SequenceEqual("PUBLIC KEY")
+            || !pem.AsSpan()[..fields.Location.Start.GetOffset(pem.Length)].Trim().IsEmpty
+            || !pem.AsSpan()[fields.Location.End.GetOffset(pem.Length)..].Trim().IsEmpty)
+            throw new ArgumentException("A serving replica requires exactly one public publisher key PEM block.", nameof(pem));
     }
 }
