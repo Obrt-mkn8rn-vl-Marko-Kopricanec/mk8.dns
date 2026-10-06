@@ -118,7 +118,8 @@ public sealed class PublicationHostTests : IAsyncLifetime
     private static async Task<ManagementReply> EditWithOperatorAsync(HostConfiguration configuration, ManagementRequest request, CancellationToken token)
     {
         var path = Path.Combine(configuration.Root, "request.json");
-        await WritePrivateAsync(path, JsonSerializer.SerializeToUtf8Bytes(request with { Credential = ReadOnlyMemory<byte>.Empty })).ConfigureAwait(true);
+        // Exercise an existing full-edit request file without the new optional RRset fields.
+        await WritePrivateAsync(path, JsonSerializer.SerializeToUtf8Bytes(new { request.Action, request.TenantId, request.ZoneId, request.OperationId, request.ExpectedRevision, request.Origin, request.Records, Credential = ReadOnlyMemory<byte>.Empty })).ConfigureAwait(true);
         var process = new HostProcess("mk8.dns.Operator", ["--socket", configuration.ControlSocket, "--request", path, "--credential", configuration.CredentialFile], Port());
         await using var lifetime = process.ConfigureAwait(true);
         while (!process.HasExited)
@@ -141,7 +142,8 @@ public sealed class PublicationHostTests : IAsyncLifetime
         using var client = new UnixApplicationClient(path);
         while (true)
         {
-            Assert.False(process.HasExited);
+            if (process.HasExited)
+                Assert.Fail(await process.ReadLogsAsync(token).ConfigureAwait(true));
             try
             {
                 Assert.Equal(role, (await client.GetStatusAsync(ProtocolVersion.Current, token).ConfigureAwait(true)).Role);

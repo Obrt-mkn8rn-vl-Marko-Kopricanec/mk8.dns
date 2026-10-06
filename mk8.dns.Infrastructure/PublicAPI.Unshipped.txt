@@ -41,3 +41,25 @@ override Mk8.Dns.Infrastructure.ManagementGrant.GetHashCode() -> int
 override Mk8.Dns.Infrastructure.ManagementGrant.ToString() -> string!
 static Mk8.Dns.Infrastructure.ManagementGrant.operator !=(Mk8.Dns.Infrastructure.ManagementGrant? left, Mk8.Dns.Infrastructure.ManagementGrant? right) -> bool
 static Mk8.Dns.Infrastructure.ManagementGrant.operator ==(Mk8.Dns.Infrastructure.ManagementGrant? left, Mk8.Dns.Infrastructure.ManagementGrant? right) -> bool
+Mk8.Dns.Infrastructure.ManagementRecordScope
+override Mk8.Dns.Infrastructure.ManagementRecordScope.ToString() -> string!
+static Mk8.Dns.Infrastructure.ManagementRecordScope.operator !=(Mk8.Dns.Infrastructure.ManagementRecordScope? left, Mk8.Dns.Infrastructure.ManagementRecordScope? right) -> bool
+static Mk8.Dns.Infrastructure.ManagementRecordScope.operator ==(Mk8.Dns.Infrastructure.ManagementRecordScope? left, Mk8.Dns.Infrastructure.ManagementRecordScope? right) -> bool
+override Mk8.Dns.Infrastructure.ManagementRecordScope.GetHashCode() -> int
+override Mk8.Dns.Infrastructure.ManagementRecordScope.Equals(object? obj) -> bool
+Mk8.Dns.Infrastructure.ManagementRecordScope.Equals(Mk8.Dns.Infrastructure.ManagementRecordScope? other) -> bool
+Mk8.Dns.Infrastructure.ManagementRecordScope.<Clone>$() -> Mk8.Dns.Infrastructure.ManagementRecordScope!
+Mk8.Dns.Infrastructure.ManagementRecordScope.Deconstruct(out Mk8.Dns.Domain.DnsName! Owner, out ushort Type) -> void
+Mk8.Dns.Infrastructure.ManagementRecordScope.Owner.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Infrastructure.ManagementRecordScope.Owner.init -> void
+Mk8.Dns.Infrastructure.ManagementRecordScope.Type.get -> ushort
+Mk8.Dns.Infrastructure.ManagementRecordScope.Type.init -> void
+Mk8.Dns.Infrastructure.ManagementGrant.Profile.get -> string!
+Mk8.Dns.Infrastructure.ManagementGrant.Profile.init -> void
+Mk8.Dns.Infrastructure.ManagementGrant.Actions.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Mk8.Dns.Infrastructure.ManagementGrant.Actions.init -> void
+Mk8.Dns.Infrastructure.ManagementGrant.RecordScopes.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Infrastructure.ManagementRecordScope!>!
+Mk8.Dns.Infrastructure.ManagementGrant.RecordScopes.init -> void
+Mk8.Dns.Infrastructure.ManagementRecordScope.ManagementRecordScope(Mk8.Dns.Domain.DnsName! Owner, ushort Type) -> void
+Mk8.Dns.Infrastructure.ScopedManagementAuthorizer.AuthorizeOperation(Mk8.Dns.Contracts.ManagementRequest! request, string! operationActor) -> void
+Mk8.Dns.Infrastructure.ScopedManagementAuthorizer.AuthorizeZone(Mk8.Dns.Contracts.ManagementRequest! request, Mk8.Dns.Domain.AuthoritativeZone! zone) -> void

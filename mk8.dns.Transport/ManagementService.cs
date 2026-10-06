@@ -21,10 +21,12 @@ internal sealed class ManagementService(IZoneManagement source) : ZoneManagement
         }
         try
         {
-            ControlErrors.Validate(request, ControlHostingExtensions.MaximumManagementBytes);
+            ControlErrors.Validate(request, ControlHostingExtensions.MaximumManagementBytes, ProtocolVersion.Management);
             var command = JsonSerializer.Deserialize(request.Payload.Span, ControlJsonContext.Default.ManagementRequest) ?? throw new JsonException();
             var reply = await source.ExecuteAsync(command, context.CancellationToken).ConfigureAwait(false);
-            return new ControlFrame { ProtocolVersion = ProtocolVersion.Current, Payload = ByteString.CopyFrom(JsonSerializer.SerializeToUtf8Bytes(reply, ControlJsonContext.Default.ManagementReply)) };
+            var response = new ControlFrame { ProtocolVersion = ProtocolVersion.Management, Payload = ByteString.CopyFrom(JsonSerializer.SerializeToUtf8Bytes(reply, ControlJsonContext.Default.ManagementReply)) };
+            ControlErrors.Validate(response, ControlHostingExtensions.MaximumManagementBytes, ProtocolVersion.Management);
+            return response;
         }
         catch (Exception exception) when (ControlErrors.IsContractFailure(exception))
         {

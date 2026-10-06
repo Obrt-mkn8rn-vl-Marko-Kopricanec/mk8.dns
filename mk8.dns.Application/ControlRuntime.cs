@@ -50,7 +50,7 @@ internal sealed class ControlRuntime : IAsyncDisposable
     {
         if (configuration.ConnectionStringFile is null || configuration.PublicationSocket is null || configuration.Grants is not { Length: > 0 and <= 64 })
             throw new InvalidDataException("Controller database, target and management grants are required.");
-        var grants = configuration.Grants.Select(grant => new ManagementGrant(grant.TenantId, grant.ZoneId, DnsName.Parse(grant.Origin), grant.Actor, grant.Expires, grant.CredentialHash)).ToArray();
+        var grants = configuration.Grants.Select(CreateGrant).ToArray();
         if (grants.Any(grant => !zones.TryGetValue(grant.ZoneId, out var origin) || !origin.Equals(grant.Origin)))
             throw new InvalidDataException("Management grants exceed the publisher scope.");
         store = new PostgresControlPlaneStore(Encoding.UTF8.GetString(PrivateFile.Read(configuration.ConnectionStringFile, 4096)));
@@ -58,6 +58,20 @@ internal sealed class ControlRuntime : IAsyncDisposable
         Management = new ZoneManagementApplication(store, new ScopedManagementAuthorizer(grants, TimeProvider.System), codec, configuration.TargetNode);
         client = new UnixControlClient(configuration.PublicationSocket);
         publisher = new OutboxPublisher(store, identity, client);
+    }
+
+    private static ManagementGrant CreateGrant(GrantConfiguration grant)
+    {
+        var actions = grant.Actions ?? (grant.Profile is "zone" ? ["edit", "patch", "read", "status"] : Array.Empty<string>());
+        var scopes = grant.RecordScopes ?? Array.Empty<RecordScopeConfiguration>();
+        if (scopes.Length > 64 || actions.Length is 0 or > 4)
+            throw new InvalidDataException("Invalid management grant bounds.");
+        return new ManagementGrant(grant.TenantId, grant.ZoneId, DnsName.Parse(grant.Origin), grant.Actor, grant.Expires, grant.CredentialHash)
+        {
+            Profile = grant.Profile,
+            Actions = actions,
+            RecordScopes = scopes.Select(scope => new ManagementRecordScope(DnsName.Parse(scope.Owner), scope.Type)).ToArray(),
+        };
     }
 
     private async ValueTask InitializeReplicaAsync(ApplicationSettings settings, ControlConfiguration configuration, FileZoneSnapshotStore snapshots, Dictionary<Guid, DnsName> zones, ZoneBundleAdapter codec, P256PublicationAuthenticator identity)

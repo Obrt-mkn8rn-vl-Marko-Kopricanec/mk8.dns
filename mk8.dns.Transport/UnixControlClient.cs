@@ -41,7 +41,7 @@ public sealed class UnixControlClient : IZoneManagement, IZonePublication, IDisp
         {
             HttpHandler = handler,
             DisposeHttpClient = true,
-            MaxReceiveMessageSize = ProtocolVersion.MaximumMessageBytes,
+            MaxReceiveMessageSize = ControlHostingExtensions.MaximumManagementBytes,
             MaxSendMessageSize = ControlHostingExtensions.MaximumManagementBytes,
         });
         management = new ZoneManagement.ZoneManagementClient(channel);
@@ -51,10 +51,10 @@ public sealed class UnixControlClient : IZoneManagement, IZonePublication, IDisp
     public async ValueTask<ManagementReply> ExecuteAsync(ManagementRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var frame = Frame(JsonSerializer.SerializeToUtf8Bytes(request, ControlJsonContext.Default.ManagementRequest), ControlHostingExtensions.MaximumManagementBytes);
+        var frame = Frame(JsonSerializer.SerializeToUtf8Bytes(request, ControlJsonContext.Default.ManagementRequest), ControlHostingExtensions.MaximumManagementBytes, ProtocolVersion.Management);
         using var call = management.ExecuteAsync(frame, deadline: DateTime.UtcNow.AddSeconds(15), cancellationToken: cancellationToken);
         var reply = await call.ResponseAsync.ConfigureAwait(false);
-        ControlErrors.Validate(reply, ProtocolVersion.MaximumMessageBytes);
+        ControlErrors.Validate(reply, ControlHostingExtensions.MaximumManagementBytes, ProtocolVersion.Management);
         return JsonSerializer.Deserialize(reply.Payload.Span, ControlJsonContext.Default.ManagementReply) ?? throw new RpcException(new Status(StatusCode.Internal, "Empty management reply."));
     }
 
@@ -70,10 +70,10 @@ public sealed class UnixControlClient : IZoneManagement, IZonePublication, IDisp
 
     public void Dispose() => channel.Dispose();
 
-    private static ControlFrame Frame(byte[] payload, int maximum)
+    private static ControlFrame Frame(byte[] payload, int maximum, uint version = ProtocolVersion.Current)
     {
         if (payload.Length > maximum - 32)
             throw new ArgumentException("Control request exceeds its message bound.", nameof(payload));
-        return new ControlFrame { ProtocolVersion = ProtocolVersion.Current, Payload = ByteString.CopyFrom(payload) };
+        return new ControlFrame { ProtocolVersion = version, Payload = ByteString.CopyFrom(payload) };
     }
 }

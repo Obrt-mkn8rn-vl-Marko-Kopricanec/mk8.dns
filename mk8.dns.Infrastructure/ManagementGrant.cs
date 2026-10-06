@@ -5,4 +5,9 @@ using Mk8.Dns.Domain;
 
 namespace Mk8.Dns.Infrastructure;
 
-public sealed record ManagementGrant(Guid TenantId, Guid ZoneId, DnsName Origin, string Actor, DateTimeOffset Expires, ReadOnlyMemory<byte> CredentialHash);
+public sealed record ManagementGrant(Guid TenantId, Guid ZoneId, DnsName Origin, string Actor, DateTimeOffset Expires, ReadOnlyMemory<byte> CredentialHash)
+{
+    public string Profile { get; init; } = "zone";
+    public IReadOnlyList<string> Actions { get; init; } = ["edit", "patch", "read", "status"];
+    public IReadOnlyList<ManagementRecordScope> RecordScopes { get; init; } = Array.Empty<ManagementRecordScope>();
+}

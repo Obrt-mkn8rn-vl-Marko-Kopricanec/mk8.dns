@@ -9,9 +9,9 @@ namespace Mk8.Dns.Transport;
 
 internal static class ControlErrors
 {
-    internal static void Validate(ControlFrame request, int maximum)
+    internal static void Validate(ControlFrame request, int maximum, uint version = ProtocolVersion.Current)
     {
-        if (request.ProtocolVersion != ProtocolVersion.Current)
+        if (request.ProtocolVersion != version)
             throw new RpcException(new Status(StatusCode.FailedPrecondition, "Unsupported control protocol version."));
         if (request.Payload.Length == 0 || request.Payload.Length > maximum - 32)
             throw new ArgumentException("Invalid control message bounds.", nameof(request));

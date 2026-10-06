@@ -20,7 +20,7 @@ public static class ControlHostingExtensions
         services.AddGrpc().AddServiceOptions<ManagementService>(options =>
         {
             options.MaxReceiveMessageSize = MaximumManagementBytes;
-            options.MaxSendMessageSize = ProtocolVersion.MaximumMessageBytes;
+            options.MaxSendMessageSize = MaximumManagementBytes;
             options.EnableDetailedErrors = false;
         });
         services.AddSingleton(source);

@@ -6,4 +6,6 @@ namespace Mk8.Dns.Application.Abstractions;
 public interface IManagementAuthorizer
 {
     string Authorize(ManagementRequest request);
+    void AuthorizeOperation(ManagementRequest request, string operationActor);
+    void AuthorizeZone(ManagementRequest request, AuthoritativeZone zone);
 }

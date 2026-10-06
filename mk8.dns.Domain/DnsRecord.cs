@@ -34,7 +34,7 @@ public sealed class DnsRecord
     public byte[] GetData() => (byte[])data.Clone();
     public byte[] GetOwnerWire() => (byte[])ownerWire.Clone();
 
-    internal byte[] GetCanonicalData()
+    public byte[] GetCanonicalData()
     {
         var copy = GetData();
         var offset = Type == 15 ? 2 : Type == 33 ? 6 : Type is 64 or 65 ? 2 : 0;

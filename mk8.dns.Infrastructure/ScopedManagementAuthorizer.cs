@@ -14,13 +14,41 @@ public sealed class ScopedManagementAuthorizer : IManagementAuthorizer
     {
         ArgumentNullException.ThrowIfNull(grants);
         ArgumentNullException.ThrowIfNull(time);
-        this.grants = grants.Select(grant => grant with { CredentialHash = grant.CredentialHash.ToArray() }).Take(65).ToArray();
-        if (this.grants.Length is 0 or > 64 || this.grants.Any(grant => grant.TenantId == Guid.Empty || grant.ZoneId == Guid.Empty || string.IsNullOrWhiteSpace(grant.Actor) || grant.Actor.Length > 128 || grant.CredentialHash.Length != 32))
+        this.grants = grants.Take(65).Select(ManagementGrantPolicy.Freeze).ToArray();
+        if (this.grants.Length is 0 or > 64
+            || this.grants.GroupBy(grant => (grant.TenantId, grant.ZoneId, grant.Actor)).Any(group => group.Count() != 1)
+            || this.grants.GroupBy(grant => (grant.TenantId, grant.ZoneId, Hash: Convert.ToHexString(grant.CredentialHash.Span))).Any(group => group.Count() != 1))
             throw new ArgumentException("Invalid scoped management grants.", nameof(grants));
         this.time = time;
     }
 
     public string Authorize(ManagementRequest request)
+    {
+        var grant = FindGrant(request);
+        ManagementGrantPolicy.RequireRequest(grant, request);
+        return grant.Actor;
+    }
+
+    public void AuthorizeOperation(ManagementRequest request, string operationActor)
+    {
+        var grant = FindGrant(request);
+        ManagementGrantPolicy.RequireRequest(grant, request);
+        if (!string.Equals(grant.Profile, "zone", StringComparison.Ordinal) && !string.Equals(grant.Actor, operationActor, StringComparison.Ordinal))
+            throw new UnauthorizedAccessException("Management authorization failed.");
+    }
+
+    public void AuthorizeZone(ManagementRequest request, AuthoritativeZone zone)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+        var grant = FindGrant(request);
+        ManagementGrantPolicy.RequireRequest(grant, request);
+        if (!zone.Origin.Equals(grant.Origin))
+            throw new UnauthorizedAccessException("Management authorization failed.");
+        if (grant.Profile is "acme")
+            ManagementGrantPolicy.RequireChallengeAuthority(request, zone);
+    }
+
+    private ManagementGrant FindGrant(ManagementRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.Credential is not { Length: 32 } || request.Origin is not { Length: > 0 and <= 255 })
@@ -29,6 +57,6 @@ public sealed class ScopedManagementAuthorizer : IManagementAuthorizer
         var hash = SHA256.HashData(request.Credential.Span);
         var grant = grants.FirstOrDefault(item => item.TenantId == request.TenantId && item.ZoneId == request.ZoneId && item.Origin.Equals(origin)
             && item.Expires > time.GetUtcNow() && CryptographicOperations.FixedTimeEquals(item.CredentialHash.Span, hash));
-        return grant?.Actor ?? throw new UnauthorizedAccessException("Management authorization failed.");
+        return grant ?? throw new UnauthorizedAccessException("Management authorization failed.");
     }
 }

@@ -116,3 +116,4 @@ static Mk8.Dns.Domain.ZoneOperation.operator !=(Mk8.Dns.Domain.ZoneOperation? le
 static Mk8.Dns.Domain.ZoneOperation.operator ==(Mk8.Dns.Domain.ZoneOperation? left, Mk8.Dns.Domain.ZoneOperation? right) -> bool
 static Mk8.Dns.Domain.ZoneOwnership.operator !=(Mk8.Dns.Domain.ZoneOwnership? left, Mk8.Dns.Domain.ZoneOwnership? right) -> bool
 static Mk8.Dns.Domain.ZoneOwnership.operator ==(Mk8.Dns.Domain.ZoneOwnership? left, Mk8.Dns.Domain.ZoneOwnership? right) -> bool
+Mk8.Dns.Domain.DnsRecord.GetCanonicalData() -> byte[]!
