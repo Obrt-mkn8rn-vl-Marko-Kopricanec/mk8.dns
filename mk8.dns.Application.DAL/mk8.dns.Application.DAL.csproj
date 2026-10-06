@@ -3,6 +3,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Npgsql" />
     <ProjectReference Include="../mk8.dns.Application.Abstractions/mk8.dns.Application.Abstractions.csproj" />
   </ItemGroup>
 </Project>

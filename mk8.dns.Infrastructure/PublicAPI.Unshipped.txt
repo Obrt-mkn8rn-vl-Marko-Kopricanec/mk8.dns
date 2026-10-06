@@ -4,3 +4,40 @@ Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.Decode(System.ReadOnlySpan<byte> m
 Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.DnsMessageCodecAdapter() -> void
 Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp) -> byte[]!
 Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.EncodeError(System.ReadOnlySpan<byte> message, byte code) -> byte[]!
+Mk8.Dns.Infrastructure.ManagementGrant
+Mk8.Dns.Infrastructure.ManagementGrant.<Clone>$() -> Mk8.Dns.Infrastructure.ManagementGrant!
+Mk8.Dns.Infrastructure.ManagementGrant.Actor.get -> string!
+Mk8.Dns.Infrastructure.ManagementGrant.Actor.init -> void
+Mk8.Dns.Infrastructure.ManagementGrant.CredentialHash.get -> System.ReadOnlyMemory<byte>
+Mk8.Dns.Infrastructure.ManagementGrant.CredentialHash.init -> void
+Mk8.Dns.Infrastructure.ManagementGrant.Deconstruct(out System.Guid TenantId, out System.Guid ZoneId, out Mk8.Dns.Domain.DnsName! Origin, out string! Actor, out System.DateTimeOffset Expires, out System.ReadOnlyMemory<byte> CredentialHash) -> void
+Mk8.Dns.Infrastructure.ManagementGrant.Equals(Mk8.Dns.Infrastructure.ManagementGrant? other) -> bool
+Mk8.Dns.Infrastructure.ManagementGrant.Expires.get -> System.DateTimeOffset
+Mk8.Dns.Infrastructure.ManagementGrant.Expires.init -> void
+Mk8.Dns.Infrastructure.ManagementGrant.ManagementGrant(System.Guid TenantId, System.Guid ZoneId, Mk8.Dns.Domain.DnsName! Origin, string! Actor, System.DateTimeOffset Expires, System.ReadOnlyMemory<byte> CredentialHash) -> void
+Mk8.Dns.Infrastructure.ManagementGrant.Origin.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Infrastructure.ManagementGrant.Origin.init -> void
+Mk8.Dns.Infrastructure.ManagementGrant.TenantId.get -> System.Guid
+Mk8.Dns.Infrastructure.ManagementGrant.TenantId.init -> void
+Mk8.Dns.Infrastructure.ManagementGrant.ZoneId.get -> System.Guid
+Mk8.Dns.Infrastructure.ManagementGrant.ZoneId.init -> void
+Mk8.Dns.Infrastructure.P256PublicationAuthenticator
+Mk8.Dns.Infrastructure.P256PublicationAuthenticator.CreateBody(Mk8.Dns.Domain.ZoneSnapshot! snapshot) -> byte[]!
+Mk8.Dns.Infrastructure.P256PublicationAuthenticator.Dispose() -> void
+Mk8.Dns.Infrastructure.P256PublicationAuthenticator.P256PublicationAuthenticator(System.Guid epoch, string! node, System.Collections.Generic.IReadOnlyDictionary<System.Guid, Mk8.Dns.Domain.DnsName!>! zones, string! pem, bool canSign) -> void
+Mk8.Dns.Infrastructure.P256PublicationAuthenticator.Sign(System.ReadOnlySpan<byte> body) -> byte[]!
+Mk8.Dns.Infrastructure.P256PublicationAuthenticator.SignActivation(string! publicationId) -> byte[]!
+Mk8.Dns.Infrastructure.P256PublicationAuthenticator.Verify(System.ReadOnlySpan<byte> body, System.ReadOnlySpan<byte> signature) -> Mk8.Dns.Domain.ZoneSnapshot!
+Mk8.Dns.Infrastructure.P256PublicationAuthenticator.VerifyActivation(string! publicationId, System.ReadOnlySpan<byte> signature) -> void
+Mk8.Dns.Infrastructure.ScopedManagementAuthorizer
+Mk8.Dns.Infrastructure.ScopedManagementAuthorizer.Authorize(Mk8.Dns.Contracts.ManagementRequest! request) -> string!
+Mk8.Dns.Infrastructure.ScopedManagementAuthorizer.ScopedManagementAuthorizer(System.Collections.Generic.IEnumerable<Mk8.Dns.Infrastructure.ManagementGrant!>! grants, System.TimeProvider! time) -> void
+Mk8.Dns.Infrastructure.ZoneBundleAdapter
+Mk8.Dns.Infrastructure.ZoneBundleAdapter.Compile(System.Guid zoneId, long revision, Mk8.Dns.Domain.AuthoritativeZone! zone) -> Mk8.Dns.Domain.ZoneSnapshot!
+Mk8.Dns.Infrastructure.ZoneBundleAdapter.Decode(Mk8.Dns.Domain.ZoneSnapshot! snapshot) -> Mk8.Dns.Domain.AuthoritativeZone!
+Mk8.Dns.Infrastructure.ZoneBundleAdapter.ZoneBundleAdapter() -> void
+override Mk8.Dns.Infrastructure.ManagementGrant.Equals(object? obj) -> bool
+override Mk8.Dns.Infrastructure.ManagementGrant.GetHashCode() -> int
+override Mk8.Dns.Infrastructure.ManagementGrant.ToString() -> string!
+static Mk8.Dns.Infrastructure.ManagementGrant.operator !=(Mk8.Dns.Infrastructure.ManagementGrant? left, Mk8.Dns.Infrastructure.ManagementGrant? right) -> bool
+static Mk8.Dns.Infrastructure.ManagementGrant.operator ==(Mk8.Dns.Infrastructure.ManagementGrant? left, Mk8.Dns.Infrastructure.ManagementGrant? right) -> bool

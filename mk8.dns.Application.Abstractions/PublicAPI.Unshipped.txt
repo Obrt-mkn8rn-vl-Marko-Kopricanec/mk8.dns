@@ -1,9 +1,36 @@
 #nullable enable
+Mk8.Dns.Application.Abstractions.IControlPlaneStore
+Mk8.Dns.Application.Abstractions.IControlPlaneStore.BeginAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Application.Abstractions.IControlTransaction!>
+Mk8.Dns.Application.Abstractions.IControlPlaneStore.MarkActivatedAsync(Mk8.Dns.Domain.ZoneOperation! operation, Mk8.Dns.Contracts.PublicationReply! receipt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Application.Abstractions.IControlPlaneStore.ReadPendingAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.ZoneOperation?>
+Mk8.Dns.Application.Abstractions.IControlTransaction
+Mk8.Dns.Application.Abstractions.IControlTransaction.AppendAsync(Mk8.Dns.Domain.ZoneOperation! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Application.Abstractions.IControlTransaction.CommitAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Application.Abstractions.IControlTransaction.ReadOperationAsync(System.Guid tenantId, System.Guid operationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.ZoneOperation?>
+Mk8.Dns.Application.Abstractions.IControlTransaction.ReadOwnershipAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.ZoneOwnership!>!>
+Mk8.Dns.Application.Abstractions.IControlTransaction.ReadZoneAsync(System.Guid tenantId, System.Guid zoneId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.ZoneSnapshot?>
 Mk8.Dns.Application.Abstractions.IDnsMessageCodec
 Mk8.Dns.Application.Abstractions.IDnsMessageCodec.Decode(System.ReadOnlySpan<byte> message) -> Mk8.Dns.Domain.DnsQuery!
 Mk8.Dns.Application.Abstractions.IDnsMessageCodec.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp) -> byte[]!
 Mk8.Dns.Application.Abstractions.IDnsMessageCodec.EncodeError(System.ReadOnlySpan<byte> message, byte code) -> byte[]!
+Mk8.Dns.Application.Abstractions.IManagementAuthorizer
+Mk8.Dns.Application.Abstractions.IManagementAuthorizer.Authorize(Mk8.Dns.Contracts.ManagementRequest! request) -> string!
+Mk8.Dns.Application.Abstractions.IPublicationAuthenticator
+Mk8.Dns.Application.Abstractions.IPublicationAuthenticator.CreateBody(Mk8.Dns.Domain.ZoneSnapshot! snapshot) -> byte[]!
+Mk8.Dns.Application.Abstractions.IPublicationAuthenticator.Sign(System.ReadOnlySpan<byte> body) -> byte[]!
+Mk8.Dns.Application.Abstractions.IPublicationAuthenticator.SignActivation(string! publicationId) -> byte[]!
+Mk8.Dns.Application.Abstractions.IPublicationAuthenticator.Verify(System.ReadOnlySpan<byte> body, System.ReadOnlySpan<byte> signature) -> Mk8.Dns.Domain.ZoneSnapshot!
+Mk8.Dns.Application.Abstractions.IPublicationAuthenticator.VerifyActivation(string! publicationId, System.ReadOnlySpan<byte> signature) -> void
+Mk8.Dns.Application.Abstractions.IPublicationJournal
+Mk8.Dns.Application.Abstractions.IPublicationJournal.ReadAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.PublicationRequest!>
+Mk8.Dns.Application.Abstractions.IPublicationJournal.SaveAsync(string! id, System.ReadOnlyMemory<byte> body, System.ReadOnlyMemory<byte> signature, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Application.Abstractions.IZoneBundleCodec
+Mk8.Dns.Application.Abstractions.IZoneBundleCodec.Compile(System.Guid zoneId, long revision, Mk8.Dns.Domain.AuthoritativeZone! zone) -> Mk8.Dns.Domain.ZoneSnapshot!
+Mk8.Dns.Application.Abstractions.IZoneBundleCodec.Decode(Mk8.Dns.Domain.ZoneSnapshot! snapshot) -> Mk8.Dns.Domain.AuthoritativeZone!
 Mk8.Dns.Application.Abstractions.IZoneSnapshotStore
 Mk8.Dns.Application.Abstractions.IZoneSnapshotStore.ActivateAsync(Mk8.Dns.Domain.ZoneSnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Mk8.Dns.Application.Abstractions.IZoneSnapshotStore.CountActiveAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<uint>
 Mk8.Dns.Application.Abstractions.IZoneSnapshotStore.ReadActiveAsync(System.Guid zoneId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.ZoneSnapshot?>
+Mk8.Dns.Application.Abstractions.IPublicationJournal.ReadActivatedIdsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<string!>!>
+Mk8.Dns.Application.Abstractions.IPublicationJournal.ReadActivationSignatureAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<byte[]!>
+Mk8.Dns.Application.Abstractions.IPublicationJournal.RecordActivationAsync(string! id, System.ReadOnlyMemory<byte> signature, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask

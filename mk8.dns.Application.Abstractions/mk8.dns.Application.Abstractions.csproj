@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../mk8.dns.Domain/mk8.dns.Domain.csproj" />
+    <ProjectReference Include="../mk8.dns.Contracts/mk8.dns.Contracts.csproj" />
   </ItemGroup>
 </Project>

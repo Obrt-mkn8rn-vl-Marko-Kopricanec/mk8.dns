@@ -76,3 +76,43 @@ static Mk8.Dns.Domain.DnsQuestion.operator !=(Mk8.Dns.Domain.DnsQuestion? left, 
 static Mk8.Dns.Domain.DnsQuestion.operator ==(Mk8.Dns.Domain.DnsQuestion? left, Mk8.Dns.Domain.DnsQuestion? right) -> bool
 static Mk8.Dns.Domain.SoaSerial.IsNewer(uint candidate, uint current) -> bool
 static Mk8.Dns.Domain.SoaSerial.Next(uint serial) -> uint
+Mk8.Dns.Domain.ZoneOperation
+Mk8.Dns.Domain.ZoneOperation.<Clone>$() -> Mk8.Dns.Domain.ZoneOperation!
+Mk8.Dns.Domain.ZoneOperation.Activated.get -> bool
+Mk8.Dns.Domain.ZoneOperation.Activated.init -> void
+Mk8.Dns.Domain.ZoneOperation.Actor.get -> string!
+Mk8.Dns.Domain.ZoneOperation.Actor.init -> void
+Mk8.Dns.Domain.ZoneOperation.Deconstruct(out System.Guid TenantId, out System.Guid OperationId, out string! Fingerprint, out string! Actor, out string! TargetNode, out Mk8.Dns.Domain.ZoneSnapshot! Snapshot, out bool Activated) -> void
+Mk8.Dns.Domain.ZoneOperation.Equals(Mk8.Dns.Domain.ZoneOperation? other) -> bool
+Mk8.Dns.Domain.ZoneOperation.Fingerprint.get -> string!
+Mk8.Dns.Domain.ZoneOperation.Fingerprint.init -> void
+Mk8.Dns.Domain.ZoneOperation.OperationId.get -> System.Guid
+Mk8.Dns.Domain.ZoneOperation.OperationId.init -> void
+Mk8.Dns.Domain.ZoneOperation.Snapshot.get -> Mk8.Dns.Domain.ZoneSnapshot!
+Mk8.Dns.Domain.ZoneOperation.Snapshot.init -> void
+Mk8.Dns.Domain.ZoneOperation.TargetNode.get -> string!
+Mk8.Dns.Domain.ZoneOperation.TargetNode.init -> void
+Mk8.Dns.Domain.ZoneOperation.TenantId.get -> System.Guid
+Mk8.Dns.Domain.ZoneOperation.TenantId.init -> void
+Mk8.Dns.Domain.ZoneOperation.ZoneOperation(System.Guid TenantId, System.Guid OperationId, string! Fingerprint, string! Actor, string! TargetNode, Mk8.Dns.Domain.ZoneSnapshot! Snapshot, bool Activated) -> void
+Mk8.Dns.Domain.ZoneOwnership
+Mk8.Dns.Domain.ZoneOwnership.<Clone>$() -> Mk8.Dns.Domain.ZoneOwnership!
+Mk8.Dns.Domain.ZoneOwnership.Deconstruct(out System.Guid TenantId, out System.Guid ZoneId, out Mk8.Dns.Domain.DnsName! Origin) -> void
+Mk8.Dns.Domain.ZoneOwnership.Equals(Mk8.Dns.Domain.ZoneOwnership? other) -> bool
+Mk8.Dns.Domain.ZoneOwnership.Origin.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Domain.ZoneOwnership.Origin.init -> void
+Mk8.Dns.Domain.ZoneOwnership.TenantId.get -> System.Guid
+Mk8.Dns.Domain.ZoneOwnership.TenantId.init -> void
+Mk8.Dns.Domain.ZoneOwnership.ZoneId.get -> System.Guid
+Mk8.Dns.Domain.ZoneOwnership.ZoneId.init -> void
+Mk8.Dns.Domain.ZoneOwnership.ZoneOwnership(System.Guid TenantId, System.Guid ZoneId, Mk8.Dns.Domain.DnsName! Origin) -> void
+override Mk8.Dns.Domain.ZoneOperation.Equals(object? obj) -> bool
+override Mk8.Dns.Domain.ZoneOperation.GetHashCode() -> int
+override Mk8.Dns.Domain.ZoneOperation.ToString() -> string!
+override Mk8.Dns.Domain.ZoneOwnership.Equals(object? obj) -> bool
+override Mk8.Dns.Domain.ZoneOwnership.GetHashCode() -> int
+override Mk8.Dns.Domain.ZoneOwnership.ToString() -> string!
+static Mk8.Dns.Domain.ZoneOperation.operator !=(Mk8.Dns.Domain.ZoneOperation? left, Mk8.Dns.Domain.ZoneOperation? right) -> bool
+static Mk8.Dns.Domain.ZoneOperation.operator ==(Mk8.Dns.Domain.ZoneOperation? left, Mk8.Dns.Domain.ZoneOperation? right) -> bool
+static Mk8.Dns.Domain.ZoneOwnership.operator !=(Mk8.Dns.Domain.ZoneOwnership? left, Mk8.Dns.Domain.ZoneOwnership? right) -> bool
+static Mk8.Dns.Domain.ZoneOwnership.operator ==(Mk8.Dns.Domain.ZoneOwnership? left, Mk8.Dns.Domain.ZoneOwnership? right) -> bool

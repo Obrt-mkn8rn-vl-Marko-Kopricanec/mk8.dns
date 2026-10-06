@@ -3,6 +3,17 @@ Mk8.Dns.Application.BLL.ApplicationStatusSource
 Mk8.Dns.Application.BLL.ApplicationStatusSource.ApplicationStatusSource(Mk8.Dns.Application.Abstractions.IZoneSnapshotStore! snapshots, string! nodeId, string! role) -> void
 Mk8.Dns.Application.BLL.ApplicationStatusSource.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.ApplicationStatus!>
 Mk8.Dns.Application.BLL.AuthoritativeApplication
+Mk8.Dns.Application.BLL.AuthoritativeApplication.AuthoritativeApplication(Mk8.Dns.Application.Abstractions.IDnsMessageCodec! codec, string! nodeId) -> void
 Mk8.Dns.Application.BLL.AuthoritativeApplication.AuthoritativeApplication(Mk8.Dns.Engine.Authoritative.AuthoritativeCatalog! catalog, Mk8.Dns.Application.Abstractions.IDnsMessageCodec! codec, string! nodeId) -> void
 Mk8.Dns.Application.BLL.AuthoritativeApplication.ExchangeAsync(System.ReadOnlyMemory<byte> message, bool tcp, System.ReadOnlyMemory<byte> peerAddress, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<byte[]!>
 Mk8.Dns.Application.BLL.AuthoritativeApplication.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.ApplicationStatus!>
+Mk8.Dns.Application.BLL.OutboxPublisher
+Mk8.Dns.Application.BLL.OutboxPublisher.DispatchOneAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Mk8.Dns.Application.BLL.OutboxPublisher.OutboxPublisher(Mk8.Dns.Application.Abstractions.IControlPlaneStore! store, Mk8.Dns.Application.Abstractions.IPublicationAuthenticator! authenticator, Mk8.Dns.Contracts.IZonePublication! replica) -> void
+Mk8.Dns.Application.BLL.ZoneManagementApplication
+Mk8.Dns.Application.BLL.ZoneManagementApplication.ExecuteAsync(Mk8.Dns.Contracts.ManagementRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.ManagementReply!>
+Mk8.Dns.Application.BLL.ZoneManagementApplication.ZoneManagementApplication(Mk8.Dns.Application.Abstractions.IControlPlaneStore! store, Mk8.Dns.Application.Abstractions.IManagementAuthorizer! authorizer, Mk8.Dns.Application.Abstractions.IZoneBundleCodec! codec, string! targetNode) -> void
+Mk8.Dns.Application.BLL.ZonePublicationApplication
+Mk8.Dns.Application.BLL.ZonePublicationApplication.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Application.BLL.ZonePublicationApplication.ExecuteAsync(Mk8.Dns.Contracts.PublicationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.PublicationReply!>
+static Mk8.Dns.Application.BLL.ZonePublicationApplication.OpenAsync(Mk8.Dns.Application.Abstractions.IZoneSnapshotStore! snapshots, Mk8.Dns.Application.Abstractions.IPublicationJournal! journal, Mk8.Dns.Application.Abstractions.IPublicationAuthenticator! authenticator, Mk8.Dns.Application.Abstractions.IZoneBundleCodec! codec, Mk8.Dns.Application.BLL.AuthoritativeApplication! authority, string! node, System.Collections.Generic.IEnumerable<System.Guid>! zoneIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Application.BLL.ZonePublicationApplication!>

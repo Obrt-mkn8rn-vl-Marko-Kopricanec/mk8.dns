@@ -6,7 +6,7 @@ namespace Mk8.Dns.Application.BLL;
 
 public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusSource
 {
-    private readonly AuthoritativeCatalog catalog;
+    private AuthoritativeCatalog? catalog;
     private readonly IDnsMessageCodec codec;
     private readonly string nodeId;
 
@@ -22,10 +22,25 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         this.nodeId = nodeId;
     }
 
+    public AuthoritativeApplication(IDnsMessageCodec codec, string nodeId)
+    {
+        ArgumentNullException.ThrowIfNull(codec);
+        ArgumentException.ThrowIfNullOrEmpty(nodeId);
+        this.codec = codec;
+        this.nodeId = nodeId;
+        catalog = new AuthoritativeCatalog([]);
+    }
+
+    internal void ReplaceCatalog(AuthoritativeCatalog replacement) => Volatile.Write(ref catalog, replacement);
+    internal void Suspend() => Volatile.Write(ref catalog, null);
+
     public ValueTask<ApplicationStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(new ApplicationStatus(ProtocolVersion.Current, nodeId, "authoritative-replica", true, catalog.ZoneCount));
+        var generation = Volatile.Read(ref catalog);
+        if (generation is null)
+            throw new InvalidOperationException("Authoritative storage requires verified reconciliation.");
+        return ValueTask.FromResult(new ApplicationStatus(ProtocolVersion.Current, nodeId, "authoritative-replica", generation.ZoneCount != 0, generation.ZoneCount));
     }
 
     public ValueTask<byte[]> ExchangeAsync(ReadOnlyMemory<byte> message, bool tcp, ReadOnlyMemory<byte> peerAddress, CancellationToken cancellationToken)
@@ -35,8 +50,11 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
             throw new ArgumentException("Invalid DNS exchange bounds.", nameof(message));
         try
         {
+            var generation = Volatile.Read(ref catalog);
+            if (generation is null)
+                return ValueTask.FromResult(codec.EncodeError(message.Span, 2));
             var query = codec.Decode(message.Span);
-            return ValueTask.FromResult(codec.Encode(query, catalog.Resolve(query.Question), tcp));
+            return ValueTask.FromResult(codec.Encode(query, generation.Resolve(query.Question), tcp));
         }
         catch (FormatException)
         {

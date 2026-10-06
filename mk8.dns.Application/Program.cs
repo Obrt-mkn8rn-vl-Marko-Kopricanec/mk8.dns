@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Mk8.Dns.Application;
 using Mk8.Dns.Application.BLL;
 using Mk8.Dns.Application.DAL;
 using Mk8.Dns.Configuration;
@@ -13,7 +14,10 @@ var settings = ApplicationSettings.Parse(args);
 using var socket = new PrivateUnixSocket(settings.SocketPath);
 var snapshots = new FileZoneSnapshotStore(settings.StateDirectory);
 await using var snapshotLifetime = snapshots.ConfigureAwait(false);
-AuthoritativeApplication? authority = null;
+var control = new ControlRuntime();
+await using var controlLifetime = control.ConfigureAwait(false);
+await control.InitializeAsync(settings, snapshots).ConfigureAwait(false);
+AuthoritativeApplication? authority = control.Authority;
 if (settings.ZoneIds.Count != 0)
 {
     _ = await snapshots.CountActiveAsync(CancellationToken.None).ConfigureAwait(false);
@@ -34,7 +38,7 @@ builder.Logging.AddJsonConsole();
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.AddServerHeader = false;
-    options.Limits.MaxRequestBodySize = (authority is null ? ProtocolVersion.MaximumMessageBytes : QueryHostingExtensions.MaximumExchangeBytes) + 5;
+    options.Limits.MaxRequestBodySize = (control.Management is not null ? ControlHostingExtensions.MaximumManagementBytes : authority is null ? ProtocolVersion.MaximumMessageBytes : QueryHostingExtensions.MaximumExchangeBytes) + 5;
     options.Limits.Http2.MaxStreamsPerConnection = 16;
     options.ListenUnixSocket(socket.Path, endpoint => endpoint.Protocols = HttpProtocols.Http2);
 });
@@ -42,6 +46,8 @@ IApplicationStatusSource statusSource = authority is null ? new ApplicationStatu
 builder.Services.AddApplicationProbe(statusSource);
 if (authority is not null)
     builder.Services.AddAuthoritativeQuery(authority);
+if (control.Management is not null)
+    builder.Services.AddZoneManagement(control.Management);
 
 var application = builder.Build();
 await using (application.ConfigureAwait(false))
@@ -49,7 +55,59 @@ await using (application.ConfigureAwait(false))
     application.MapApplicationProbe();
     if (authority is not null)
         application.MapAuthoritativeQuery();
-    await application.StartAsync().ConfigureAwait(false);
-    socket.SetSocketPermissions();
-    await application.WaitForShutdownAsync().ConfigureAwait(false);
+    if (control.Management is not null)
+        application.MapZoneManagement();
+    using var publicationSocket = settings.PublicationSocket is null ? null : new PrivateUnixSocket(settings.PublicationSocket);
+    WebApplication? publicationHost = null;
+    using var shutdown = new CancellationTokenSource();
+    Task publishing = Task.CompletedTask;
+    try
+    {
+        if (publicationSocket is not null && control.Publication is not null)
+        {
+            var publicationBuilder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { Args = [] });
+            publicationBuilder.Configuration.Sources.Clear();
+            publicationBuilder.Logging.ClearProviders();
+            publicationBuilder.Logging.AddJsonConsole();
+            publicationBuilder.WebHost.ConfigureKestrel(options =>
+            {
+                options.AddServerHeader = false;
+                options.Limits.MaxRequestBodySize = ControlHostingExtensions.MaximumPublicationBytes + 5;
+                options.Limits.Http2.MaxStreamsPerConnection = 2;
+                options.ListenUnixSocket(publicationSocket.Path, endpoint => endpoint.Protocols = HttpProtocols.Http2);
+            });
+            publicationBuilder.Services.AddZonePublication(control.Publication);
+            publicationHost = publicationBuilder.Build();
+            publicationHost.MapZonePublication();
+            await publicationHost.StartAsync().ConfigureAwait(false);
+            publicationSocket.SetSocketPermissions();
+        }
+        await application.StartAsync().ConfigureAwait(false);
+        socket.SetSocketPermissions();
+        publishing = PublishAndStopOnFailureAsync(control, application.Logger, application.Lifetime, shutdown.Token);
+        await application.WaitForShutdownAsync().ConfigureAwait(false);
+    }
+    finally
+    {
+        await shutdown.CancelAsync().ConfigureAwait(false);
+        if (publicationHost is not null)
+        {
+            await publicationHost.StopAsync().ConfigureAwait(false);
+            await publicationHost.DisposeAsync().ConfigureAwait(false);
+        }
+        await publishing.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+    }
+}
+
+static async Task PublishAndStopOnFailureAsync(ControlRuntime control, ILogger logger, IHostApplicationLifetime lifetime, CancellationToken cancellationToken)
+{
+    try
+    {
+        await control.PublishAsync(logger, cancellationToken).ConfigureAwait(false);
+    }
+    catch
+    {
+        lifetime.StopApplication();
+        throw;
+    }
 }

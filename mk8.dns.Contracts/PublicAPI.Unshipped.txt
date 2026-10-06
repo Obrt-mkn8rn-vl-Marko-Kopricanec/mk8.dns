@@ -26,3 +26,111 @@ override Mk8.Dns.Contracts.ApplicationStatus.GetHashCode() -> int
 override Mk8.Dns.Contracts.ApplicationStatus.ToString() -> string!
 static Mk8.Dns.Contracts.ApplicationStatus.operator !=(Mk8.Dns.Contracts.ApplicationStatus? left, Mk8.Dns.Contracts.ApplicationStatus? right) -> bool
 static Mk8.Dns.Contracts.ApplicationStatus.operator ==(Mk8.Dns.Contracts.ApplicationStatus? left, Mk8.Dns.Contracts.ApplicationStatus? right) -> bool
+Mk8.Dns.Contracts.IZoneManagement
+Mk8.Dns.Contracts.IZoneManagement.ExecuteAsync(Mk8.Dns.Contracts.ManagementRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.ManagementReply!>
+Mk8.Dns.Contracts.IZonePublication
+Mk8.Dns.Contracts.IZonePublication.ExecuteAsync(Mk8.Dns.Contracts.PublicationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.PublicationReply!>
+Mk8.Dns.Contracts.ManagementReply
+Mk8.Dns.Contracts.ManagementReply.<Clone>$() -> Mk8.Dns.Contracts.ManagementReply!
+Mk8.Dns.Contracts.ManagementReply.ContentHash.get -> string!
+Mk8.Dns.Contracts.ManagementReply.ContentHash.init -> void
+Mk8.Dns.Contracts.ManagementReply.Deconstruct(out System.Guid OperationId, out long Revision, out uint Serial, out string! ContentHash, out string! State) -> void
+Mk8.Dns.Contracts.ManagementReply.Equals(Mk8.Dns.Contracts.ManagementReply? other) -> bool
+Mk8.Dns.Contracts.ManagementReply.ManagementReply(System.Guid OperationId, long Revision, uint Serial, string! ContentHash, string! State) -> void
+Mk8.Dns.Contracts.ManagementReply.OperationId.get -> System.Guid
+Mk8.Dns.Contracts.ManagementReply.OperationId.init -> void
+Mk8.Dns.Contracts.ManagementReply.Revision.get -> long
+Mk8.Dns.Contracts.ManagementReply.Revision.init -> void
+Mk8.Dns.Contracts.ManagementReply.Serial.get -> uint
+Mk8.Dns.Contracts.ManagementReply.Serial.init -> void
+Mk8.Dns.Contracts.ManagementReply.State.get -> string!
+Mk8.Dns.Contracts.ManagementReply.State.init -> void
+Mk8.Dns.Contracts.ManagementRequest
+Mk8.Dns.Contracts.ManagementRequest.<Clone>$() -> Mk8.Dns.Contracts.ManagementRequest!
+Mk8.Dns.Contracts.ManagementRequest.Action.get -> string!
+Mk8.Dns.Contracts.ManagementRequest.Action.init -> void
+Mk8.Dns.Contracts.ManagementRequest.Credential.get -> System.ReadOnlyMemory<byte>
+Mk8.Dns.Contracts.ManagementRequest.Credential.init -> void
+Mk8.Dns.Contracts.ManagementRequest.Deconstruct(out string! Action, out System.Guid TenantId, out System.Guid ZoneId, out System.Guid OperationId, out long ExpectedRevision, out System.ReadOnlyMemory<byte> Origin, out System.Collections.Generic.IReadOnlyList<Mk8.Dns.Contracts.ZoneRecordData!>! Records, out System.ReadOnlyMemory<byte> Credential) -> void
+Mk8.Dns.Contracts.ManagementRequest.Equals(Mk8.Dns.Contracts.ManagementRequest? other) -> bool
+Mk8.Dns.Contracts.ManagementRequest.ExpectedRevision.get -> long
+Mk8.Dns.Contracts.ManagementRequest.ExpectedRevision.init -> void
+Mk8.Dns.Contracts.ManagementRequest.ManagementRequest(string! Action, System.Guid TenantId, System.Guid ZoneId, System.Guid OperationId, long ExpectedRevision, System.ReadOnlyMemory<byte> Origin, System.Collections.Generic.IReadOnlyList<Mk8.Dns.Contracts.ZoneRecordData!>! Records, System.ReadOnlyMemory<byte> Credential) -> void
+Mk8.Dns.Contracts.ManagementRequest.OperationId.get -> System.Guid
+Mk8.Dns.Contracts.ManagementRequest.OperationId.init -> void
+Mk8.Dns.Contracts.ManagementRequest.Origin.get -> System.ReadOnlyMemory<byte>
+Mk8.Dns.Contracts.ManagementRequest.Origin.init -> void
+Mk8.Dns.Contracts.ManagementRequest.Records.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Contracts.ZoneRecordData!>!
+Mk8.Dns.Contracts.ManagementRequest.Records.init -> void
+Mk8.Dns.Contracts.ManagementRequest.TenantId.get -> System.Guid
+Mk8.Dns.Contracts.ManagementRequest.TenantId.init -> void
+Mk8.Dns.Contracts.ManagementRequest.ZoneId.get -> System.Guid
+Mk8.Dns.Contracts.ManagementRequest.ZoneId.init -> void
+Mk8.Dns.Contracts.PublicationReply
+Mk8.Dns.Contracts.PublicationReply.<Clone>$() -> Mk8.Dns.Contracts.PublicationReply!
+Mk8.Dns.Contracts.PublicationReply.ContentHash.get -> string!
+Mk8.Dns.Contracts.PublicationReply.ContentHash.init -> void
+Mk8.Dns.Contracts.PublicationReply.Deconstruct(out string! NodeId, out System.Guid ZoneId, out long Revision, out string! ContentHash, out string! PublicationId, out string! State) -> void
+Mk8.Dns.Contracts.PublicationReply.Equals(Mk8.Dns.Contracts.PublicationReply? other) -> bool
+Mk8.Dns.Contracts.PublicationReply.NodeId.get -> string!
+Mk8.Dns.Contracts.PublicationReply.NodeId.init -> void
+Mk8.Dns.Contracts.PublicationReply.PublicationId.get -> string!
+Mk8.Dns.Contracts.PublicationReply.PublicationId.init -> void
+Mk8.Dns.Contracts.PublicationReply.PublicationReply(string! NodeId, System.Guid ZoneId, long Revision, string! ContentHash, string! PublicationId, string! State) -> void
+Mk8.Dns.Contracts.PublicationReply.Revision.get -> long
+Mk8.Dns.Contracts.PublicationReply.Revision.init -> void
+Mk8.Dns.Contracts.PublicationReply.State.get -> string!
+Mk8.Dns.Contracts.PublicationReply.State.init -> void
+Mk8.Dns.Contracts.PublicationReply.ZoneId.get -> System.Guid
+Mk8.Dns.Contracts.PublicationReply.ZoneId.init -> void
+Mk8.Dns.Contracts.PublicationRequest
+Mk8.Dns.Contracts.PublicationRequest.<Clone>$() -> Mk8.Dns.Contracts.PublicationRequest!
+Mk8.Dns.Contracts.PublicationRequest.Action.get -> string!
+Mk8.Dns.Contracts.PublicationRequest.Action.init -> void
+Mk8.Dns.Contracts.PublicationRequest.Body.get -> System.ReadOnlyMemory<byte>
+Mk8.Dns.Contracts.PublicationRequest.Body.init -> void
+Mk8.Dns.Contracts.PublicationRequest.Deconstruct(out string! Action, out System.ReadOnlyMemory<byte> Body, out System.ReadOnlyMemory<byte> Signature, out string! PublicationId) -> void
+Mk8.Dns.Contracts.PublicationRequest.Equals(Mk8.Dns.Contracts.PublicationRequest? other) -> bool
+Mk8.Dns.Contracts.PublicationRequest.PublicationId.get -> string!
+Mk8.Dns.Contracts.PublicationRequest.PublicationId.init -> void
+Mk8.Dns.Contracts.PublicationRequest.PublicationRequest(string! Action, System.ReadOnlyMemory<byte> Body, System.ReadOnlyMemory<byte> Signature, string! PublicationId) -> void
+Mk8.Dns.Contracts.PublicationRequest.Signature.get -> System.ReadOnlyMemory<byte>
+Mk8.Dns.Contracts.PublicationRequest.Signature.init -> void
+Mk8.Dns.Contracts.ZoneRecordData
+Mk8.Dns.Contracts.ZoneRecordData.<Clone>$() -> Mk8.Dns.Contracts.ZoneRecordData!
+Mk8.Dns.Contracts.ZoneRecordData.Data.get -> System.ReadOnlyMemory<byte>
+Mk8.Dns.Contracts.ZoneRecordData.Data.init -> void
+Mk8.Dns.Contracts.ZoneRecordData.Deconstruct(out System.ReadOnlyMemory<byte> Owner, out ushort Type, out uint Ttl, out System.ReadOnlyMemory<byte> Data) -> void
+Mk8.Dns.Contracts.ZoneRecordData.Equals(Mk8.Dns.Contracts.ZoneRecordData? other) -> bool
+Mk8.Dns.Contracts.ZoneRecordData.Owner.get -> System.ReadOnlyMemory<byte>
+Mk8.Dns.Contracts.ZoneRecordData.Owner.init -> void
+Mk8.Dns.Contracts.ZoneRecordData.Ttl.get -> uint
+Mk8.Dns.Contracts.ZoneRecordData.Ttl.init -> void
+Mk8.Dns.Contracts.ZoneRecordData.Type.get -> ushort
+Mk8.Dns.Contracts.ZoneRecordData.Type.init -> void
+Mk8.Dns.Contracts.ZoneRecordData.ZoneRecordData(System.ReadOnlyMemory<byte> Owner, ushort Type, uint Ttl, System.ReadOnlyMemory<byte> Data) -> void
+override Mk8.Dns.Contracts.ManagementReply.Equals(object? obj) -> bool
+override Mk8.Dns.Contracts.ManagementReply.GetHashCode() -> int
+override Mk8.Dns.Contracts.ManagementReply.ToString() -> string!
+override Mk8.Dns.Contracts.ManagementRequest.Equals(object? obj) -> bool
+override Mk8.Dns.Contracts.ManagementRequest.GetHashCode() -> int
+override Mk8.Dns.Contracts.ManagementRequest.ToString() -> string!
+override Mk8.Dns.Contracts.PublicationReply.Equals(object? obj) -> bool
+override Mk8.Dns.Contracts.PublicationReply.GetHashCode() -> int
+override Mk8.Dns.Contracts.PublicationReply.ToString() -> string!
+override Mk8.Dns.Contracts.PublicationRequest.Equals(object? obj) -> bool
+override Mk8.Dns.Contracts.PublicationRequest.GetHashCode() -> int
+override Mk8.Dns.Contracts.PublicationRequest.ToString() -> string!
+override Mk8.Dns.Contracts.ZoneRecordData.Equals(object? obj) -> bool
+override Mk8.Dns.Contracts.ZoneRecordData.GetHashCode() -> int
+override Mk8.Dns.Contracts.ZoneRecordData.ToString() -> string!
+static Mk8.Dns.Contracts.ManagementReply.operator !=(Mk8.Dns.Contracts.ManagementReply? left, Mk8.Dns.Contracts.ManagementReply? right) -> bool
+static Mk8.Dns.Contracts.ManagementReply.operator ==(Mk8.Dns.Contracts.ManagementReply? left, Mk8.Dns.Contracts.ManagementReply? right) -> bool
+static Mk8.Dns.Contracts.ManagementRequest.operator !=(Mk8.Dns.Contracts.ManagementRequest? left, Mk8.Dns.Contracts.ManagementRequest? right) -> bool
+static Mk8.Dns.Contracts.ManagementRequest.operator ==(Mk8.Dns.Contracts.ManagementRequest? left, Mk8.Dns.Contracts.ManagementRequest? right) -> bool
+static Mk8.Dns.Contracts.PublicationReply.operator !=(Mk8.Dns.Contracts.PublicationReply? left, Mk8.Dns.Contracts.PublicationReply? right) -> bool
+static Mk8.Dns.Contracts.PublicationReply.operator ==(Mk8.Dns.Contracts.PublicationReply? left, Mk8.Dns.Contracts.PublicationReply? right) -> bool
+static Mk8.Dns.Contracts.PublicationRequest.operator !=(Mk8.Dns.Contracts.PublicationRequest? left, Mk8.Dns.Contracts.PublicationRequest? right) -> bool
+static Mk8.Dns.Contracts.PublicationRequest.operator ==(Mk8.Dns.Contracts.PublicationRequest? left, Mk8.Dns.Contracts.PublicationRequest? right) -> bool
+static Mk8.Dns.Contracts.ZoneRecordData.operator !=(Mk8.Dns.Contracts.ZoneRecordData? left, Mk8.Dns.Contracts.ZoneRecordData? right) -> bool
+static Mk8.Dns.Contracts.ZoneRecordData.operator ==(Mk8.Dns.Contracts.ZoneRecordData? left, Mk8.Dns.Contracts.ZoneRecordData? right) -> bool

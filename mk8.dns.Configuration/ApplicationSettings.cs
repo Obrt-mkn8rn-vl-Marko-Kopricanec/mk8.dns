@@ -3,10 +3,12 @@ namespace Mk8.Dns.Configuration;
 public sealed record ApplicationSettings(string SocketPath, string StateDirectory, string NodeId, string Role)
 {
     public IReadOnlyList<Guid> ZoneIds { get; init; } = Array.Empty<Guid>();
+    public string? ControlFile { get; init; }
+    public string? PublicationSocket { get; init; }
 
     public static ApplicationSettings Parse(string[] args)
     {
-        var values = HostArguments.Parse(args, ["--socket", "--state", "--node", "--role", "--zones"]);
+        var values = HostArguments.Parse(args, ["--socket", "--state", "--node", "--role", "--zones", "--control", "--publication-socket"]);
         var socket = HostArguments.AbsolutePath(values, "--socket");
         var state = HostArguments.AbsolutePath(values, "--state");
         var node = HostArguments.Required(values, "--node");
@@ -27,6 +29,12 @@ public sealed record ApplicationSettings(string SocketPath, string StateDirector
                 zones.Add(id);
             }
         }
-        return new ApplicationSettings(socket, state, node, role) { ZoneIds = zones.AsReadOnly() };
+        var control = values.ContainsKey("--control") ? HostArguments.AbsolutePath(values, "--control") : null;
+        var publication = values.ContainsKey("--publication-socket") ? HostArguments.AbsolutePath(values, "--publication-socket") : null;
+        if (publication is not null && (control is null || !string.Equals(role, "authoritative-replica", StringComparison.Ordinal))
+            || control is not null && string.Equals(role, "authoritative-replica", StringComparison.Ordinal) && (publication is null || zones.Count != 0)
+            || publication is not null && string.Equals(publication, socket, StringComparison.Ordinal))
+            throw new ArgumentException("Trusted replica publication requires a separate socket and its configured zone scope.", nameof(args));
+        return new ApplicationSettings(socket, state, node, role) { ZoneIds = zones.AsReadOnly(), ControlFile = control, PublicationSocket = publication };
     }
 }

@@ -37,3 +37,9 @@ static Mk8.Dns.Configuration.ApplicationSettings.operator ==(Mk8.Dns.Configurati
 static Mk8.Dns.Configuration.GatewaySettings.Parse(string![]! args) -> Mk8.Dns.Configuration.GatewaySettings!
 static Mk8.Dns.Configuration.GatewaySettings.operator !=(Mk8.Dns.Configuration.GatewaySettings? left, Mk8.Dns.Configuration.GatewaySettings? right) -> bool
 static Mk8.Dns.Configuration.GatewaySettings.operator ==(Mk8.Dns.Configuration.GatewaySettings? left, Mk8.Dns.Configuration.GatewaySettings? right) -> bool
+Mk8.Dns.Configuration.ApplicationSettings.ControlFile.get -> string?
+Mk8.Dns.Configuration.ApplicationSettings.ControlFile.init -> void
+Mk8.Dns.Configuration.ApplicationSettings.PublicationSocket.get -> string?
+Mk8.Dns.Configuration.ApplicationSettings.PublicationSocket.init -> void
+Mk8.Dns.Configuration.PrivateFile
+static Mk8.Dns.Configuration.PrivateFile.Read(string! path, int maximumBytes) -> byte[]!

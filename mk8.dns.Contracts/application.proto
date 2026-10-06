@@ -12,6 +12,19 @@ service AuthoritativeQuery {
   rpc Exchange (DnsRequest) returns (DnsReply);
 }
 
+service ZoneManagement {
+  rpc Execute (ControlFrame) returns (ControlFrame);
+}
+
+service ZonePublication {
+  rpc Execute (ControlFrame) returns (ControlFrame);
+}
+
+message ControlFrame {
+  uint32 protocol_version = 1;
+  bytes payload = 2;
+}
+
 message DnsRequest {
   uint32 protocol_version = 1;
   bytes message = 2;

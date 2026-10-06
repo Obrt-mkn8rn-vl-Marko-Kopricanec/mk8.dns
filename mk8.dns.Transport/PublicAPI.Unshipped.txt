@@ -19,3 +19,15 @@ static Mk8.Dns.Transport.ProbeHostingExtensions.AddApplicationProbe(this Microso
 static Mk8.Dns.Transport.ProbeHostingExtensions.MapApplicationProbe(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!
 static Mk8.Dns.Transport.QueryHostingExtensions.AddAuthoritativeQuery(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Mk8.Dns.Contracts.IDnsExchange! source) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Mk8.Dns.Transport.QueryHostingExtensions.MapAuthoritativeQuery(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!
+Mk8.Dns.Transport.ControlHostingExtensions
+Mk8.Dns.Transport.UnixControlClient
+Mk8.Dns.Transport.UnixControlClient.Dispose() -> void
+Mk8.Dns.Transport.UnixControlClient.ExecuteAsync(Mk8.Dns.Contracts.ManagementRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.ManagementReply!>
+Mk8.Dns.Transport.UnixControlClient.ExecuteAsync(Mk8.Dns.Contracts.PublicationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.PublicationReply!>
+Mk8.Dns.Transport.UnixControlClient.UnixControlClient(string! socketPath) -> void
+const Mk8.Dns.Transport.ControlHostingExtensions.MaximumManagementBytes = 2500000 -> int
+const Mk8.Dns.Transport.ControlHostingExtensions.MaximumPublicationBytes = 1500000 -> int
+static Mk8.Dns.Transport.ControlHostingExtensions.AddZoneManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Mk8.Dns.Contracts.IZoneManagement! source) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Mk8.Dns.Transport.ControlHostingExtensions.AddZonePublication(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Mk8.Dns.Contracts.IZonePublication! source) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Mk8.Dns.Transport.ControlHostingExtensions.MapZoneManagement(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!
+static Mk8.Dns.Transport.ControlHostingExtensions.MapZonePublication(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!

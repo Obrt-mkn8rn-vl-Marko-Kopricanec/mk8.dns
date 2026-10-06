@@ -6,3 +6,19 @@ Mk8.Dns.Application.DAL.FileZoneSnapshotStore.Dispose() -> void
 Mk8.Dns.Application.DAL.FileZoneSnapshotStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Mk8.Dns.Application.DAL.FileZoneSnapshotStore.FileZoneSnapshotStore(string! root) -> void
 Mk8.Dns.Application.DAL.FileZoneSnapshotStore.ReadActiveAsync(System.Guid zoneId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.ZoneSnapshot?>
+Mk8.Dns.Application.DAL.FilePublicationJournal
+Mk8.Dns.Application.DAL.FilePublicationJournal.Dispose() -> void
+Mk8.Dns.Application.DAL.FilePublicationJournal.FilePublicationJournal(string! directory) -> void
+Mk8.Dns.Application.DAL.FilePublicationJournal.ReadAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.PublicationRequest!>
+Mk8.Dns.Application.DAL.FilePublicationJournal.SaveAsync(string! id, System.ReadOnlyMemory<byte> body, System.ReadOnlyMemory<byte> signature, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Application.DAL.PostgresControlPlaneStore
+Mk8.Dns.Application.DAL.PostgresControlPlaneStore.BeginAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Application.Abstractions.IControlTransaction!>
+Mk8.Dns.Application.DAL.PostgresControlPlaneStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Application.DAL.PostgresControlPlaneStore.MarkActivatedAsync(Mk8.Dns.Domain.ZoneOperation! operation, Mk8.Dns.Contracts.PublicationReply! receipt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Application.DAL.PostgresControlPlaneStore.ReadPendingAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.ZoneOperation?>
+const Mk8.Dns.Application.DAL.FilePublicationJournal.MaximumEntries = 4096 -> int
+Mk8.Dns.Application.DAL.FilePublicationJournal.ReadActivatedIdsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<string!>!>
+Mk8.Dns.Application.DAL.FilePublicationJournal.ReadActivationSignatureAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<byte[]!>
+Mk8.Dns.Application.DAL.FilePublicationJournal.RecordActivationAsync(string! id, System.ReadOnlyMemory<byte> signature, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Application.DAL.PostgresControlPlaneStore.InitializeAsync(System.Guid epoch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Application.DAL.PostgresControlPlaneStore.PostgresControlPlaneStore(string! connectionString) -> void
