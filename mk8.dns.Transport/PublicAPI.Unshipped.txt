@@ -31,3 +31,24 @@ static Mk8.Dns.Transport.ControlHostingExtensions.AddZoneManagement(this Microso
 static Mk8.Dns.Transport.ControlHostingExtensions.AddZonePublication(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Mk8.Dns.Contracts.IZonePublication! source) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Mk8.Dns.Transport.ControlHostingExtensions.MapZoneManagement(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!
 static Mk8.Dns.Transport.ControlHostingExtensions.MapZonePublication(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!
+Mk8.Dns.Transport.ManagementHttpProtocol
+Mk8.Dns.Transport.UnixManagementHttpClient
+Mk8.Dns.Transport.UnixManagementHttpClient.Dispose() -> void
+Mk8.Dns.Transport.UnixManagementHttpClient.ExecuteAsync(Mk8.Dns.Contracts.ManagementRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.ManagementReply!>
+Mk8.Dns.Transport.UnixManagementHttpClient.UnixManagementHttpClient(string! socketPath) -> void
+const Mk8.Dns.Transport.ManagementHttpProtocol.MaximumReplyBytes = 2500000 -> int
+const Mk8.Dns.Transport.ManagementHttpProtocol.MaximumRequestBytes = 2400000 -> int
+const Mk8.Dns.Transport.ManagementHttpProtocol.Version = "1" -> string!
+const Mk8.Dns.Transport.ManagementHttpProtocol.VersionHeader = "X-Mk8-Api-Version" -> string!
+static Mk8.Dns.Transport.ManagementHttpProtocol.BindRequest(Mk8.Dns.Contracts.ManagementApiRequest! body, string! action, System.Guid tenantId, System.Guid zoneId, System.Guid operationId, System.ReadOnlyMemory<byte> credential) -> Mk8.Dns.Contracts.ManagementRequest!
+static Mk8.Dns.Transport.ManagementHttpProtocol.DecodeCredential(string! value) -> byte[]!
+static Mk8.Dns.Transport.ManagementHttpProtocol.DecodeOrigin(string! origin) -> byte[]!
+static Mk8.Dns.Transport.ManagementHttpProtocol.EncodeCredential(System.ReadOnlyMemory<byte> credential) -> string!
+static Mk8.Dns.Transport.ManagementHttpProtocol.EncodeOrigin(System.ReadOnlyMemory<byte> origin) -> string!
+static Mk8.Dns.Transport.ManagementHttpProtocol.OperationPath(System.Guid tenantId, System.Guid zoneId, System.Guid operationId, System.ReadOnlyMemory<byte> origin) -> string!
+static Mk8.Dns.Transport.ManagementHttpProtocol.ReadReply(System.ReadOnlyMemory<byte> data) -> Mk8.Dns.Contracts.ManagementReply!
+static Mk8.Dns.Transport.ManagementHttpProtocol.ReadRequest(System.ReadOnlyMemory<byte> data) -> Mk8.Dns.Contracts.ManagementApiRequest!
+static Mk8.Dns.Transport.ManagementHttpProtocol.VerifyReply(Mk8.Dns.Contracts.ManagementReply! reply, string! action, System.Guid operationId) -> void
+static Mk8.Dns.Transport.ManagementHttpProtocol.WriteError(string! code) -> byte[]!
+static Mk8.Dns.Transport.ManagementHttpProtocol.WriteReply(Mk8.Dns.Contracts.ManagementReply! reply) -> byte[]!
+static Mk8.Dns.Transport.ManagementHttpProtocol.WriteRequest(Mk8.Dns.Contracts.ManagementApiRequest! request) -> byte[]!

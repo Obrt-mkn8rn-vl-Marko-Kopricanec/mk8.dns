@@ -2,3 +2,7 @@
 Mk8.Dns.Presentation.AuthoritativeListener
 Mk8.Dns.Presentation.AuthoritativeListener.AuthoritativeListener(System.Net.IPEndPoint! endpoint, Mk8.Dns.Contracts.IDnsExchange! exchange) -> void
 Mk8.Dns.Presentation.AuthoritativeListener.RunAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Mk8.Dns.Presentation.ManagementHttpApi
+Mk8.Dns.Presentation.ManagementHttpApi.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Presentation.ManagementHttpApi.ManagementHttpApi(Mk8.Dns.Contracts.IZoneManagement! source) -> void
+Mk8.Dns.Presentation.ManagementHttpApi.Map(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> void

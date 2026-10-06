@@ -5,6 +5,22 @@ namespace Mk8.Dns.UnitTests;
 
 public sealed class ConfigurationTests
 {
+    [Fact]
+    public void ManagementGatewayRequiresAnIsolatedPrivateRole()
+    {
+        var settings = GatewaySettings.Parse(["--role", "management", "--socket", "/tmp/controller.sock", "--management-socket", "/tmp/api.sock"]);
+        Assert.Equal(GatewayRole.Management, settings.Role);
+        Assert.Equal(0, settings.HealthPort);
+        Assert.Null(settings.DnsEndpoint);
+        Assert.Equal("/tmp/api.sock", settings.ManagementSocketPath);
+        Assert.Throws<ArgumentException>(() => GatewaySettings.Parse(["--role", "management", "--socket", "/tmp/a.sock", "--management-socket", "/tmp/sub/../a.sock"]));
+        Assert.Throws<ArgumentException>(() => GatewaySettings.Parse(["--role", "management", "--socket", "/tmp/a.sock", "--management-socket", "/tmp/b.sock", "--health-port", "8080"]));
+        Assert.Throws<ArgumentException>(() => GatewaySettings.Parse(["--role", "management", "--socket", "/tmp/a.sock", "--management-socket", "/tmp/b.sock", "--dns-address", "127.0.0.2", "--dns-port", "5353"]));
+        Assert.Throws<ArgumentException>(() => GatewaySettings.Parse(["--socket", "/tmp/a.sock", "--management-socket", "/tmp/b.sock", "--health-port", "8080"]));
+        Assert.Throws<ArgumentException>(() => GatewaySettings.Parse(["--role", "management", "--socket", "/tmp/a.sock"]));
+        Assert.Equal(GatewayRole.Query, GatewaySettings.Parse(["--socket", "/tmp/a.sock", "--health-port", "8080"]).Role);
+    }
+
     [Theory]
     [InlineData("resolver")]
     [InlineData("all")]

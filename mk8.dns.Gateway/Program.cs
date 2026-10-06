@@ -2,10 +2,16 @@ using System.Net;
 using Grpc.Core;
 using Mk8.Dns.Configuration;
 using Mk8.Dns.Contracts;
+using Mk8.Dns.Gateway;
 using Mk8.Dns.Presentation;
 using Mk8.Dns.Transport;
 
 var settings = GatewaySettings.Parse(args);
+if (settings.Role == GatewayRole.Management)
+{
+    await ManagementGatewayHost.RunAsync(settings).ConfigureAwait(false);
+    return;
+}
 using var client = new UnixApplicationClient(settings.SocketPath);
 using var queries = new UnixDnsClient(settings.SocketPath);
 var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { Args = [] });

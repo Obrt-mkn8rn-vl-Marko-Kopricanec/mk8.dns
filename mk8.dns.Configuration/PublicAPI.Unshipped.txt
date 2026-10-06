@@ -43,3 +43,10 @@ Mk8.Dns.Configuration.ApplicationSettings.PublicationSocket.get -> string?
 Mk8.Dns.Configuration.ApplicationSettings.PublicationSocket.init -> void
 Mk8.Dns.Configuration.PrivateFile
 static Mk8.Dns.Configuration.PrivateFile.Read(string! path, int maximumBytes) -> byte[]!
+Mk8.Dns.Configuration.GatewayRole.Query = 0 -> Mk8.Dns.Configuration.GatewayRole
+Mk8.Dns.Configuration.GatewayRole.Management = 1 -> Mk8.Dns.Configuration.GatewayRole
+Mk8.Dns.Configuration.GatewayRole
+Mk8.Dns.Configuration.GatewaySettings.Role.get -> Mk8.Dns.Configuration.GatewayRole
+Mk8.Dns.Configuration.GatewaySettings.Role.init -> void
+Mk8.Dns.Configuration.GatewaySettings.ManagementSocketPath.get -> string?
+Mk8.Dns.Configuration.GatewaySettings.ManagementSocketPath.init -> void
