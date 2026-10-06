@@ -45,6 +45,14 @@ public sealed class AuthoritativeZone
         if (apex.Count(record => record.Type == 6) != 1 || !apex.Any(record => record.Type == 2))
             throw new ArgumentException("A zone requires exactly one apex SOA and apex NS data.", nameof(records));
         Soa = apex.Single(record => record.Type == 6);
+        foreach (var owner in all.Where(record => record.Type == 43).Select(record => record.Owner).Distinct())
+        {
+            if (owner.Equals(origin) || !GetRecords(owner).Any(record => record.Type == 2))
+                throw new ArgumentException("DS data requires a parent-side delegation NS RRset.", nameof(records));
+            for (var ancestor = owner.Parent; !ancestor.Equals(origin); ancestor = ancestor.Parent)
+                if (GetRecords(ancestor).Any(record => record.Type == 2))
+                    throw new ArgumentException("DS data cannot occur below an earlier delegation.", nameof(records));
+        }
         foreach (var record in all.Where(record => record.Type == 39))
         {
             if (all.Any(other => !other.Owner.Equals(record.Owner) && other.Owner.IsSubdomainOf(record.Owner)))

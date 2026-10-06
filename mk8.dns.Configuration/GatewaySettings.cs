@@ -23,6 +23,8 @@ public sealed record GatewaySettings(string SocketPath, int HealthPort)
         {
             if (!IPAddress.TryParse(addressText, out var address) || !int.TryParse(dnsPortText, NumberStyles.None, CultureInfo.InvariantCulture, out var dnsPort) || dnsPort is < 1 or > 65535)
                 throw new ArgumentException("DNS requires an IP literal and a port in 1..65535.", nameof(args));
+            if (address.GetAddressBytes().AsSpan().IndexOfAnyExcept((byte)0) < 0 || address.IsIPv4MappedToIPv6 && address.MapToIPv4().Equals(IPAddress.Any))
+                throw new ArgumentException("DNS requires a specific bind address to preserve UDP reply source identity.", nameof(args));
             dns = new IPEndPoint(address, dnsPort);
         }
         return new GatewaySettings(socket, port) { DnsEndpoint = dns };

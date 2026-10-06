@@ -17,6 +17,8 @@ public sealed class AuthoritativeListener
         ArgumentNullException.ThrowIfNull(exchange);
         if (endpoint.Port == 0)
             throw new ArgumentException("An explicit DNS port is required.", nameof(endpoint));
+        if (endpoint.Address.GetAddressBytes().AsSpan().IndexOfAnyExcept((byte)0) < 0 || endpoint.Address.IsIPv4MappedToIPv6 && endpoint.Address.MapToIPv4().Equals(IPAddress.Any))
+            throw new ArgumentException("DNS requires a specific bind address to preserve UDP reply source identity.", nameof(endpoint));
         this.endpoint = new IPEndPoint(endpoint.Address, endpoint.Port);
         this.exchange = exchange;
     }

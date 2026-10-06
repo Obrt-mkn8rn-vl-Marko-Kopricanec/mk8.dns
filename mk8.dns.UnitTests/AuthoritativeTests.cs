@@ -84,11 +84,26 @@ public sealed class AuthoritativeTests
     public void LocallyServedChildWinsWhileItsApexDsComesFromParent()
     {
         var parent = AuthorityFixture.Zone(AuthorityFixture.Record("child.example.", 2, DnsName.Parse("ns.child.example.").ToWire()), AuthorityFixture.Record("child.example.", 43, AuthorityFixture.DsData(1)));
-        var child = AuthorityFixture.ZoneAt("child.example.", AuthorityFixture.Record("www.child.example.", 1, [192, 0, 2, 4]), AuthorityFixture.Record("nested.child.example.", 43, AuthorityFixture.DsData(2)));
+        var child = AuthorityFixture.ZoneAt("child.example.", AuthorityFixture.Record("www.child.example.", 1, [192, 0, 2, 4]), AuthorityFixture.Record("nested.child.example.", 2, DnsName.Parse("ns.nested.child.example.").ToWire()), AuthorityFixture.Record("nested.child.example.", 43, AuthorityFixture.DsData(2)));
         var catalog = new AuthoritativeCatalog([parent, child]);
         Assert.Equal((ushort)1, Assert.Single(catalog.Resolve(new DnsQuestion(DnsName.Parse("www.child.example."), 1, 1)).Answers).Type);
         Assert.Equal(AuthorityFixture.DsData(1), Assert.Single(catalog.Resolve(new DnsQuestion(child.Origin, 43, 1)).Answers).GetData());
         Assert.Equal(AuthorityFixture.DsData(2), Assert.Single(catalog.Resolve(new DnsQuestion(DnsName.Parse("nested.child.example."), 43, 1)).Answers).GetData());
+    }
+
+    [Fact]
+    public void ChildOnlyApexDsQueryReturnsAuthoritativeNoDataWithItsOwnSoa()
+    {
+        var child = AuthorityFixture.ZoneAt("child.example.", AuthorityFixture.Record("nested.child.example.", 2, DnsName.Parse("ns.nested.child.example.").ToWire()), AuthorityFixture.Record("nested.child.example.", 43, AuthorityFixture.DsData(2)));
+        var result = new AuthoritativeCatalog([child]).Resolve(new DnsQuestion(child.Origin, 43, 1));
+        Assert.Equal((byte)0, result.ResponseCode);
+        Assert.True(result.Authoritative);
+        Assert.Empty(result.Answers);
+        var soa = Assert.Single(result.Authority);
+        Assert.Equal((ushort)6, soa.Type);
+        Assert.Equal(child.Origin, soa.Owner);
+        Assert.Equal(60u, soa.Ttl);
+        Assert.Empty(result.Additional);
     }
 
     [Fact]

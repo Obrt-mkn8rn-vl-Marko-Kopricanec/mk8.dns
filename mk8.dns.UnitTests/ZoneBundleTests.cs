@@ -77,6 +77,60 @@ public sealed class ZoneBundleTests
     }
 
     [Theory]
+    [InlineData("example.", false, false)]
+    [InlineData("child.example.", false, false)]
+    [InlineData("nested.child.example.", false, true)]
+    [InlineData("nested.child.example.", true, true)]
+    public void DsAdmissionRejectsApexNonDelegationAndDataBelowAnEarlierCut(string owner, bool ownerNs, bool ancestorCut)
+    {
+        var zone = ZoneForDsPlacement(owner, ownerNs, ancestorCut);
+        var records = zone.GetAllRecords().Append(AuthorityFixture.Record(owner, 43, AuthorityFixture.DsData(1)));
+        Assert.Throws<ArgumentException>(() => new AuthoritativeZone(zone.Origin, records));
+    }
+
+    [Theory]
+    [InlineData("example.", false, false)]
+    [InlineData("child.example.", false, false)]
+    [InlineData("nested.child.example.", false, true)]
+    [InlineData("nested.child.example.", true, true)]
+    public void BundleDecodeRejectsDsAtInvalidPlacement(string owner, bool ownerNs, bool ancestorCut)
+    {
+        var valid = ZoneBundleCodec.Compile(Guid.NewGuid(), 1, ZoneForDsPlacement(owner, ownerNs, ancestorCut));
+        var bytes = valid.GetPayload();
+        var name = DnsName.Parse(owner).ToWire();
+        var data = AuthorityFixture.DsData(1);
+        // Append an independently encoded DS to bypass trusted zone construction.
+        var payload = new byte[bytes.Length + name.Length + 8 + data.Length];
+        bytes.CopyTo(payload, 0);
+        BinaryPrimitives.WriteUInt16BigEndian(payload.AsSpan(4), (ushort)(BinaryPrimitives.ReadUInt16BigEndian(bytes.AsSpan(4)) + 1));
+        name.CopyTo(payload, bytes.Length);
+        var offset = bytes.Length + name.Length;
+        BinaryPrimitives.WriteUInt16BigEndian(payload.AsSpan(offset), 43);
+        BinaryPrimitives.WriteUInt32BigEndian(payload.AsSpan(offset + 2), 300);
+        BinaryPrimitives.WriteUInt16BigEndian(payload.AsSpan(offset + 6), (ushort)data.Length);
+        data.CopyTo(payload, offset + 8);
+        Assert.Throws<FormatException>(() => ZoneBundleCodec.Decode(new ZoneSnapshot(valid.ZoneId, valid.Origin, valid.Revision, valid.Serial, payload)));
+    }
+
+    [Fact]
+    public void ParentDelegationDsRoundTripsWithoutChangingItsData()
+    {
+        var zone = AuthorityFixture.Zone(AuthorityFixture.Record("child.example.", 2, DnsName.Parse("ns.child.example.").ToWire()), AuthorityFixture.Record("child.example.", 43, AuthorityFixture.DsData(2)));
+        var decoded = ZoneBundleCodec.Decode(ZoneBundleCodec.Compile(Guid.NewGuid(), 1, zone));
+        Assert.Equal(AuthorityFixture.DsData(2), decoded.GetRecords(DnsName.Parse("child.example.")).Single(record => record.Type == 43).GetData());
+    }
+
+    private static AuthoritativeZone ZoneForDsPlacement(string owner, bool ownerNs, bool ancestorCut)
+    {
+        List<DnsRecord> records = [];
+        if (ownerNs)
+            records.Add(AuthorityFixture.Record(owner, 2, DnsName.Parse("ns." + owner).ToWire()));
+        if (ancestorCut)
+            records.Add(AuthorityFixture.Record("child.example.", 2, DnsName.Parse("ns.child.example.").ToWire()));
+        return AuthorityFixture.Zone(records.ToArray());
+    }
+
+    [Theory]
     [InlineData(1, "000000")]
     [InlineData(28, "00000000")]
     [InlineData(2, "c00c")]
