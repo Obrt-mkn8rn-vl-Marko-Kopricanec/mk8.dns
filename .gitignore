@@ -1,0 +1,19 @@
+/docs/internal
+
+**/[Aa][Gg][Ee][Nn][Tt].[Mm][Dd]
+**/[Aa][Gg][Ee][Nn][Tt][Ss].[Mm][Dd]
+
+# Local environment settings.
+.env
+.env.*
+!.env.example
+
+# Editor and operating system files.
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
