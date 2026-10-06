@@ -7,7 +7,8 @@ using Mk8.Dns.Transport;
 
 var settings = ApplicationSettings.Parse(args);
 using var socket = new PrivateUnixSocket(settings.SocketPath);
-using var snapshots = new FileZoneSnapshotStore(settings.StateDirectory);
+var snapshots = new FileZoneSnapshotStore(settings.StateDirectory);
+await using var snapshotLifetime = snapshots.ConfigureAwait(false);
 
 var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { Args = [] });
 builder.Configuration.Sources.Clear();

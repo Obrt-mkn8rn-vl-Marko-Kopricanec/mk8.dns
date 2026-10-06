@@ -3,5 +3,6 @@ Mk8.Dns.Application.DAL.FileZoneSnapshotStore
 Mk8.Dns.Application.DAL.FileZoneSnapshotStore.ActivateAsync(Mk8.Dns.Domain.ZoneSnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Mk8.Dns.Application.DAL.FileZoneSnapshotStore.CountActiveAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<uint>
 Mk8.Dns.Application.DAL.FileZoneSnapshotStore.Dispose() -> void
+Mk8.Dns.Application.DAL.FileZoneSnapshotStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Mk8.Dns.Application.DAL.FileZoneSnapshotStore.FileZoneSnapshotStore(string! root) -> void
 Mk8.Dns.Application.DAL.FileZoneSnapshotStore.ReadActiveAsync(System.Guid zoneId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.ZoneSnapshot?>

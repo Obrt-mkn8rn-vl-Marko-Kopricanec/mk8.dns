@@ -6,15 +6,25 @@ using Mk8.Dns.Domain;
 
 namespace Mk8.Dns.Application.DAL;
 
-public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable
+public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable, IAsyncDisposable
 {
     private const int MaximumDocumentBytes = 2_097_152;
     private readonly string root;
     private readonly FileStream writerLease;
     private readonly SemaphoreSlim gate = new(1, 1);
-    private bool disposed;
+    private readonly Lock lifetimeLock = new();
+    private readonly CancellationTokenSource admissionClosed = new();
+    private readonly TaskCompletionSource disposalCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly Func<CancellationToken, ValueTask>? beforeActivePointerWrite;
+    private int operations;
+    private bool disposeRequested;
+    private bool admissionSignaled;
 
-    public FileZoneSnapshotStore(string root)
+    public FileZoneSnapshotStore(string root) : this(root, null)
+    {
+    }
+
+    internal FileZoneSnapshotStore(string root, Func<CancellationToken, ValueTask>? beforeActivePointerWrite)
     {
         ArgumentException.ThrowIfNullOrEmpty(root);
         if (!OperatingSystem.IsLinux())
@@ -22,6 +32,7 @@ public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable
         if (!Path.IsPathFullyQualified(root))
             throw new ArgumentException("Snapshot storage requires an absolute path.", nameof(root));
         this.root = Path.GetFullPath(root);
+        this.beforeActivePointerWrite = beforeActivePointerWrite;
         var parent = Path.GetDirectoryName(this.root) ?? throw new ArgumentException("Snapshot root requires a parent.", nameof(root));
         if (!Directory.Exists(parent))
             throw new DirectoryNotFoundException("Provision the snapshot root's parent before startup.");
@@ -41,8 +52,7 @@ public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable
     public async ValueTask ActivateAsync(ZoneSnapshot snapshot, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        ObjectDisposedException.ThrowIf(disposed, this);
-        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await EnterOperationAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var current = await ReadCoreAsync(snapshot.ZoneId, cancellationToken).ConfigureAwait(false);
@@ -69,32 +79,32 @@ public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable
             }
 
             var pointer = new ActiveDocument(1, snapshot.ZoneId, snapshot.Revision, hash);
+            if (beforeActivePointerWrite is not null)
+                await beforeActivePointerWrite(cancellationToken).ConfigureAwait(false);
             await WriteAtomicAsync(Path.Combine(directory, "active.json"), JsonSerializer.SerializeToUtf8Bytes(pointer, SnapshotJsonContext.Default.ActiveDocument), cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            gate.Release();
+            FinishOperation(releaseGate: true);
         }
     }
 
     public async ValueTask<ZoneSnapshot?> ReadActiveAsync(Guid zoneId, CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await EnterOperationAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             return await ReadCoreAsync(zoneId, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            gate.Release();
+            FinishOperation(releaseGate: true);
         }
     }
 
     public async ValueTask<uint> CountActiveAsync(CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await EnterOperationAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             uint count = 0;
@@ -111,17 +121,97 @@ public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable
         }
         finally
         {
-            gate.Release();
+            FinishOperation(releaseGate: true);
         }
     }
 
+    /// <summary>Closes admission immediately; running operations retain the writer lease until they finish.</summary>
+    /// <remarks>Use <see cref="DisposeAsync"/> to await the drain and release of all resources.</remarks>
     public void Dispose()
     {
-        if (disposed)
-            return;
-        disposed = true;
-        writerLease.Dispose();
-        gate.Dispose();
+        lock (lifetimeLock)
+        {
+            if (disposeRequested)
+                return;
+            disposeRequested = true;
+        }
+        try
+        {
+            admissionClosed.Cancel();
+        }
+        finally
+        {
+            lock (lifetimeLock)
+            {
+                admissionSignaled = true;
+                if (operations == 0)
+                    ReleaseResources();
+            }
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        Dispose();
+        return new ValueTask(disposalCompleted.Task);
+    }
+
+    private async ValueTask EnterOperationAsync(CancellationToken cancellationToken)
+    {
+        lock (lifetimeLock)
+        {
+            ObjectDisposedException.ThrowIf(disposeRequested, this);
+            operations = checked(operations + 1);
+        }
+        var acquired = false;
+        try
+        {
+            using var admission = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, admissionClosed.Token);
+            try
+            {
+                await gate.WaitAsync(admission.Token).ConfigureAwait(false);
+                acquired = true;
+            }
+            catch (OperationCanceledException exception) when (admissionClosed.IsCancellationRequested)
+            {
+                throw new ObjectDisposedException("The snapshot store closed admission during shutdown.", exception);
+            }
+            lock (lifetimeLock)
+                ObjectDisposedException.ThrowIf(disposeRequested, this);
+        }
+        catch
+        {
+            FinishOperation(acquired);
+            throw;
+        }
+    }
+
+    private void FinishOperation(bool releaseGate)
+    {
+        if (releaseGate)
+            gate.Release();
+        lock (lifetimeLock)
+        {
+            operations--;
+            if (disposeRequested && admissionSignaled && operations == 0)
+                ReleaseResources();
+        }
+    }
+
+    private void ReleaseResources()
+    {
+        try
+        {
+            writerLease.Dispose();
+            gate.Dispose();
+            admissionClosed.Dispose();
+            disposalCompleted.SetResult();
+        }
+        catch (Exception exception)
+        {
+            disposalCompleted.TrySetException(exception);
+            throw;
+        }
     }
 
     private async ValueTask<ZoneSnapshot?> ReadCoreAsync(Guid zoneId, CancellationToken cancellationToken)
@@ -130,11 +220,23 @@ public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable
         RejectLink(directory);
         var activePath = Path.Combine(directory, "active.json");
         RejectLink(activePath);
-        if (!File.Exists(activePath))
-            return null;
         try
         {
-            var pointer = await ReadDocumentAsync(activePath, SnapshotJsonContext.Default.ActiveDocument, cancellationToken).ConfigureAwait(false);
+            ActiveDocument pointer;
+            try
+            {
+                pointer = await ReadDocumentAsync(activePath, SnapshotJsonContext.Default.ActiveDocument, cancellationToken).ConfigureAwait(false);
+            }
+            catch (FileNotFoundException)
+            {
+                EnsureUnpublishedDirectory(directory);
+                return null;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                EnsureUnpublishedDirectory(directory);
+                return null;
+            }
             if (pointer.FormatVersion != 1 || pointer.ZoneId != zoneId || pointer.Revision <= 0 || pointer.Hash is null || pointer.Hash.Length != 64 || !IsLowerHex(pointer.Hash))
                 throw new InvalidDataException("Invalid active snapshot pointer.");
             var path = BundlePath(directory, pointer.Revision, pointer.Hash);
@@ -159,6 +261,24 @@ public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable
         catch (FormatException exception)
         {
             throw new InvalidDataException("Invalid snapshot origin.", exception);
+        }
+    }
+
+    private static void EnsureUnpublishedDirectory(string directory)
+    {
+        try
+        {
+            foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
+            {
+                RejectLink(entry);
+                var name = Path.GetFileName(entry);
+                if (!name.EndsWith(".tmp", StringComparison.Ordinal) || !Guid.TryParseExact(name.AsSpan(0, name.Length - 4), "N", out _) || (File.GetAttributes(entry) & FileAttributes.Directory) != default(FileAttributes))
+                    throw new InvalidDataException("Active metadata is missing while published or unknown state remains; verified reconciliation is required.");
+            }
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // A zone with no directory has no local publication evidence.
         }
     }
 
