@@ -108,12 +108,19 @@ public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable, IAs
         try
         {
             uint count = 0;
-            foreach (var directory in Directory.EnumerateDirectories(root))
+            NativeStoragePath.RequireDirectory(root);
+            foreach (var entry in Directory.EnumerateFileSystemEntries(root))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                RejectLink(directory);
-                if (!Guid.TryParseExact(Path.GetFileName(directory), "N", out var zoneId))
-                    throw new InvalidDataException("Unknown directory in the snapshot store.");
+                var name = Path.GetFileName(entry);
+                if (string.Equals(name, ".writer.lock", StringComparison.Ordinal))
+                {
+                    NativeStoragePath.RequireRegularFile(entry);
+                    continue;
+                }
+                if (!Guid.TryParseExact(name, "N", out var zoneId) || zoneId == Guid.Empty || !string.Equals(name, zoneId.ToString("N"), StringComparison.Ordinal))
+                    throw new InvalidDataException("Unknown entry in the snapshot store.");
+                NativeStoragePath.RequireDirectory(entry);
                 if (await ReadCoreAsync(zoneId, cancellationToken).ConfigureAwait(false) is not null)
                     count = checked(count + 1);
             }
@@ -217,7 +224,12 @@ public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable, IAs
     private async ValueTask<ZoneSnapshot?> ReadCoreAsync(Guid zoneId, CancellationToken cancellationToken)
     {
         var directory = ZoneDirectory(zoneId);
-        RejectLink(directory);
+        NativeStoragePath.RequireDirectory(root);
+        if (!NativeStoragePath.IsDirectoryPresent(directory))
+        {
+            NativeStoragePath.RequireDirectory(root);
+            return null;
+        }
         var activePath = Path.Combine(directory, "active.json");
         RejectLink(activePath);
         try
@@ -228,11 +240,6 @@ public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable, IAs
                 pointer = await ReadDocumentAsync(activePath, SnapshotJsonContext.Default.ActiveDocument, cancellationToken).ConfigureAwait(false);
             }
             catch (FileNotFoundException)
-            {
-                EnsureUnpublishedDirectory(directory);
-                return null;
-            }
-            catch (DirectoryNotFoundException)
             {
                 EnsureUnpublishedDirectory(directory);
                 return null;
@@ -266,19 +273,13 @@ public sealed class FileZoneSnapshotStore : IZoneSnapshotStore, IDisposable, IAs
 
     private static void EnsureUnpublishedDirectory(string directory)
     {
-        try
+        NativeStoragePath.RequireDirectory(directory);
+        foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
         {
-            foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
-            {
-                RejectLink(entry);
-                var name = Path.GetFileName(entry);
-                if (!name.EndsWith(".tmp", StringComparison.Ordinal) || !Guid.TryParseExact(name.AsSpan(0, name.Length - 4), "N", out _) || (File.GetAttributes(entry) & FileAttributes.Directory) != default(FileAttributes))
-                    throw new InvalidDataException("Active metadata is missing while published or unknown state remains; verified reconciliation is required.");
-            }
-        }
-        catch (DirectoryNotFoundException)
-        {
-            // A zone with no directory has no local publication evidence.
+            var name = Path.GetFileName(entry);
+            if (!name.EndsWith(".tmp", StringComparison.Ordinal) || !Guid.TryParseExact(name.AsSpan(0, name.Length - 4), "N", out _))
+                throw new InvalidDataException("Active metadata is missing while published or unknown state remains; verified reconciliation is required.");
+            NativeStoragePath.RequireRegularFile(entry);
         }
     }
 
