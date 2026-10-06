@@ -35,7 +35,7 @@
       "mk8.dns.application.abstractions": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[1.0.0, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.4, )"
         }
       },
       "mk8.dns.contracts": {
@@ -47,6 +47,12 @@
       },
       "mk8.dns.domain": {
         "type": "Project"
+      },
+      "mk8.dns.engine.authoritative": {
+        "type": "Project",
+        "dependencies": {
+          "mk8.dns.Domain": "[0.1.0-alpha.4, )"
+        }
       },
       "Google.Protobuf": {
         "type": "CentralTransitive",

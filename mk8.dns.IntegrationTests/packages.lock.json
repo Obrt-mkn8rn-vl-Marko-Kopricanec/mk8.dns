@@ -263,13 +263,13 @@
       "mk8.dns.application.abstractions": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[1.0.0, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.4, )"
         }
       },
       "mk8.dns.application.dal": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Application.Abstractions": "[1.0.0, )"
+          "mk8.dns.Application.Abstractions": "[0.1.0-alpha.4, )"
         }
       },
       "mk8.dns.contracts": {
@@ -287,7 +287,13 @@
         "dependencies": {
           "Grpc.AspNetCore": "[2.84.0, )",
           "Grpc.Net.Client": "[2.84.0, )",
-          "mk8.dns.Contracts": "[1.0.0, )"
+          "mk8.dns.Contracts": "[0.1.0-alpha.4, )"
+        }
+      },
+      "mk8.dns.wire": {
+        "type": "Project",
+        "dependencies": {
+          "mk8.dns.Domain": "[0.1.0-alpha.4, )"
         }
       },
       "Google.Protobuf": {

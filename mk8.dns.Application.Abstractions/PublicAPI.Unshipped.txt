@@ -1,4 +1,8 @@
 #nullable enable
+Mk8.Dns.Application.Abstractions.IDnsMessageCodec
+Mk8.Dns.Application.Abstractions.IDnsMessageCodec.Decode(System.ReadOnlySpan<byte> message) -> Mk8.Dns.Domain.DnsQuery!
+Mk8.Dns.Application.Abstractions.IDnsMessageCodec.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp) -> byte[]!
+Mk8.Dns.Application.Abstractions.IDnsMessageCodec.EncodeError(System.ReadOnlySpan<byte> message, byte code) -> byte[]!
 Mk8.Dns.Application.Abstractions.IZoneSnapshotStore
 Mk8.Dns.Application.Abstractions.IZoneSnapshotStore.ActivateAsync(Mk8.Dns.Domain.ZoneSnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Mk8.Dns.Application.Abstractions.IZoneSnapshotStore.CountActiveAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<uint>

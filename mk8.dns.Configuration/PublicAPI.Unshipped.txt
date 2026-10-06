@@ -12,9 +12,13 @@ Mk8.Dns.Configuration.ApplicationSettings.SocketPath.get -> string!
 Mk8.Dns.Configuration.ApplicationSettings.SocketPath.init -> void
 Mk8.Dns.Configuration.ApplicationSettings.StateDirectory.get -> string!
 Mk8.Dns.Configuration.ApplicationSettings.StateDirectory.init -> void
+Mk8.Dns.Configuration.ApplicationSettings.ZoneIds.get -> System.Collections.Generic.IReadOnlyList<System.Guid>!
+Mk8.Dns.Configuration.ApplicationSettings.ZoneIds.init -> void
 Mk8.Dns.Configuration.GatewaySettings
 Mk8.Dns.Configuration.GatewaySettings.<Clone>$() -> Mk8.Dns.Configuration.GatewaySettings!
 Mk8.Dns.Configuration.GatewaySettings.Deconstruct(out string! SocketPath, out int HealthPort) -> void
+Mk8.Dns.Configuration.GatewaySettings.DnsEndpoint.get -> System.Net.IPEndPoint?
+Mk8.Dns.Configuration.GatewaySettings.DnsEndpoint.init -> void
 Mk8.Dns.Configuration.GatewaySettings.Equals(Mk8.Dns.Configuration.GatewaySettings? other) -> bool
 Mk8.Dns.Configuration.GatewaySettings.GatewaySettings(string! SocketPath, int HealthPort) -> void
 Mk8.Dns.Configuration.GatewaySettings.HealthPort.get -> int

@@ -9,5 +9,10 @@
     <ProjectReference Include="../mk8.dns.Domain/mk8.dns.Domain.csproj" />
     <ProjectReference Include="../mk8.dns.Application.DAL/mk8.dns.Application.DAL.csproj" />
     <ProjectReference Include="../mk8.dns.Configuration/mk8.dns.Configuration.csproj" />
+    <ProjectReference Include="../mk8.dns.Wire/mk8.dns.Wire.csproj" />
+    <ProjectReference Include="../mk8.dns.Engine.Authoritative/mk8.dns.Engine.Authoritative.csproj" />
+    <ProjectReference Include="../mk8.dns.Application.BLL/mk8.dns.Application.BLL.csproj" />
+    <ProjectReference Include="../mk8.dns.Infrastructure/mk8.dns.Infrastructure.csproj" />
+    <ProjectReference Include="../mk8.dns.Presentation/mk8.dns.Presentation.csproj" />
   </ItemGroup>
 </Project>

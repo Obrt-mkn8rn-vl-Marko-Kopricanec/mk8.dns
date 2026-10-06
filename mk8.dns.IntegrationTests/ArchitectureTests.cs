@@ -19,10 +19,12 @@ public sealed class ArchitectureTests
                 references.Add(Path.GetFileNameWithoutExtension(reference.Attribute("Include")!.Value));
             graph.Add(Path.GetFileName(directory), references);
         }
-        var allowedGateway = new HashSet<string>(["mk8.dns.Configuration", "mk8.dns.Transport"], StringComparer.Ordinal);
+        var allowedGateway = new HashSet<string>(["mk8.dns.Configuration", "mk8.dns.Transport", "mk8.dns.Presentation"], StringComparer.Ordinal);
         Assert.True(graph["mk8.dns.Gateway"].SetEquals(allowedGateway));
         Assert.Empty(graph["mk8.dns.Domain"]);
         Assert.Empty(graph["mk8.dns.Contracts"]);
+        Assert.True(graph["mk8.dns.Wire"].SetEquals(["mk8.dns.Domain"]));
+        Assert.True(graph["mk8.dns.Engine.Authoritative"].SetEquals(["mk8.dns.Domain"]));
         Assert.DoesNotContain("mk8.dns.Application.DAL", graph["mk8.dns.Application.BLL"]);
 
         HashSet<string> visited = new(StringComparer.Ordinal);
@@ -34,6 +36,7 @@ public sealed class ArchitectureTests
         Assert.DoesNotContain("mk8.dns.Application.BLL", gatewayClosure);
         Assert.DoesNotContain("mk8.dns.Application.DAL", gatewayClosure);
         Assert.DoesNotContain("mk8.dns.Application", gatewayClosure);
+        Assert.DoesNotContain("mk8.dns.Engine.Authoritative", gatewayClosure);
 
         void Visit(string node)
         {

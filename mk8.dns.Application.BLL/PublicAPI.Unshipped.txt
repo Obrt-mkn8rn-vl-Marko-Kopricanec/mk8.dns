@@ -2,3 +2,7 @@
 Mk8.Dns.Application.BLL.ApplicationStatusSource
 Mk8.Dns.Application.BLL.ApplicationStatusSource.ApplicationStatusSource(Mk8.Dns.Application.Abstractions.IZoneSnapshotStore! snapshots, string! nodeId, string! role) -> void
 Mk8.Dns.Application.BLL.ApplicationStatusSource.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.ApplicationStatus!>
+Mk8.Dns.Application.BLL.AuthoritativeApplication
+Mk8.Dns.Application.BLL.AuthoritativeApplication.AuthoritativeApplication(Mk8.Dns.Engine.Authoritative.AuthoritativeCatalog! catalog, Mk8.Dns.Application.Abstractions.IDnsMessageCodec! codec, string! nodeId) -> void
+Mk8.Dns.Application.BLL.AuthoritativeApplication.ExchangeAsync(System.ReadOnlyMemory<byte> message, bool tcp, System.ReadOnlyMemory<byte> peerAddress, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<byte[]!>
+Mk8.Dns.Application.BLL.AuthoritativeApplication.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.ApplicationStatus!>

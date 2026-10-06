@@ -28,6 +28,20 @@ internal sealed class HostProcess : IAsyncDisposable
     }
 
     internal bool HasExited => process.HasExited;
+    internal int ExitCode => process.ExitCode;
+
+    internal async Task StopAsync(CancellationToken cancellationToken)
+    {
+        if (!process.HasExited)
+        {
+            var start = new ProcessStartInfo("/bin/kill") { UseShellExecute = false };
+            start.ArgumentList.Add("-TERM");
+            start.ArgumentList.Add(process.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            using var signal = Process.Start(start) ?? throw new InvalidOperationException("Cannot terminate the owned host.");
+            await signal.WaitForExitAsync(cancellationToken).ConfigureAwait(true);
+        }
+        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(true);
+    }
 
     internal async Task KillAsync(CancellationToken cancellationToken)
     {

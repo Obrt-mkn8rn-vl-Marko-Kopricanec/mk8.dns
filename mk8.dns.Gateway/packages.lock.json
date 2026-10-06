@@ -69,12 +69,18 @@
           "Grpc.Core.Api": "[2.84.0, )"
         }
       },
+      "mk8.dns.presentation": {
+        "type": "Project",
+        "dependencies": {
+          "mk8.dns.Transport": "[0.1.0-alpha.4, )"
+        }
+      },
       "mk8.dns.transport": {
         "type": "Project",
         "dependencies": {
           "Grpc.AspNetCore": "[2.84.0, )",
           "Grpc.Net.Client": "[2.84.0, )",
-          "mk8.dns.Contracts": "[1.0.0, )"
+          "mk8.dns.Contracts": "[0.1.0-alpha.4, )"
         }
       },
       "Google.Protobuf": {

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../mk8.dns.Application.Abstractions/mk8.dns.Application.Abstractions.csproj" />
+    <ProjectReference Include="../mk8.dns.Wire/mk8.dns.Wire.csproj" />
+  </ItemGroup>
+</Project>

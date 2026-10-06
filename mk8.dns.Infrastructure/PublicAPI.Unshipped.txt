@@ -1,0 +1,6 @@
+#nullable enable
+Mk8.Dns.Infrastructure.DnsMessageCodecAdapter
+Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.Decode(System.ReadOnlySpan<byte> message) -> Mk8.Dns.Domain.DnsQuery!
+Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.DnsMessageCodecAdapter() -> void
+Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp) -> byte[]!
+Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.EncodeError(System.ReadOnlySpan<byte> message, byte code) -> byte[]!

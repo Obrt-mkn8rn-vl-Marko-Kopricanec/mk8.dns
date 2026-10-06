@@ -1,0 +1,10 @@
+#nullable enable
+Mk8.Dns.Wire.DnsMessageCodec
+Mk8.Dns.Wire.ZoneBundleCodec
+const Mk8.Dns.Wire.DnsMessageCodec.MaximumMessageBytes = 65535 -> int
+const Mk8.Dns.Wire.DnsMessageCodec.MaximumUdpPayloadSize = 1232 -> ushort
+static Mk8.Dns.Wire.DnsMessageCodec.DecodeQuery(System.ReadOnlySpan<byte> message) -> Mk8.Dns.Domain.DnsQuery!
+static Mk8.Dns.Wire.DnsMessageCodec.EncodeError(System.ReadOnlySpan<byte> request, byte responseCode) -> byte[]!
+static Mk8.Dns.Wire.DnsMessageCodec.EncodeResponse(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp) -> byte[]!
+static Mk8.Dns.Wire.ZoneBundleCodec.Compile(System.Guid zoneId, long revision, Mk8.Dns.Domain.AuthoritativeZone! zone) -> Mk8.Dns.Domain.ZoneSnapshot!
+static Mk8.Dns.Wire.ZoneBundleCodec.Decode(Mk8.Dns.Domain.ZoneSnapshot! snapshot) -> Mk8.Dns.Domain.AuthoritativeZone!

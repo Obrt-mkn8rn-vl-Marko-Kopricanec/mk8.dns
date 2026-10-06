@@ -8,6 +8,22 @@ service ApplicationProbe {
   rpc GetStatus (StatusRequest) returns (StatusReply);
 }
 
+service AuthoritativeQuery {
+  rpc Exchange (DnsRequest) returns (DnsReply);
+}
+
+message DnsRequest {
+  uint32 protocol_version = 1;
+  bytes message = 2;
+  bool tcp = 3;
+  bytes peer_address = 4;
+}
+
+message DnsReply {
+  uint32 protocol_version = 1;
+  bytes message = 2;
+}
+
 message StatusRequest {
   uint32 protocol_version = 1;
 }

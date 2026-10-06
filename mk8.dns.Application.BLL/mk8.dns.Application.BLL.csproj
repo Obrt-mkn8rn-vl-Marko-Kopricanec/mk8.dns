@@ -2,5 +2,6 @@
   <ItemGroup>
     <ProjectReference Include="../mk8.dns.Application.Abstractions/mk8.dns.Application.Abstractions.csproj" />
     <ProjectReference Include="../mk8.dns.Contracts/mk8.dns.Contracts.csproj" />
+    <ProjectReference Include="../mk8.dns.Engine.Authoritative/mk8.dns.Engine.Authoritative.csproj" />
   </ItemGroup>
 </Project>

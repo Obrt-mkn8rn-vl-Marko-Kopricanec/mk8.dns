@@ -5,9 +5,17 @@ Mk8.Dns.Transport.PrivateUnixSocket.Path.get -> string!
 Mk8.Dns.Transport.PrivateUnixSocket.PrivateUnixSocket(string! path) -> void
 Mk8.Dns.Transport.PrivateUnixSocket.SetSocketPermissions() -> void
 Mk8.Dns.Transport.ProbeHostingExtensions
+Mk8.Dns.Transport.QueryHostingExtensions
 Mk8.Dns.Transport.UnixApplicationClient
 Mk8.Dns.Transport.UnixApplicationClient.Dispose() -> void
 Mk8.Dns.Transport.UnixApplicationClient.GetStatusAsync(uint version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Mk8.Dns.Contracts.ApplicationStatus!>!
 Mk8.Dns.Transport.UnixApplicationClient.UnixApplicationClient(string! socketPath) -> void
+Mk8.Dns.Transport.UnixDnsClient
+Mk8.Dns.Transport.UnixDnsClient.Dispose() -> void
+Mk8.Dns.Transport.UnixDnsClient.ExchangeAsync(System.ReadOnlyMemory<byte> message, bool tcp, System.ReadOnlyMemory<byte> peerAddress, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<byte[]!>
+Mk8.Dns.Transport.UnixDnsClient.UnixDnsClient(string! socketPath) -> void
+const Mk8.Dns.Transport.QueryHostingExtensions.MaximumExchangeBytes = 66047 -> int
 static Mk8.Dns.Transport.ProbeHostingExtensions.AddApplicationProbe(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Mk8.Dns.Contracts.IApplicationStatusSource! source) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Mk8.Dns.Transport.ProbeHostingExtensions.MapApplicationProbe(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!
+static Mk8.Dns.Transport.QueryHostingExtensions.AddAuthoritativeQuery(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Mk8.Dns.Contracts.IDnsExchange! source) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Mk8.Dns.Transport.QueryHostingExtensions.MapAuthoritativeQuery(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!

@@ -16,6 +16,8 @@ Mk8.Dns.Contracts.ApplicationStatus.Role.get -> string!
 Mk8.Dns.Contracts.ApplicationStatus.Role.init -> void
 Mk8.Dns.Contracts.IApplicationStatusSource
 Mk8.Dns.Contracts.IApplicationStatusSource.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.ApplicationStatus!>
+Mk8.Dns.Contracts.IDnsExchange
+Mk8.Dns.Contracts.IDnsExchange.ExchangeAsync(System.ReadOnlyMemory<byte> message, bool tcp, System.ReadOnlyMemory<byte> peerAddress, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<byte[]!>
 Mk8.Dns.Contracts.ProtocolVersion
 const Mk8.Dns.Contracts.ProtocolVersion.Current = 1 -> uint
 const Mk8.Dns.Contracts.ProtocolVersion.MaximumMessageBytes = 4096 -> int

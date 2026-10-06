@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
+    <ProjectReference Include="../mk8.dns.Presentation/mk8.dns.Presentation.csproj" />
     <ProjectReference Include="../mk8.dns.Configuration/mk8.dns.Configuration.csproj" />
     <ProjectReference Include="../mk8.dns.Transport/mk8.dns.Transport.csproj" />
   </ItemGroup>

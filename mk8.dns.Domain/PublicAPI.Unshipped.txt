@@ -1,7 +1,59 @@
 #nullable enable
+Mk8.Dns.Domain.AuthoritativeZone
+Mk8.Dns.Domain.AuthoritativeZone.AuthoritativeZone(Mk8.Dns.Domain.DnsName! origin, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsRecord!>! records) -> void
+Mk8.Dns.Domain.AuthoritativeZone.ContainsName(Mk8.Dns.Domain.DnsName! name) -> bool
+Mk8.Dns.Domain.AuthoritativeZone.GetAllRecords() -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Domain.AuthoritativeZone.GetRecords(Mk8.Dns.Domain.DnsName! name) -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Domain.AuthoritativeZone.Origin.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Domain.AuthoritativeZone.Soa.get -> Mk8.Dns.Domain.DnsRecord!
+Mk8.Dns.Domain.DnsAnswer
+Mk8.Dns.Domain.DnsAnswer.Additional.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Domain.DnsAnswer.Answers.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Domain.DnsAnswer.Authoritative.get -> bool
+Mk8.Dns.Domain.DnsAnswer.Authority.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Domain.DnsAnswer.DnsAnswer(byte responseCode, bool authoritative, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsRecord!>! answers, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsRecord!>! authority, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsRecord!>! additional) -> void
+Mk8.Dns.Domain.DnsAnswer.ResponseCode.get -> byte
 Mk8.Dns.Domain.DnsName
 Mk8.Dns.Domain.DnsName.Equals(Mk8.Dns.Domain.DnsName? other) -> bool
+Mk8.Dns.Domain.DnsName.IsSubdomainOf(Mk8.Dns.Domain.DnsName! ancestor) -> bool
+Mk8.Dns.Domain.DnsName.LabelCount.get -> int
+Mk8.Dns.Domain.DnsName.Parent.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Domain.DnsName.PrependLabel(System.ReadOnlySpan<byte> label) -> Mk8.Dns.Domain.DnsName!
 Mk8.Dns.Domain.DnsName.ToWire() -> byte[]!
+Mk8.Dns.Domain.DnsQuery
+Mk8.Dns.Domain.DnsQuery.DnsQuery(ushort id, ushort flags, Mk8.Dns.Domain.DnsQuestion! question, byte[]! name, ushort udpPayloadSize, bool hasEdns, byte ednsVersion, bool dnssecOk) -> void
+Mk8.Dns.Domain.DnsQuery.DnssecOk.get -> bool
+Mk8.Dns.Domain.DnsQuery.EdnsVersion.get -> byte
+Mk8.Dns.Domain.DnsQuery.Flags.get -> ushort
+Mk8.Dns.Domain.DnsQuery.GetQuestionNameWire() -> byte[]!
+Mk8.Dns.Domain.DnsQuery.HasEdns.get -> bool
+Mk8.Dns.Domain.DnsQuery.Id.get -> ushort
+Mk8.Dns.Domain.DnsQuery.Question.get -> Mk8.Dns.Domain.DnsQuestion!
+Mk8.Dns.Domain.DnsQuery.UdpPayloadSize.get -> ushort
+Mk8.Dns.Domain.DnsQuestion
+Mk8.Dns.Domain.DnsQuestion.<Clone>$() -> Mk8.Dns.Domain.DnsQuestion!
+Mk8.Dns.Domain.DnsQuestion.Class.get -> ushort
+Mk8.Dns.Domain.DnsQuestion.Class.init -> void
+Mk8.Dns.Domain.DnsQuestion.Deconstruct(out Mk8.Dns.Domain.DnsName! Name, out ushort Type, out ushort Class) -> void
+Mk8.Dns.Domain.DnsQuestion.DnsQuestion(Mk8.Dns.Domain.DnsName! Name, ushort Type, ushort Class) -> void
+Mk8.Dns.Domain.DnsQuestion.Equals(Mk8.Dns.Domain.DnsQuestion? other) -> bool
+Mk8.Dns.Domain.DnsQuestion.Name.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Domain.DnsQuestion.Name.init -> void
+Mk8.Dns.Domain.DnsQuestion.Type.get -> ushort
+Mk8.Dns.Domain.DnsQuestion.Type.init -> void
+Mk8.Dns.Domain.DnsRecord
+Mk8.Dns.Domain.DnsRecord.DnsRecord(Mk8.Dns.Domain.DnsName! owner, ushort type, uint ttl, System.ReadOnlySpan<byte> data) -> void
+Mk8.Dns.Domain.DnsRecord.DnsRecord(System.ReadOnlySpan<byte> ownerWire, ushort type, uint ttl, System.ReadOnlySpan<byte> data) -> void
+Mk8.Dns.Domain.DnsRecord.GetData() -> byte[]!
+Mk8.Dns.Domain.DnsRecord.GetOwnerWire() -> byte[]!
+Mk8.Dns.Domain.DnsRecord.GetSoaMinimum() -> uint
+Mk8.Dns.Domain.DnsRecord.GetSoaSerial() -> uint
+Mk8.Dns.Domain.DnsRecord.GetTarget() -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Domain.DnsRecord.Owner.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Domain.DnsRecord.Ttl.get -> uint
+Mk8.Dns.Domain.DnsRecord.Type.get -> ushort
+Mk8.Dns.Domain.DnsRecord.WithOwner(Mk8.Dns.Domain.DnsName! owner) -> Mk8.Dns.Domain.DnsRecord!
+Mk8.Dns.Domain.DnsRecord.WithTtl(uint ttl) -> Mk8.Dns.Domain.DnsRecord!
 Mk8.Dns.Domain.SoaSerial
 Mk8.Dns.Domain.ZoneSnapshot
 Mk8.Dns.Domain.ZoneSnapshot.ContentHash.get -> string!
@@ -15,7 +67,12 @@ const Mk8.Dns.Domain.ZoneSnapshot.MaximumPayloadBytes = 1048576 -> int
 override Mk8.Dns.Domain.DnsName.Equals(object? obj) -> bool
 override Mk8.Dns.Domain.DnsName.GetHashCode() -> int
 override Mk8.Dns.Domain.DnsName.ToString() -> string!
+override Mk8.Dns.Domain.DnsQuestion.Equals(object? obj) -> bool
+override Mk8.Dns.Domain.DnsQuestion.GetHashCode() -> int
+override Mk8.Dns.Domain.DnsQuestion.ToString() -> string!
 static Mk8.Dns.Domain.DnsName.FromWire(System.ReadOnlySpan<byte> uncompressedName) -> Mk8.Dns.Domain.DnsName!
 static Mk8.Dns.Domain.DnsName.Parse(string! text) -> Mk8.Dns.Domain.DnsName!
+static Mk8.Dns.Domain.DnsQuestion.operator !=(Mk8.Dns.Domain.DnsQuestion? left, Mk8.Dns.Domain.DnsQuestion? right) -> bool
+static Mk8.Dns.Domain.DnsQuestion.operator ==(Mk8.Dns.Domain.DnsQuestion? left, Mk8.Dns.Domain.DnsQuestion? right) -> bool
 static Mk8.Dns.Domain.SoaSerial.IsNewer(uint candidate, uint current) -> bool
 static Mk8.Dns.Domain.SoaSerial.Next(uint serial) -> uint

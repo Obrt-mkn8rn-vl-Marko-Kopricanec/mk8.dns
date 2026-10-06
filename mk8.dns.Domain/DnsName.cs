@@ -98,6 +98,42 @@ public sealed class DnsName : IEquatable<DnsName>
 
     public byte[] ToWire() => (byte[])wire.Clone();
 
+    public int LabelCount
+    {
+        get
+        {
+            var count = 0;
+            for (var offset = 0; wire[offset] != 0; offset += wire[offset] + 1)
+                count++;
+            return count;
+        }
+    }
+
+    public DnsName Parent => wire[0] == 0 ? this : FromWire(wire.AsSpan(wire[0] + 1));
+
+    public bool IsSubdomainOf(DnsName ancestor)
+    {
+        ArgumentNullException.ThrowIfNull(ancestor);
+        for (var offset = 0; ; offset += wire[offset] + 1)
+        {
+            if (wire.AsSpan(offset).SequenceEqual(ancestor.wire))
+                return true;
+            if (wire[offset] == 0)
+                return false;
+        }
+    }
+
+    public DnsName PrependLabel(ReadOnlySpan<byte> label)
+    {
+        if (label.Length is < 1 or > 63 || label.Length + wire.Length + 1 > 255)
+            throw new FormatException("DNS name exceeds its wire bounds.");
+        var result = new byte[label.Length + wire.Length + 1];
+        result[0] = (byte)label.Length;
+        label.CopyTo(result.AsSpan(1));
+        wire.CopyTo(result, label.Length + 1);
+        return FromWire(result);
+    }
+
     public bool Equals(DnsName? other) => other is not null && wire.AsSpan().SequenceEqual(other.wire);
 
     public override bool Equals(object? obj) => obj is DnsName other && Equals(other);

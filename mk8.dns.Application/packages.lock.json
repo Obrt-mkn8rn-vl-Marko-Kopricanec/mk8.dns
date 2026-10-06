@@ -62,20 +62,21 @@
       "mk8.dns.application.abstractions": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[1.0.0, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.4, )"
         }
       },
       "mk8.dns.application.bll": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Application.Abstractions": "[1.0.0, )",
-          "mk8.dns.Contracts": "[1.0.0, )"
+          "mk8.dns.Application.Abstractions": "[0.1.0-alpha.4, )",
+          "mk8.dns.Contracts": "[0.1.0-alpha.4, )",
+          "mk8.dns.Engine.Authoritative": "[0.1.0-alpha.4, )"
         }
       },
       "mk8.dns.application.dal": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Application.Abstractions": "[1.0.0, )"
+          "mk8.dns.Application.Abstractions": "[0.1.0-alpha.4, )"
         }
       },
       "mk8.dns.configuration": {
@@ -91,12 +92,31 @@
       "mk8.dns.domain": {
         "type": "Project"
       },
+      "mk8.dns.engine.authoritative": {
+        "type": "Project",
+        "dependencies": {
+          "mk8.dns.Domain": "[0.1.0-alpha.4, )"
+        }
+      },
+      "mk8.dns.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "mk8.dns.Application.Abstractions": "[0.1.0-alpha.4, )",
+          "mk8.dns.Wire": "[0.1.0-alpha.4, )"
+        }
+      },
       "mk8.dns.transport": {
         "type": "Project",
         "dependencies": {
           "Grpc.AspNetCore": "[2.84.0, )",
           "Grpc.Net.Client": "[2.84.0, )",
-          "mk8.dns.Contracts": "[1.0.0, )"
+          "mk8.dns.Contracts": "[0.1.0-alpha.4, )"
+        }
+      },
+      "mk8.dns.wire": {
+        "type": "Project",
+        "dependencies": {
+          "mk8.dns.Domain": "[0.1.0-alpha.4, )"
         }
       },
       "Google.Protobuf": {

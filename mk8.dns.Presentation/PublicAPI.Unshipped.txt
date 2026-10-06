@@ -1,0 +1,4 @@
+#nullable enable
+Mk8.Dns.Presentation.AuthoritativeListener
+Mk8.Dns.Presentation.AuthoritativeListener.AuthoritativeListener(System.Net.IPEndPoint! endpoint, Mk8.Dns.Contracts.IDnsExchange! exchange) -> void
+Mk8.Dns.Presentation.AuthoritativeListener.RunAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
