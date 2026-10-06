@@ -262,7 +262,7 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IAsyncDispos
                 command.CommandText = "SELECT writer_id FROM mk8_control_metadata WHERE singleton";
                 break;
             case SqlQuery.ReadPending:
-                command.CommandText = "SELECT " + OperationColumns + " FROM mk8_operations WHERE NOT activated ORDER BY accepted_at,zone_id,revision LIMIT 1";
+                command.CommandText = "SELECT " + OperationColumns + " FROM mk8_operations WHERE NOT activated AND NOT EXISTS(SELECT 1 FROM mk8_operations earlier WHERE earlier.zone_id=mk8_operations.zone_id AND NOT earlier.activated AND earlier.revision<mk8_operations.revision) ORDER BY accepted_at,zone_id,revision LIMIT 1";
                 break;
             case SqlQuery.ReadOperation:
                 command.CommandText = "SELECT " + OperationColumns + " FROM mk8_operations WHERE tenant_id=$1 AND operation_id=$2";

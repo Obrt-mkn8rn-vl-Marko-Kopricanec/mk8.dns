@@ -10,6 +10,7 @@ internal sealed class ReplicaFixture : IAsyncDisposable
 {
     private readonly string root;
     private readonly FileZoneSnapshotStore snapshots;
+    internal FileZoneSnapshotStore Store => snapshots;
     private readonly FilePublicationJournal journal;
     private readonly P256PublicationAuthenticator verifier;
     internal P256PublicationAuthenticator Signer { get; }
