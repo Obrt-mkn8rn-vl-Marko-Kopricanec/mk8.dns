@@ -1,0 +1,26 @@
+#nullable enable
+Mk8.Dns.Contracts.ApplicationStatus
+Mk8.Dns.Contracts.ApplicationStatus.<Clone>$() -> Mk8.Dns.Contracts.ApplicationStatus!
+Mk8.Dns.Contracts.ApplicationStatus.ActiveSnapshots.get -> uint
+Mk8.Dns.Contracts.ApplicationStatus.ActiveSnapshots.init -> void
+Mk8.Dns.Contracts.ApplicationStatus.ApplicationStatus(uint ProtocolVersion, string! NodeId, string! Role, bool DnsReady, uint ActiveSnapshots) -> void
+Mk8.Dns.Contracts.ApplicationStatus.Deconstruct(out uint ProtocolVersion, out string! NodeId, out string! Role, out bool DnsReady, out uint ActiveSnapshots) -> void
+Mk8.Dns.Contracts.ApplicationStatus.DnsReady.get -> bool
+Mk8.Dns.Contracts.ApplicationStatus.DnsReady.init -> void
+Mk8.Dns.Contracts.ApplicationStatus.Equals(Mk8.Dns.Contracts.ApplicationStatus? other) -> bool
+Mk8.Dns.Contracts.ApplicationStatus.NodeId.get -> string!
+Mk8.Dns.Contracts.ApplicationStatus.NodeId.init -> void
+Mk8.Dns.Contracts.ApplicationStatus.ProtocolVersion.get -> uint
+Mk8.Dns.Contracts.ApplicationStatus.ProtocolVersion.init -> void
+Mk8.Dns.Contracts.ApplicationStatus.Role.get -> string!
+Mk8.Dns.Contracts.ApplicationStatus.Role.init -> void
+Mk8.Dns.Contracts.IApplicationStatusSource
+Mk8.Dns.Contracts.IApplicationStatusSource.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.ApplicationStatus!>
+Mk8.Dns.Contracts.ProtocolVersion
+const Mk8.Dns.Contracts.ProtocolVersion.Current = 1 -> uint
+const Mk8.Dns.Contracts.ProtocolVersion.MaximumMessageBytes = 4096 -> int
+override Mk8.Dns.Contracts.ApplicationStatus.Equals(object? obj) -> bool
+override Mk8.Dns.Contracts.ApplicationStatus.GetHashCode() -> int
+override Mk8.Dns.Contracts.ApplicationStatus.ToString() -> string!
+static Mk8.Dns.Contracts.ApplicationStatus.operator !=(Mk8.Dns.Contracts.ApplicationStatus? left, Mk8.Dns.Contracts.ApplicationStatus? right) -> bool
+static Mk8.Dns.Contracts.ApplicationStatus.operator ==(Mk8.Dns.Contracts.ApplicationStatus? left, Mk8.Dns.Contracts.ApplicationStatus? right) -> bool

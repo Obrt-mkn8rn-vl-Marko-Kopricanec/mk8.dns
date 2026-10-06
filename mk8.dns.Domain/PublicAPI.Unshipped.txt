@@ -1,0 +1,21 @@
+#nullable enable
+Mk8.Dns.Domain.DnsName
+Mk8.Dns.Domain.DnsName.Equals(Mk8.Dns.Domain.DnsName? other) -> bool
+Mk8.Dns.Domain.DnsName.ToWire() -> byte[]!
+Mk8.Dns.Domain.SoaSerial
+Mk8.Dns.Domain.ZoneSnapshot
+Mk8.Dns.Domain.ZoneSnapshot.ContentHash.get -> string!
+Mk8.Dns.Domain.ZoneSnapshot.GetPayload() -> byte[]!
+Mk8.Dns.Domain.ZoneSnapshot.Origin.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Domain.ZoneSnapshot.Revision.get -> long
+Mk8.Dns.Domain.ZoneSnapshot.Serial.get -> uint
+Mk8.Dns.Domain.ZoneSnapshot.ZoneId.get -> System.Guid
+Mk8.Dns.Domain.ZoneSnapshot.ZoneSnapshot(System.Guid zoneId, Mk8.Dns.Domain.DnsName! origin, long revision, uint serial, System.ReadOnlySpan<byte> payload) -> void
+const Mk8.Dns.Domain.ZoneSnapshot.MaximumPayloadBytes = 1048576 -> int
+override Mk8.Dns.Domain.DnsName.Equals(object? obj) -> bool
+override Mk8.Dns.Domain.DnsName.GetHashCode() -> int
+override Mk8.Dns.Domain.DnsName.ToString() -> string!
+static Mk8.Dns.Domain.DnsName.FromWire(System.ReadOnlySpan<byte> uncompressedName) -> Mk8.Dns.Domain.DnsName!
+static Mk8.Dns.Domain.DnsName.Parse(string! text) -> Mk8.Dns.Domain.DnsName!
+static Mk8.Dns.Domain.SoaSerial.IsNewer(uint candidate, uint current) -> bool
+static Mk8.Dns.Domain.SoaSerial.Next(uint serial) -> uint

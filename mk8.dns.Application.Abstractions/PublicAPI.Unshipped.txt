@@ -1,0 +1,5 @@
+#nullable enable
+Mk8.Dns.Application.Abstractions.IZoneSnapshotStore
+Mk8.Dns.Application.Abstractions.IZoneSnapshotStore.ActivateAsync(Mk8.Dns.Domain.ZoneSnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Application.Abstractions.IZoneSnapshotStore.CountActiveAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<uint>
+Mk8.Dns.Application.Abstractions.IZoneSnapshotStore.ReadActiveAsync(System.Guid zoneId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.ZoneSnapshot?>

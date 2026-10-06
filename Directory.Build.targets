@@ -1,0 +1,13 @@
+<Project>
+  <ItemGroup Condition="'$(OutputType)' != 'Exe' and '$(IsTestProject)' != 'true'">
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildProjectDirectory)/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="$(MSBuildProjectDirectory)/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
+    <PackageReference Include="xunit.analyzers" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'mk8.dns.Domain' or '$(MSBuildProjectName)' == 'mk8.dns.Application.DAL'">
+    <PackageReference Include="NetFabric.Hyperlinq.Analyzer" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

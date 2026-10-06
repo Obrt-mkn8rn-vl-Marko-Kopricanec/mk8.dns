@@ -1,0 +1,4 @@
+T:System.Runtime.Serialization.Formatters.Binary.BinaryFormatter; Use bounded, explicit, versioned formats for untrusted input.
+T:System.Net.WebRequest; Use a configured HttpClient or the controlled DNS egress adapter.
+M:System.Threading.Tasks.Task.Wait; Use asynchronous cancellation-aware operations.
+P:System.Threading.Tasks.Task`1.Result; Use asynchronous cancellation-aware operations.

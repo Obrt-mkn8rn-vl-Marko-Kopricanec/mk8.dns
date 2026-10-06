@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package mk8.dns.v1;
+option csharp_namespace = "Mk8.Dns.Contracts";
+
+// Read-only local service. Management and publication methods are separate contracts.
+service ApplicationProbe {
+  rpc GetStatus (StatusRequest) returns (StatusReply);
+}
+
+message StatusRequest {
+  uint32 protocol_version = 1;
+}
+
+message StatusReply {
+  uint32 protocol_version = 1;
+  string node_id = 2;
+  string role = 3;
+  bool dns_ready = 4;
+  uint32 active_snapshots = 5;
+}

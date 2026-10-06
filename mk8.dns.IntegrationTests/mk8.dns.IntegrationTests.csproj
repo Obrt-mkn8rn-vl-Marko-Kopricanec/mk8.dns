@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <ProjectReference Include="../mk8.dns.Transport/mk8.dns.Transport.csproj" />
+    <ProjectReference Include="../mk8.dns.Application.DAL/mk8.dns.Application.DAL.csproj" />
+    <ProjectReference Include="../mk8.dns.Application/mk8.dns.Application.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../mk8.dns.Gateway/mk8.dns.Gateway.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

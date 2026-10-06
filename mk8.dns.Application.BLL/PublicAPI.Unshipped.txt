@@ -1,0 +1,4 @@
+#nullable enable
+Mk8.Dns.Application.BLL.ApplicationStatusSource
+Mk8.Dns.Application.BLL.ApplicationStatusSource.ApplicationStatusSource(Mk8.Dns.Application.Abstractions.IZoneSnapshotStore! snapshots, string! nodeId, string! role) -> void
+Mk8.Dns.Application.BLL.ApplicationStatusSource.GetStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Contracts.ApplicationStatus!>

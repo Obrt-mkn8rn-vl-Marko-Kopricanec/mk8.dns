@@ -1,0 +1,14 @@
+<Solution>
+  <Project Path="mk8.dns.Application.Abstractions/mk8.dns.Application.Abstractions.csproj" />
+  <Project Path="mk8.dns.Application.BLL/mk8.dns.Application.BLL.csproj" />
+  <Project Path="mk8.dns.Application.DAL/mk8.dns.Application.DAL.csproj" />
+  <Project Path="mk8.dns.Application/mk8.dns.Application.csproj" />
+  <Project Path="mk8.dns.Configuration/mk8.dns.Configuration.csproj" />
+  <Project Path="mk8.dns.ConformanceTests/mk8.dns.ConformanceTests.csproj" />
+  <Project Path="mk8.dns.Contracts/mk8.dns.Contracts.csproj" />
+  <Project Path="mk8.dns.Domain/mk8.dns.Domain.csproj" />
+  <Project Path="mk8.dns.Gateway/mk8.dns.Gateway.csproj" />
+  <Project Path="mk8.dns.IntegrationTests/mk8.dns.IntegrationTests.csproj" />
+  <Project Path="mk8.dns.Transport/mk8.dns.Transport.csproj" />
+  <Project Path="mk8.dns.UnitTests/mk8.dns.UnitTests.csproj" />
+</Solution>

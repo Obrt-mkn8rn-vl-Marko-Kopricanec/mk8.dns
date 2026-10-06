@@ -1,0 +1,13 @@
+#nullable enable
+Mk8.Dns.Transport.PrivateUnixSocket
+Mk8.Dns.Transport.PrivateUnixSocket.Dispose() -> void
+Mk8.Dns.Transport.PrivateUnixSocket.Path.get -> string!
+Mk8.Dns.Transport.PrivateUnixSocket.PrivateUnixSocket(string! path) -> void
+Mk8.Dns.Transport.PrivateUnixSocket.SetSocketPermissions() -> void
+Mk8.Dns.Transport.ProbeHostingExtensions
+Mk8.Dns.Transport.UnixApplicationClient
+Mk8.Dns.Transport.UnixApplicationClient.Dispose() -> void
+Mk8.Dns.Transport.UnixApplicationClient.GetStatusAsync(uint version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Mk8.Dns.Contracts.ApplicationStatus!>!
+Mk8.Dns.Transport.UnixApplicationClient.UnixApplicationClient(string! socketPath) -> void
+static Mk8.Dns.Transport.ProbeHostingExtensions.AddApplicationProbe(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Mk8.Dns.Contracts.IApplicationStatusSource! source) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Mk8.Dns.Transport.ProbeHostingExtensions.MapApplicationProbe(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!

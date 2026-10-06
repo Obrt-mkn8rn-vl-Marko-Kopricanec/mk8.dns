@@ -17,3 +17,10 @@
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+**/bin/
+**/obj/
+/artifacts/
+**/TestResults/
+*.trx
+*.sock

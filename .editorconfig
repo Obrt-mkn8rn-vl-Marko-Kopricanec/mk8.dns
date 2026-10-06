@@ -8,6 +8,10 @@ indent_style = space
 indent_size = 4
 trim_trailing_whitespace = true
 
+[*.cs]
+# CA2007 owns ConfigureAwait analysis; tests preserve the xUnit synchronization context.
+dotnet_diagnostic.MA0004.severity = none
+
 [*.md]
 indent_size = 2
 trim_trailing_whitespace = false

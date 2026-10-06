@@ -1,0 +1,35 @@
+#nullable enable
+Mk8.Dns.Configuration.ApplicationSettings
+Mk8.Dns.Configuration.ApplicationSettings.<Clone>$() -> Mk8.Dns.Configuration.ApplicationSettings!
+Mk8.Dns.Configuration.ApplicationSettings.ApplicationSettings(string! SocketPath, string! StateDirectory, string! NodeId, string! Role) -> void
+Mk8.Dns.Configuration.ApplicationSettings.Deconstruct(out string! SocketPath, out string! StateDirectory, out string! NodeId, out string! Role) -> void
+Mk8.Dns.Configuration.ApplicationSettings.Equals(Mk8.Dns.Configuration.ApplicationSettings? other) -> bool
+Mk8.Dns.Configuration.ApplicationSettings.NodeId.get -> string!
+Mk8.Dns.Configuration.ApplicationSettings.NodeId.init -> void
+Mk8.Dns.Configuration.ApplicationSettings.Role.get -> string!
+Mk8.Dns.Configuration.ApplicationSettings.Role.init -> void
+Mk8.Dns.Configuration.ApplicationSettings.SocketPath.get -> string!
+Mk8.Dns.Configuration.ApplicationSettings.SocketPath.init -> void
+Mk8.Dns.Configuration.ApplicationSettings.StateDirectory.get -> string!
+Mk8.Dns.Configuration.ApplicationSettings.StateDirectory.init -> void
+Mk8.Dns.Configuration.GatewaySettings
+Mk8.Dns.Configuration.GatewaySettings.<Clone>$() -> Mk8.Dns.Configuration.GatewaySettings!
+Mk8.Dns.Configuration.GatewaySettings.Deconstruct(out string! SocketPath, out int HealthPort) -> void
+Mk8.Dns.Configuration.GatewaySettings.Equals(Mk8.Dns.Configuration.GatewaySettings? other) -> bool
+Mk8.Dns.Configuration.GatewaySettings.GatewaySettings(string! SocketPath, int HealthPort) -> void
+Mk8.Dns.Configuration.GatewaySettings.HealthPort.get -> int
+Mk8.Dns.Configuration.GatewaySettings.HealthPort.init -> void
+Mk8.Dns.Configuration.GatewaySettings.SocketPath.get -> string!
+Mk8.Dns.Configuration.GatewaySettings.SocketPath.init -> void
+override Mk8.Dns.Configuration.ApplicationSettings.Equals(object? obj) -> bool
+override Mk8.Dns.Configuration.ApplicationSettings.GetHashCode() -> int
+override Mk8.Dns.Configuration.ApplicationSettings.ToString() -> string!
+override Mk8.Dns.Configuration.GatewaySettings.Equals(object? obj) -> bool
+override Mk8.Dns.Configuration.GatewaySettings.GetHashCode() -> int
+override Mk8.Dns.Configuration.GatewaySettings.ToString() -> string!
+static Mk8.Dns.Configuration.ApplicationSettings.Parse(string![]! args) -> Mk8.Dns.Configuration.ApplicationSettings!
+static Mk8.Dns.Configuration.ApplicationSettings.operator !=(Mk8.Dns.Configuration.ApplicationSettings? left, Mk8.Dns.Configuration.ApplicationSettings? right) -> bool
+static Mk8.Dns.Configuration.ApplicationSettings.operator ==(Mk8.Dns.Configuration.ApplicationSettings? left, Mk8.Dns.Configuration.ApplicationSettings? right) -> bool
+static Mk8.Dns.Configuration.GatewaySettings.Parse(string![]! args) -> Mk8.Dns.Configuration.GatewaySettings!
+static Mk8.Dns.Configuration.GatewaySettings.operator !=(Mk8.Dns.Configuration.GatewaySettings? left, Mk8.Dns.Configuration.GatewaySettings? right) -> bool
+static Mk8.Dns.Configuration.GatewaySettings.operator ==(Mk8.Dns.Configuration.GatewaySettings? left, Mk8.Dns.Configuration.GatewaySettings? right) -> bool
