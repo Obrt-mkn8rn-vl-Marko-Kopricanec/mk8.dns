@@ -1,3 +1,4 @@
+using System.Globalization;
 using Mk8.Dns.Domain;
 using Mk8.Dns.Wire;
 using Xunit;
@@ -24,6 +25,10 @@ public sealed class SvcbMasterFileTests
     [InlineData("HTTPS 65535 . port=\"65535\" no-default-alpn=\"\" alpn=h3", "ffff00000100030268330002000000030002ffff")]
     [InlineData("HTTPS 1 . key3=\\000\\053", "000100000300020035")]
     [InlineData("HTTPS 1 . key1=\\002h2", "00010000010003026832")]
+    [InlineData("HTTPS 1 . ech=AA==", "0001000005000100")]
+    [InlineData("HTTPS 1 . ech=\"AA==\"", "0001000005000100")]
+    [InlineData("HTTPS 1 . key5=\\000", "0001000005000100")]
+    [InlineData("HTTPS 1 . key5=\"\\000\"", "0001000005000100")]
     [InlineData("HTTPS 1 . mandatory=key1 alpn=h2", "00010000000002000100010003026832")]
     [InlineData("HTTPS 1 . key0=\\000\\001 alpn=h2", "00010000000002000100010003026832")]
     [InlineData("HTTPS 1 . ipv4hint=192.0.2.1,198.51.100.2", "00010000040008c0000201c6336402")]
@@ -124,15 +129,25 @@ public sealed class SvcbMasterFileTests
     [InlineData("mandatory=\\097lpn alpn=h2", "00010000000002000100010003026832")]
     [InlineData("port=\\05243", "0001000003000201bb")]
     [InlineData("ipv4hint=\\04992.0.2.1", "00010000040004c0000201")]
-    [InlineData("ech=\\065A==", "0001000005000100")]
     [InlineData("ipv6hint=\\058\\0581", "0001000006001000000000000000000000000000000001")]
     [InlineData("mandatory=alpn\\044port alpn=h2 port=443", "0001000000000400010003000100030268320003000201bb")]
     [InlineData("ipv4hint=192.0.2.1\\044198.51.100.2", "00010000040008c0000201c6336402")]
-    public void EveryTypedValueDecodesCharacterStringBeforeItsWireFormat(string parameters, string hex)
+    public void OtherNamedValuesDecodeCharacterStringBeforeTheirWireFormat(string parameters, string hex)
     {
         var record = Assert.Single(Parse("HTTPS 1 . " + parameters).GetRecords(DnsName.Parse("svc.example.")));
         Assert.Equal(Convert.FromHexString(hex), record.GetData());
     }
+
+    [Theory]
+    [InlineData("SVCB", "\\065A==")]
+    [InlineData("SVCB", "\"\\065A==\"")]
+    [InlineData("SVCB", "\\AA==")]
+    [InlineData("SVCB", "\"\\AA==\"")]
+    [InlineData("HTTPS", "\\065A==")]
+    [InlineData("HTTPS", "\"\\065A==\"")]
+    [InlineData("HTTPS", "\\AA==")]
+    [InlineData("HTTPS", "\"\\AA==\"")]
+    public void NamedEchRejectsEscapesBeforeCharacterStringDecoding(string type, string value) => Assert.Throws<FormatException>(() => Parse(type + " 1 . ech=" + value));
 
     [Theory]
     [InlineData("[::1]")]
@@ -183,6 +198,22 @@ public sealed class SvcbMasterFileTests
         const string hex = "0001000005004a0048fe0d004401002000201d77eb1c522d08605b179d4214ee4a3635df7e17c336ea9006655a73fcaad63e00040001000164156563682d73697465732e6578616d706c652e6e65740000";
         var record = Assert.Single(Parse("HTTPS 1 . ech=\"" + text + "\"").GetRecords(DnsName.Parse("svc.example.")));
         Assert.Equal(Convert.FromHexString(hex), record.GetData());
+    }
+
+    [Fact]
+    public void RawEchPublicBytesAndGenericRoundTripRetainNamedIntent()
+    {
+        const string value = "AEj+DQBEAQAgACAdd+scUi0IYFsXnUIU7ko2Nd9+F8M26pAGZVpz/KrWPgAEAAEAAWQVZWNoLXNpdGVzLmV4YW1wbGUubmV0AAA=";
+        const string hex = "0001000005004a0048fe0d004401002000201d77eb1c522d08605b179d4214ee4a3635df7e17c336ea9006655a73fcaad63e00040001000164156563682d73697465732e6578616d706c652e6e65740000";
+        var expected = Convert.FromHexString(hex);
+        var raw = string.Concat(expected.Skip(7).Select(octet => "\\" + octet.ToString("D3", CultureInfo.InvariantCulture)));
+        var named = Parse("HTTPS 1 . ech=" + value);
+        var numeric = Parse("HTTPS 1 . key5=\"" + raw + "\"");
+        Assert.Equal(expected, Assert.Single(numeric.GetRecords(DnsName.Parse("svc.example."))).GetData());
+        var id = Guid.NewGuid();
+        Assert.Equal(ZoneBundleCodec.Compile(id, 1, named).GetPayload(), ZoneBundleCodec.Compile(id, 1, numeric).GetPayload());
+        var restored = ZoneMasterFileCodec.Import(Origin, ZoneMasterFileCodec.Export(numeric));
+        Assert.Equal(ZoneBundleCodec.Compile(id, 1, numeric).GetPayload(), ZoneBundleCodec.Compile(id, 1, restored).GetPayload());
     }
 
     private static AuthoritativeZone Parse(string input) => ZoneMasterFileCodec.Import(Origin, Header + "svc " + input + "\n");

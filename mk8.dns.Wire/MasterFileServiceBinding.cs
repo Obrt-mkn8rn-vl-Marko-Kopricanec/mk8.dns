@@ -22,6 +22,8 @@ internal static class MasterFileServiceBinding
             var name = equals < 0 ? field.Text : field.Text[..equals];
             var key = Key(name);
             var text = equals < 0 ? string.Empty : field.Text[(equals + 1)..];
+            // RFC 9848 section 3 forbids escapes in named ECH presentation, before decoding.
+            Require(!string.Equals(name, "ech", StringComparison.Ordinal) || !text.Contains('\\', StringComparison.Ordinal));
             // RFC 9460 unknown-key notation supplies raw wire octets even for a known key.
             var decoded = MasterFileData.Octets(text);
             var value = name.StartsWith("key", StringComparison.Ordinal) ? decoded : Parameter(key, decoded);
