@@ -19,3 +19,19 @@ Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.Coalesced.get -> long
 Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.AdmissionRejections.get -> long
 Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.Evictions.get -> long
 Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.Expirations.get -> long
+Mk8.Dns.Engine.Recursive.DnssecIterativeResolver
+Mk8.Dns.Engine.Recursive.DnssecIterativeResolver.DnssecIterativeResolver(Mk8.Dns.Domain.IDnssecUpstream! upstream, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, Mk8.Dns.Engine.Dnssec.DnssecTrustAnchor! anchor, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! roots, ushort authorityPort = 53, int maximumExchanges = 64, int maximumAliasHops = 16, int maximumVerificationAttempts = 512, System.TimeProvider? time = null) -> void
+Mk8.Dns.Engine.Recursive.DnssecIterativeResolver.ResolveDnssecAsync(Mk8.Dns.Domain.DnsQuestion! question, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Engine.Recursive.DnssecResolutionResult!>
+Mk8.Dns.Engine.Recursive.DnssecResolutionOutcome
+Mk8.Dns.Engine.Recursive.DnssecResolutionOutcome.Failure = 0 -> Mk8.Dns.Engine.Recursive.DnssecResolutionOutcome
+Mk8.Dns.Engine.Recursive.DnssecResolutionOutcome.Authenticated = 1 -> Mk8.Dns.Engine.Recursive.DnssecResolutionOutcome
+Mk8.Dns.Engine.Recursive.DnssecResolutionOutcome.UnsignedDelegation = 2 -> Mk8.Dns.Engine.Recursive.DnssecResolutionOutcome
+Mk8.Dns.Engine.Recursive.DnssecResolutionResult
+Mk8.Dns.Engine.Recursive.DnssecResolutionResult.Question.get -> Mk8.Dns.Domain.DnsQuestion!
+Mk8.Dns.Engine.Recursive.DnssecResolutionResult.Outcome.get -> Mk8.Dns.Engine.Recursive.DnssecResolutionOutcome
+Mk8.Dns.Engine.Recursive.DnssecResolutionResult.ResponseCode.get -> byte
+Mk8.Dns.Engine.Recursive.DnssecResolutionResult.Origin.get -> Mk8.Dns.Domain.DnsName?
+Mk8.Dns.Engine.Recursive.DnssecResolutionResult.UnsignedDelegation.get -> Mk8.Dns.Domain.DnsName?
+Mk8.Dns.Engine.Recursive.DnssecResolutionResult.AuthenticatedTtl.get -> uint
+Mk8.Dns.Engine.Recursive.DnssecResolutionResult.Answers.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Engine.Recursive.DnssecResolutionResult.Authority.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
