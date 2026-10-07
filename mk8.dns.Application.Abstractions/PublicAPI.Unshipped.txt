@@ -36,3 +36,6 @@ Mk8.Dns.Application.Abstractions.IPublicationJournal.ReadActivationSignatureAsyn
 Mk8.Dns.Application.Abstractions.IPublicationJournal.RecordActivationAsync(string! id, System.ReadOnlyMemory<byte> signature, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Mk8.Dns.Application.Abstractions.IManagementAuthorizer.AuthorizeZone(Mk8.Dns.Contracts.ManagementRequest! request, Mk8.Dns.Domain.AuthoritativeZone! zone) -> void
 Mk8.Dns.Application.Abstractions.IManagementAuthorizer.AuthorizeOperation(Mk8.Dns.Contracts.ManagementRequest! request, string! operationActor) -> void
+Mk8.Dns.Application.Abstractions.IZoneMasterFileCodec
+Mk8.Dns.Application.Abstractions.IZoneMasterFileCodec.Import(Mk8.Dns.Domain.DnsName! origin, string! text) -> Mk8.Dns.Domain.AuthoritativeZone!
+Mk8.Dns.Application.Abstractions.IZoneMasterFileCodec.Export(Mk8.Dns.Domain.AuthoritativeZone! zone) -> string!

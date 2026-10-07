@@ -4,4 +4,5 @@ public sealed record ManagementReply(Guid OperationId, long Revision, uint Seria
 {
     private readonly IReadOnlyList<ZoneRecordData> records = Array.Empty<ZoneRecordData>();
     public IReadOnlyList<ZoneRecordData> Records { get => records; init => records = value ?? Array.Empty<ZoneRecordData>(); }
+    public string? ZoneFile { get; init; }
 }

@@ -7,4 +7,5 @@ public sealed record ManagementRequest(string Action, Guid TenantId, Guid ZoneId
 
     public IReadOnlyList<RrsetChange> Changes { get => changes; init => changes = value ?? Array.Empty<RrsetChange>(); }
     public IReadOnlyList<RrsetKey> Selection { get => selection; init => selection = value ?? Array.Empty<RrsetKey>(); }
+    public string? ZoneFile { get; init; }
 }

@@ -13,10 +13,14 @@ internal static class ManagementInput
         if (request.OperationId == Guid.Empty || request.ExpectedRevision < 0 || request.Origin.Length is 0 or > 255
             || request.Records is not { Count: <= 10_000 } || request.Changes is not { Count: <= 64 } || request.Selection is not { Count: <= 64 })
             throw new ArgumentException("Invalid management request bounds.", nameof(request));
-        if (request.Action is not ("edit" or "patch" or "read" or "status")
+        if (request.Action is not ("edit" or "patch" or "read" or "status" or "import" or "export")
             || request.Action is "edit" && (request.Changes.Count != 0 || request.Selection.Count != 0)
             || request.Action is "patch" && (request.Records.Count != 0 || request.Changes.Count == 0 || request.Selection.Count != 0)
-            || request.Action is "read" && (request.Records.Count != 0 || request.Changes.Count != 0 || request.Selection.Count == 0))
+            || request.Action is "read" && (request.Records.Count != 0 || request.Changes.Count != 0 || request.Selection.Count == 0)
+            || request.Action is "import" or "export" && (request.Records.Count != 0 || request.Changes.Count != 0 || request.Selection.Count != 0)
+            || request.Action is "import" && (request.ZoneFile is not { Length: > 0 and <= ProtocolVersion.MaximumZoneFileBytes }
+                || request.ZoneFile.Any(character => character is not (>= ' ' and <= '~' or '\t' or '\r' or '\n')))
+            || request.Action is not "import" && request.ZoneFile is not null)
             throw new ArgumentException("Invalid management action fields.", nameof(request));
         foreach (var change in request.Changes)
             ValidateChangeBounds(change);

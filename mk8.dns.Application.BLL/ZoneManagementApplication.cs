@@ -7,6 +7,15 @@ namespace Mk8.Dns.Application.BLL;
 
 public sealed class ZoneManagementApplication(IControlPlaneStore store, IManagementAuthorizer authorizer, IZoneBundleCodec codec, string targetNode) : IZoneManagement
 {
+    private readonly IZoneMasterFileCodec? masterFile;
+
+    public ZoneManagementApplication(IControlPlaneStore store, IManagementAuthorizer authorizer, IZoneBundleCodec codec, string targetNode, IZoneMasterFileCodec masterFile)
+        : this(store, authorizer, codec, targetNode)
+    {
+        ArgumentNullException.ThrowIfNull(masterFile);
+        this.masterFile = masterFile;
+    }
+
     public async ValueTask<ManagementReply> ExecuteAsync(ManagementRequest request, CancellationToken cancellationToken)
     {
         request = ManagementInput.Freeze(request);
@@ -15,9 +24,10 @@ public sealed class ZoneManagementApplication(IControlPlaneStore store, IManagem
         AuthoritativeZone? intent = null;
         RrsetPatch? patch = null;
         string? fingerprint = null;
-        if (request.Action is "edit")
+        if (request.Action is "edit" or "import")
         {
-            intent = new AuthoritativeZone(origin, request.Records.Select(record => new DnsRecord(record.Owner.Span, record.Type, record.Ttl, record.Data.Span)));
+            intent = request.Action is "import" ? RequireMasterFile().Import(origin, request.ZoneFile!)
+                : new AuthoritativeZone(origin, request.Records.Select(record => new DnsRecord(record.Owner.Span, record.Type, record.Ttl, record.Data.Span)));
             fingerprint = ManagementFingerprint.Edit(request, actor, targetNode, codec.Compile(request.ZoneId, 1, WithSerial(intent, 0)));
         }
         else if (request.Action is "patch")
@@ -31,7 +41,7 @@ public sealed class ZoneManagementApplication(IControlPlaneStore store, IManagem
         await using var lifetime = transaction.ConfigureAwait(false);
         if (!string.Equals(actor, authorizer.Authorize(request), StringComparison.Ordinal))
             throw new UnauthorizedAccessException("Management principal changed during admission.");
-        if (request.Action is "read")
+        if (request.Action is "read" or "export")
             return await ReadAsync(transaction, request, cancellationToken).ConfigureAwait(false);
         var replay = await transaction.ReadOperationAsync(request.TenantId, request.OperationId, cancellationToken).ConfigureAwait(false);
         if (replay is not null)
@@ -52,8 +62,12 @@ public sealed class ZoneManagementApplication(IControlPlaneStore store, IManagem
             ?? throw new KeyNotFoundException("No authorized zone has this identity.");
         var zone = codec.Decode(current);
         authorizer.AuthorizeZone(request, zone);
-        return new ManagementReply(request.OperationId, current.Revision, current.Serial, current.ContentHash, "current") { Records = RrsetSelection.Read(zone, request) };
+        return request.Action is "export"
+            ? new ManagementReply(request.OperationId, current.Revision, current.Serial, current.ContentHash, "current") { ZoneFile = RequireMasterFile().Export(zone) }
+            : new ManagementReply(request.OperationId, current.Revision, current.Serial, current.ContentHash, "current") { Records = RrsetSelection.Read(zone, request) };
     }
+
+    private IZoneMasterFileCodec RequireMasterFile() => masterFile ?? throw new NotSupportedException("Master-file operations require a codec.");
 
     private async ValueTask<ManagementReply> CommitAsync(IControlTransaction transaction, ManagementRequest request, string actor, DnsName origin, AuthoritativeZone? intent, RrsetPatch? patch, string fingerprint, CancellationToken cancellationToken)
     {

@@ -168,7 +168,7 @@ Mk8.Dns.Contracts.RrsetKey.Owner.get -> System.ReadOnlyMemory<byte>
 Mk8.Dns.Contracts.RrsetKey.Owner.init -> void
 Mk8.Dns.Contracts.RrsetKey.Type.get -> ushort
 Mk8.Dns.Contracts.RrsetKey.Type.init -> void
-const Mk8.Dns.Contracts.ProtocolVersion.Management = 2 -> uint
+const Mk8.Dns.Contracts.ProtocolVersion.Management = 3 -> uint
 Mk8.Dns.Contracts.ManagementReply.Records.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Contracts.ZoneRecordData!>!
 Mk8.Dns.Contracts.ManagementReply.Records.init -> void
 Mk8.Dns.Contracts.ManagementRequest.Changes.init -> void
@@ -197,3 +197,10 @@ Mk8.Dns.Contracts.ManagementApiRequest.Changes.get -> System.Collections.Generic
 Mk8.Dns.Contracts.ManagementApiRequest.Changes.init -> void
 Mk8.Dns.Contracts.ManagementApiRequest.Selection.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Contracts.RrsetKey!>!
 Mk8.Dns.Contracts.ManagementApiRequest.Selection.init -> void
+const Mk8.Dns.Contracts.ProtocolVersion.MaximumZoneFileBytes = 1000000 -> int
+Mk8.Dns.Contracts.ManagementRequest.ZoneFile.get -> string?
+Mk8.Dns.Contracts.ManagementRequest.ZoneFile.init -> void
+Mk8.Dns.Contracts.ManagementApiRequest.ZoneFile.get -> string?
+Mk8.Dns.Contracts.ManagementApiRequest.ZoneFile.init -> void
+Mk8.Dns.Contracts.ManagementReply.ZoneFile.get -> string?
+Mk8.Dns.Contracts.ManagementReply.ZoneFile.init -> void

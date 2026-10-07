@@ -118,6 +118,8 @@ public sealed class RecordScopeAuthorizationTests
     [InlineData("empty-scope")]
     [InlineData("duplicate-actor")]
     [InlineData("duplicate-credential")]
+    [InlineData("import")]
+    [InlineData("export")]
     public void InvalidOrAmbiguousGrantsFailBeforeServing(string invalid)
     {
         var grant = Grant();
@@ -125,6 +127,8 @@ public sealed class RecordScopeAuthorizationTests
         {
             "profile" => grant with { Profile = "all" },
             "action" => grant with { Actions = new[] { "edit" } },
+            "import" => grant with { Actions = new[] { "import" } },
+            "export" => grant with { Actions = new[] { "export" } },
             "outside" => grant with { RecordScopes = new[] { new ManagementRecordScope(DnsName.Parse("_acme-challenge.other."), 16) } },
             "ordinary-name" => grant with { RecordScopes = new[] { new ManagementRecordScope(DnsName.Parse("www.example."), 16) } },
             "wildcard" => grant with { RecordScopes = new[] { new ManagementRecordScope(DnsName.Parse("_acme-challenge.*.example."), 16) } },

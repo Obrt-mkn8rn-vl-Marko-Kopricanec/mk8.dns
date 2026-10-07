@@ -38,7 +38,7 @@ Mk8.Dns.Transport.UnixManagementHttpClient.ExecuteAsync(Mk8.Dns.Contracts.Manage
 Mk8.Dns.Transport.UnixManagementHttpClient.UnixManagementHttpClient(string! socketPath) -> void
 const Mk8.Dns.Transport.ManagementHttpProtocol.MaximumReplyBytes = 2500000 -> int
 const Mk8.Dns.Transport.ManagementHttpProtocol.MaximumRequestBytes = 2400000 -> int
-const Mk8.Dns.Transport.ManagementHttpProtocol.Version = "1" -> string!
+const Mk8.Dns.Transport.ManagementHttpProtocol.Version = "2" -> string!
 const Mk8.Dns.Transport.ManagementHttpProtocol.VersionHeader = "X-Mk8-Api-Version" -> string!
 static Mk8.Dns.Transport.ManagementHttpProtocol.BindRequest(Mk8.Dns.Contracts.ManagementApiRequest! body, string! action, System.Guid tenantId, System.Guid zoneId, System.Guid operationId, System.ReadOnlyMemory<byte> credential) -> Mk8.Dns.Contracts.ManagementRequest!
 static Mk8.Dns.Transport.ManagementHttpProtocol.DecodeCredential(string! value) -> byte[]!

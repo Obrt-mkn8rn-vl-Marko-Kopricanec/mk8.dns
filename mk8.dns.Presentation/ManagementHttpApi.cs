@@ -33,10 +33,12 @@ public sealed class ManagementHttpApi(IZoneManagement source) : IAsyncDisposable
                 throw new InvalidOperationException("Management routes are already mapped.");
             mapped = true;
         }
-        const string zone = "/v1/tenants/{tenantId:guid}/zones/{zoneId:guid}";
+        const string zone = "/v2/tenants/{tenantId:guid}/zones/{zoneId:guid}";
         endpoints.MapPut(zone, (HttpContext context) => HandleAsync(context, "edit"));
         endpoints.MapPatch(zone + "/rrsets", (HttpContext context) => HandleAsync(context, "patch"));
         endpoints.MapPost(zone + "/rrsets/read", (HttpContext context) => HandleAsync(context, "read"));
+        endpoints.MapPost(zone + "/zonefile/import", (HttpContext context) => HandleAsync(context, "import"));
+        endpoints.MapPost(zone + "/zonefile/export", (HttpContext context) => HandleAsync(context, "export"));
         endpoints.MapGet(zone + "/operations/{operationId:guid}", (HttpContext context) => HandleAsync(context, "status"));
     }
 
@@ -176,9 +178,9 @@ public sealed class ManagementHttpApi(IZoneManagement source) : IAsyncDisposable
         {
             throw new InvalidDataException("Invalid controller reply.", exception);
         }
-        context.Response.StatusCode = action is "edit" or "patch" && reply.State is "accepted" ? 202 : 200;
+        context.Response.StatusCode = action is "edit" or "patch" or "import" && reply.State is "accepted" ? 202 : 200;
         context.Response.ContentType = "application/json; charset=utf-8";
-        if (action is "edit" or "patch")
+        if (action is "edit" or "patch" or "import")
             context.Response.Headers.Location = ManagementHttpProtocol.OperationPath(tenant, zone, operation, body.Origin);
         await context.Response.Body.WriteAsync(response, token).ConfigureAwait(false);
     }
@@ -232,7 +234,7 @@ public sealed class ManagementHttpApi(IZoneManagement source) : IAsyncDisposable
 
     private static Guid RequestId(HttpContext context, string action)
     {
-        var mutation = action is "edit" or "patch";
+        var mutation = action is "edit" or "patch" or "import";
         var key = mutation ? "Idempotency-Key" : "X-Mk8-Request-Id";
         if (context.Request.Headers.ContainsKey(mutation ? "X-Mk8-Request-Id" : "Idempotency-Key"))
             throw new ArgumentException("Unexpected request identity header.", nameof(context));

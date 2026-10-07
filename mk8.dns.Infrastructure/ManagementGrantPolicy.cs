@@ -10,13 +10,13 @@ internal static class ManagementGrantPolicy
         ArgumentNullException.ThrowIfNull(grant);
         if (grant.TenantId == Guid.Empty || grant.ZoneId == Guid.Empty || grant.Origin is null
             || string.IsNullOrWhiteSpace(grant.Actor) || grant.Actor.Length > 128 || grant.CredentialHash.Length != 32
-            || grant.Actions is not { Count: > 0 and <= 4 } || grant.RecordScopes is not { Count: <= 64 }
+            || grant.Actions is not { Count: > 0 and <= 6 } || grant.RecordScopes is not { Count: <= 64 }
             || grant.Profile is not ("zone" or "records" or "acme"))
             throw new ArgumentException("Invalid scoped management grant.", nameof(grant));
         var actions = grant.Actions.ToArray();
         var scopes = grant.RecordScopes.ToArray();
-        if (actions.Distinct(StringComparer.Ordinal).Count() != actions.Length || actions.Any(action => action is not ("edit" or "patch" or "read" or "status"))
-            || grant.Profile is not "zone" && (actions.Contains("edit", StringComparer.Ordinal) || scopes.Length == 0)
+        if (actions.Distinct(StringComparer.Ordinal).Count() != actions.Length || actions.Any(action => action is not ("edit" or "patch" or "read" or "status" or "import" or "export"))
+            || grant.Profile is not "zone" && (actions.Any(action => action is "edit" or "import" or "export") || scopes.Length == 0)
             || grant.Profile is "zone" && scopes.Length != 0)
             throw new ArgumentException("Invalid management action or record scope.", nameof(grant));
         foreach (var scope in scopes)

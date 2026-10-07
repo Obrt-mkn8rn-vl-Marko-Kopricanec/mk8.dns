@@ -53,20 +53,21 @@ public sealed class UnixManagementHttpClient : IZoneManagement, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         var body = new ManagementApiRequest(request.Origin)
         {
-            ExpectedRevision = request.Action is "edit" or "patch" ? request.ExpectedRevision : null,
+            ExpectedRevision = request.Action is "edit" or "patch" or "import" ? request.ExpectedRevision : null,
             Records = request.Action is "status" ? Array.Empty<ZoneRecordData>() : request.Records,
             Changes = request.Action is "status" ? Array.Empty<RrsetChange>() : request.Changes,
             Selection = request.Action is "status" ? Array.Empty<RrsetKey>() : request.Selection,
+            ZoneFile = request.Action is "status" ? null : request.ZoneFile,
         };
         _ = ManagementHttpProtocol.BindRequest(body, request.Action, request.TenantId, request.ZoneId, request.OperationId, request.Credential);
-        var prefix = "/v1/tenants/" + request.TenantId.ToString("D") + "/zones/" + request.ZoneId.ToString("D");
-        var method = request.Action switch { "edit" => HttpMethod.Put, "patch" => HttpMethod.Patch, "read" => HttpMethod.Post, "status" => HttpMethod.Get, _ => throw new ArgumentException("Unknown management action.", nameof(request)) };
-        var path = request.Action switch { "edit" => prefix, "patch" => prefix + "/rrsets", "read" => prefix + "/rrsets/read", _ => ManagementHttpProtocol.OperationPath(request.TenantId, request.ZoneId, request.OperationId, request.Origin) };
+        var prefix = "/v2/tenants/" + request.TenantId.ToString("D") + "/zones/" + request.ZoneId.ToString("D");
+        var method = request.Action switch { "edit" => HttpMethod.Put, "patch" => HttpMethod.Patch, "read" or "import" or "export" => HttpMethod.Post, "status" => HttpMethod.Get, _ => throw new ArgumentException("Unknown management action.", nameof(request)) };
+        var path = request.Action switch { "edit" => prefix, "patch" => prefix + "/rrsets", "read" => prefix + "/rrsets/read", "import" => prefix + "/zonefile/import", "export" => prefix + "/zonefile/export", _ => ManagementHttpProtocol.OperationPath(request.TenantId, request.ZoneId, request.OperationId, request.Origin) };
         using var message = new HttpRequestMessage(method, new Uri(path, UriKind.Relative)) { Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact };
         message.Headers.Add("Authorization", ManagementHttpProtocol.EncodeCredential(request.Credential));
-        if (request.Action is "edit" or "patch")
+        if (request.Action is "edit" or "patch" or "import")
             message.Headers.Add("Idempotency-Key", request.OperationId.ToString("D"));
-        if (request.Action is "read")
+        if (request.Action is "read" or "export")
             message.Headers.Add("X-Mk8-Request-Id", request.OperationId.ToString("D"));
         if (request.Action is not "status")
         {
@@ -96,7 +97,8 @@ public sealed class UnixManagementHttpClient : IZoneManagement, IDisposable
             }
             var reply = ManagementHttpProtocol.ReadReply(data.ToArray());
             ManagementHttpProtocol.VerifyReply(reply, request.Action, request.OperationId);
-            if (response.StatusCode == HttpStatusCode.Accepted && reply.State is not "accepted" || request.Action is "read" or "status" && response.StatusCode != HttpStatusCode.OK)
+            var expectedStatus = request.Action is "edit" or "patch" or "import" && reply.State is "accepted" ? HttpStatusCode.Accepted : HttpStatusCode.OK;
+            if (response.StatusCode != expectedStatus)
                 throw new HttpRequestException("Invalid management reply status.");
             return reply;
         }

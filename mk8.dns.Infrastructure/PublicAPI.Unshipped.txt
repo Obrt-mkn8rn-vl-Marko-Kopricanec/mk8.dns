@@ -63,3 +63,7 @@ Mk8.Dns.Infrastructure.ManagementGrant.RecordScopes.init -> void
 Mk8.Dns.Infrastructure.ManagementRecordScope.ManagementRecordScope(Mk8.Dns.Domain.DnsName! Owner, ushort Type) -> void
 Mk8.Dns.Infrastructure.ScopedManagementAuthorizer.AuthorizeOperation(Mk8.Dns.Contracts.ManagementRequest! request, string! operationActor) -> void
 Mk8.Dns.Infrastructure.ScopedManagementAuthorizer.AuthorizeZone(Mk8.Dns.Contracts.ManagementRequest! request, Mk8.Dns.Domain.AuthoritativeZone! zone) -> void
+Mk8.Dns.Infrastructure.ZoneMasterFileAdapter
+Mk8.Dns.Infrastructure.ZoneMasterFileAdapter.ZoneMasterFileAdapter() -> void
+Mk8.Dns.Infrastructure.ZoneMasterFileAdapter.Import(Mk8.Dns.Domain.DnsName! origin, string! text) -> Mk8.Dns.Domain.AuthoritativeZone!
+Mk8.Dns.Infrastructure.ZoneMasterFileAdapter.Export(Mk8.Dns.Domain.AuthoritativeZone! zone) -> string!

@@ -55,7 +55,7 @@ internal sealed class ControlRuntime : IAsyncDisposable
             throw new InvalidDataException("Management grants exceed the publisher scope.");
         store = new PostgresControlPlaneStore(Encoding.UTF8.GetString(PrivateFile.Read(configuration.ConnectionStringFile, 4096)));
         await store.InitializeAsync(configuration.Epoch, CancellationToken.None).ConfigureAwait(false);
-        Management = new ZoneManagementApplication(store, new ScopedManagementAuthorizer(grants, TimeProvider.System), codec, configuration.TargetNode);
+        Management = new ZoneManagementApplication(store, new ScopedManagementAuthorizer(grants, TimeProvider.System), codec, configuration.TargetNode, new ZoneMasterFileAdapter());
         client = new UnixControlClient(configuration.PublicationSocket);
         publisher = new OutboxPublisher(store, identity, client);
     }
@@ -64,7 +64,7 @@ internal sealed class ControlRuntime : IAsyncDisposable
     {
         var actions = grant.Actions ?? (grant.Profile is "zone" ? ["edit", "patch", "read", "status"] : Array.Empty<string>());
         var scopes = grant.RecordScopes ?? Array.Empty<RecordScopeConfiguration>();
-        if (scopes.Length > 64 || actions.Length is 0 or > 4)
+        if (scopes.Length > 64 || actions.Length is 0 or > 6)
             throw new InvalidDataException("Invalid management grant bounds.");
         return new ManagementGrant(grant.TenantId, grant.ZoneId, DnsName.Parse(grant.Origin), grant.Actor, grant.Expires, grant.CredentialHash)
         {

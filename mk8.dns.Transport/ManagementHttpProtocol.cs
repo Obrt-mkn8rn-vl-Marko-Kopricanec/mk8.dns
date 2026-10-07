@@ -9,7 +9,7 @@ public static class ManagementHttpProtocol
     public const int MaximumRequestBytes = 2_400_000;
     public const int MaximumReplyBytes = 2_500_000;
     public const string VersionHeader = "X-Mk8-Api-Version";
-    public const string Version = "1";
+    public const string Version = "2";
 
     public static ManagementApiRequest ReadRequest(ReadOnlyMemory<byte> data)
     {
@@ -72,7 +72,7 @@ public static class ManagementHttpProtocol
     public static byte[] DecodeOrigin(string origin) => DecodeBytes(origin, 1, 255);
 
     public static string OperationPath(Guid tenantId, Guid zoneId, Guid operationId, ReadOnlyMemory<byte> origin)
-        => string.Create(CultureInfo.InvariantCulture, $"/v1/tenants/{tenantId:D}/zones/{zoneId:D}/operations/{operationId:D}?origin={EncodeOrigin(origin)}");
+        => string.Create(CultureInfo.InvariantCulture, $"/v2/tenants/{tenantId:D}/zones/{zoneId:D}/operations/{operationId:D}?origin={EncodeOrigin(origin)}");
 
     public static ManagementRequest BindRequest(ManagementApiRequest body, string action, Guid tenantId, Guid zoneId, Guid operationId, ReadOnlyMemory<byte> credential)
     {
@@ -85,9 +85,11 @@ public static class ManagementHttpProtocol
             "patch" => body.ExpectedRevision >= 0 && body.Records.Count == 0 && body.Changes.Count is > 0 and <= 64 && body.Selection.Count == 0,
             "read" => body.ExpectedRevision is null && body.Records.Count == 0 && body.Changes.Count == 0 && body.Selection.Count is > 0 and <= 64,
             "status" => body.ExpectedRevision is null && body.Records.Count == 0 && body.Changes.Count == 0 && body.Selection.Count == 0,
+            "import" => body.ExpectedRevision >= 0 && body.Records.Count == 0 && body.Changes.Count == 0 && body.Selection.Count == 0 && ValidZoneFile(body.ZoneFile),
+            "export" => body.ExpectedRevision is null && body.Records.Count == 0 && body.Changes.Count == 0 && body.Selection.Count == 0,
             _ => false,
         };
-        if (!valid)
+        if (!valid || action is not "import" && body.ZoneFile is not null)
             throw new ArgumentException("Management action has invalid fields.", nameof(body));
         var bytes = body.Origin.Length;
         foreach (var record in body.Records)
@@ -116,7 +118,7 @@ public static class ManagementHttpProtocol
                 throw new ArgumentException("Missing selector.", nameof(body));
             AddBound(ref bytes, key.Owner, ReadOnlyMemory<byte>.Empty);
         }
-        return new ManagementRequest(action, tenantId, zoneId, operationId, body.ExpectedRevision ?? 0, body.Origin, body.Records, credential) { Changes = body.Changes, Selection = body.Selection };
+        return new ManagementRequest(action, tenantId, zoneId, operationId, body.ExpectedRevision ?? 0, body.Origin, body.Records, credential) { Changes = body.Changes, Selection = body.Selection, ZoneFile = body.ZoneFile };
     }
 
     private static void AddBound(ref int bytes, ReadOnlyMemory<byte> owner, ReadOnlyMemory<byte> data)
@@ -131,14 +133,15 @@ public static class ManagementHttpProtocol
     public static void VerifyReply(ManagementReply reply, string action, Guid operationId)
     {
         ValidateReplyBounds(reply);
-        if (reply.OperationId != operationId || (action is "read" ? reply.State is not "current" : reply.State is not ("accepted" or "activated")) || action is not "read" && reply.Records.Count != 0)
+        if (reply.OperationId != operationId || (action is "read" or "export" ? reply.State is not "current" : reply.State is not ("accepted" or "activated"))
+            || action is not "read" && reply.Records.Count != 0 || (action is "export" ? !ValidZoneFile(reply.ZoneFile) : reply.ZoneFile is not null))
             throw new InvalidDataException("Invalid management reply context.");
     }
 
     private static void ValidateReplyBounds(ManagementReply reply)
     {
         if (reply is null || reply.OperationId == Guid.Empty || reply.Revision <= 0 || reply.ContentHash is null || reply.ContentHash.Length != 64
-            || reply.ContentHash.Any(character => !Uri.IsHexDigit(character)) || reply.Records.Count > 512)
+            || reply.ContentHash.Any(character => !Uri.IsHexDigit(character)) || reply.Records.Count > 512 || reply.ZoneFile is not null && !ValidZoneFile(reply.ZoneFile))
             throw new InvalidDataException("Invalid management reply bounds.");
         var bytes = 0;
         foreach (var record in reply.Records)
@@ -150,6 +153,9 @@ public static class ManagementHttpProtocol
                 throw new InvalidDataException("Management records exceed their bound.");
         }
     }
+
+    private static bool ValidZoneFile(string? text) => text is { Length: > 0 and <= ProtocolVersion.MaximumZoneFileBytes }
+        && text.All(character => character is >= ' ' and <= '~' or '\t' or '\r' or '\n');
 
     private static void ValidateJson(ReadOnlyMemory<byte> data, int maximum)
     {

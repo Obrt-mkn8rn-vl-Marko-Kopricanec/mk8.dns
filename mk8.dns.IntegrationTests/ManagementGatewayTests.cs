@@ -7,12 +7,83 @@ using Grpc.Core;
 using Mk8.Dns.Contracts;
 using Mk8.Dns.Domain;
 using Mk8.Dns.Transport;
+using Mk8.Dns.Wire;
 using Xunit;
 
 namespace Mk8.Dns.IntegrationTests;
 
 public sealed class ManagementGatewayTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
+    [Fact]
+    public async Task HttpImportExportRequireFullZoneActionsAndPreserveHistoricalReplay()
+    {
+        if (!OperatingSystem.IsLinux())
+            throw new PlatformNotSupportedException();
+        var root = Path.Combine(Path.GetTempPath(), "m8zonehttp-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        try
+        {
+            var control = new ControlFixture();
+            var acme = RandomNumberGenerator.GetBytes(32);
+            var configuration = await WriteConfigurationAsync(root, control, acme, await postgres.ResetDatabaseAsync().ConfigureAwait(true)).ConfigureAwait(true);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            var token = timeout.Token;
+            var controller = new HostProcess("mk8.dns.Application", configuration.ControllerArguments, Port());
+            await using var controllerLifetime = controller.ConfigureAwait(true);
+            var gateway = new HostProcess("mk8.dns.Gateway", ["--role", "management", "--socket", configuration.ControlSocket, "--management-socket", configuration.ApiSocket], Port());
+            await using var gatewayLifetime = gateway.ConfigureAwait(true);
+            await WaitReadyAsync(configuration.ControlSocket, controller, token).ConfigureAwait(true);
+            using var http = new UnixManagementHttpClient(configuration.ApiSocket);
+            await WaitHttpAsync(http, control.Edit() with { Action = "status" }, gateway, token).ConfigureAwait(true);
+            await ExerciseZoneFilesAsync(http, control, acme, token).ConfigureAwait(true);
+            foreach (var host in new[] { gateway, controller })
+            {
+                await host.StopAsync(token).ConfigureAwait(true);
+                Assert.Equal(0, host.ExitCode);
+                Assert.DoesNotContain("Unhandled exception", await host.ReadLogsAsync(token).ConfigureAwait(true), StringComparison.Ordinal);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task ExerciseZoneFilesAsync(UnixManagementHttpClient http, ControlFixture control, byte[] acme, CancellationToken token)
+    {
+        var import = control.Edit() with { Action = "import", Records = [], ZoneFile = ZoneFileManagementTests.Text };
+        var accepted = await http.ExecuteAsync(import, token).ConfigureAwait(true);
+        Assert.Equal(1L, accepted.Revision);
+        var query = import with { Action = "export", OperationId = Guid.NewGuid(), ZoneFile = null };
+        var initial = await http.ExecuteAsync(query, token).ConfigureAwait(true);
+        Assert.Equal(accepted.ContentHash, initial.ContentHash);
+        Assert.Equal("current", initial.State);
+        Assert.Empty(initial.Records);
+        Assert.Equal(accepted.ContentHash, ZoneBundleCodec.Compile(control.Zone, 1, ZoneMasterFileCodec.Import(DnsName.Parse("example."), initial.ZoneFile!)).ContentHash);
+        foreach (var request in new[] { query, import with { ExpectedRevision = 1, OperationId = Guid.NewGuid() } })
+        {
+            var denied = await Assert.ThrowsAsync<HttpRequestException>(() => http.ExecuteAsync(request with { Credential = acme }, token).AsTask()).ConfigureAwait(true);
+            Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        }
+        var invalid = import with { ExpectedRevision = 1, OperationId = Guid.NewGuid(), ZoneFile = ZoneFileManagementTests.Text + "$INCLUDE /etc/passwd\n" };
+        var failed = await Assert.ThrowsAsync<HttpRequestException>(() => http.ExecuteAsync(invalid, token).AsTask()).ConfigureAwait(true);
+        Assert.Equal(HttpStatusCode.BadRequest, failed.StatusCode);
+        var changed = import with { ExpectedRevision = 1, OperationId = Guid.NewGuid(), ZoneFile = ZoneFileManagementTests.Text.Replace("192.0.2.42", "192.0.2.99", StringComparison.Ordinal) };
+        Assert.Equal(2L, (await http.ExecuteAsync(changed, token).ConfigureAwait(true)).Revision);
+        var replay = await http.ExecuteAsync(import with { ZoneFile = initial.ZoneFile }, token).ConfigureAwait(true);
+        Assert.Equal(accepted.Revision, replay.Revision);
+        Assert.Equal(accepted.ContentHash, replay.ContentHash);
+        var current = await http.ExecuteAsync(query, token).ConfigureAwait(true);
+        Assert.Equal(2L, current.Revision);
+        Assert.NotEqual(initial.ContentHash, current.ContentHash, StringComparer.Ordinal);
+        var conflict = await Assert.ThrowsAsync<HttpRequestException>(() => http.ExecuteAsync(import with { OperationId = Guid.NewGuid() }, token).AsTask()).ConfigureAwait(true);
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+        var preserved = await http.ExecuteAsync(query, token).ConfigureAwait(true);
+        Assert.Equal(current.Revision, preserved.Revision);
+        Assert.Equal(current.ContentHash, preserved.ContentHash);
+        Assert.Equal(current.ZoneFile, preserved.ZoneFile);
+    }
+
     [Fact]
     public async Task HttpScopeReplayAndRevisionSurviveControllerRestartWithSameGateway()
     {
@@ -112,7 +183,7 @@ public sealed class ManagementGatewayTests(PostgresFixture postgres) : IClassFix
         await PrivateAsync(keyFile, Encoding.UTF8.GetBytes(key.ExportPkcs8PrivateKeyPem())).ConfigureAwait(true);
         await PrivateAsync(database, Encoding.UTF8.GetBytes(connection)).ConfigureAwait(true);
         object[] grants = [
-            new { TenantId = control.Tenant, ZoneId = control.Zone, Origin = "example.", Actor = "http-operator", Expires = DateTimeOffset.UtcNow.AddHours(1), CredentialHash = SHA256.HashData(control.Credential) },
+            new { TenantId = control.Tenant, ZoneId = control.Zone, Origin = "example.", Actor = "http-operator", Expires = DateTimeOffset.UtcNow.AddHours(1), CredentialHash = SHA256.HashData(control.Credential), Actions = new[] { "edit", "patch", "read", "status", "import", "export" } },
             new { TenantId = control.Tenant, ZoneId = control.Zone, Origin = "example.", Actor = "http-acme", Expires = DateTimeOffset.UtcNow.AddHours(1), CredentialHash = SHA256.HashData(acme), Profile = "acme", Actions = new[] { "patch", "read", "status" }, RecordScopes = new[] { new { Owner = "_acme-challenge.example.", Type = 16 } } },
         ];
         await PrivateAsync(file, JsonSerializer.SerializeToUtf8Bytes(new

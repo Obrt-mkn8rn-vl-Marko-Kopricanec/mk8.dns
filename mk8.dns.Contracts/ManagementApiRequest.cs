@@ -10,4 +10,5 @@ public sealed record ManagementApiRequest(ReadOnlyMemory<byte> Origin)
     public IReadOnlyList<ZoneRecordData> Records { get => records; init => records = value ?? Array.Empty<ZoneRecordData>(); }
     public IReadOnlyList<RrsetChange> Changes { get => changes; init => changes = value ?? Array.Empty<RrsetChange>(); }
     public IReadOnlyList<RrsetKey> Selection { get => selection; init => selection = value ?? Array.Empty<RrsetKey>(); }
+    public string? ZoneFile { get; init; }
 }
