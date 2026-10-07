@@ -127,6 +127,12 @@ public sealed class SvcbMasterFileTests
     public void BracketedEndpointIsNotAnIpv6Hint(string hint) => Assert.Throws<FormatException>(() => Parse("HTTPS 1 . ipv6hint=\"" + hint + "\""));
 
     [Theory]
+    [InlineData("key123=a=\"b\"")]
+    [InlineData("key123==\"abc\"")]
+    [InlineData("alpn=h2=\"h3\"")]
+    public void QuotedValueCannotFollowAnUnquotedValue(string parameter) => Assert.Throws<FormatException>(() => Parse("HTTPS 1 . " + parameter));
+
+    [Theory]
     [InlineData("host=\"label\" TXT value")]
     [InlineData("svc A host=\"192.0.2.1\"")]
     [InlineData("svc TXT key=\"value\"")]

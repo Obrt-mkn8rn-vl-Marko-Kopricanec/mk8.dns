@@ -73,8 +73,8 @@ internal static class MasterFileTokens
                 break;
             if (character == '"')
             {
-                Require(position > start && text[position - 1] == '=');
                 var key = text[start..position];
+                Require(key.IndexOf('=', StringComparison.Ordinal) == key.Length - 1);
                 return new MasterFileToken(key + ReadQuoted(text, ref position), false, HasQuotedValue: true);
             }
             position++;
