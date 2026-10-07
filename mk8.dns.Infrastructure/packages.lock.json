@@ -35,8 +35,8 @@
       "mk8.dns.application.abstractions": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Contracts": "[0.1.0-alpha.21, )",
-          "mk8.dns.Domain": "[0.1.0-alpha.21, )"
+          "mk8.dns.Contracts": "[0.1.0-alpha.22, )",
+          "mk8.dns.Domain": "[0.1.0-alpha.22, )"
         }
       },
       "mk8.dns.contracts": {
@@ -52,13 +52,13 @@
       "mk8.dns.engine.dnssec": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[0.1.0-alpha.21, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.22, )"
         }
       },
       "mk8.dns.wire": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[0.1.0-alpha.21, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.22, )"
         }
       },
       "Google.Protobuf": {

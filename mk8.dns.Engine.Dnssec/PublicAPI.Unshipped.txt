@@ -50,3 +50,22 @@ Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.BoundTtl(uint ttl, uint now) -> uint
 Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.GetRecords(Mk8.Dns.Domain.DnsName! name) -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
 Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.GetSignature(Mk8.Dns.Domain.DnsName! owner, ushort type) -> Mk8.Dns.Domain.DnsRecord?
 Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.GetCover(Mk8.Dns.Domain.DnsName! name) -> Mk8.Dns.Domain.DnsRecord!
+Mk8.Dns.Engine.Dnssec.DnssecTrustAnchor
+Mk8.Dns.Engine.Dnssec.DnssecTrustAnchor.DnssecTrustAnchor(Mk8.Dns.Domain.DnsRecord! record) -> void
+Mk8.Dns.Engine.Dnssec.DnssecTrustAnchor.Record.get -> Mk8.Dns.Domain.DnsRecord!
+Mk8.Dns.Engine.Dnssec.DnssecTrustAnchor.Origin.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Engine.Dnssec.AuthenticatedDnskeySet
+Mk8.Dns.Engine.Dnssec.AuthenticatedDnskeySet.Origin.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Engine.Dnssec.AuthenticatedDnskeySet.Records.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Engine.Dnssec.AuthenticatedDnskeySet.Depth.get -> int
+Mk8.Dns.Engine.Dnssec.DnssecChainValidator
+const Mk8.Dns.Engine.Dnssec.DnssecChainValidator.MaximumKeys = 64 -> int
+const Mk8.Dns.Engine.Dnssec.DnssecChainValidator.MaximumSignatures = 16 -> int
+const Mk8.Dns.Engine.Dnssec.DnssecChainValidator.MaximumRrsetRecords = 512 -> int
+const Mk8.Dns.Engine.Dnssec.DnssecChainValidator.MaximumDepth = 16 -> int
+const Mk8.Dns.Engine.Dnssec.DnssecChainValidator.MaximumVerificationAttempts = 128 -> int
+Mk8.Dns.Engine.Dnssec.DnssecChainValidator.DnssecChainValidator(Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, System.TimeProvider? time = null) -> void
+Mk8.Dns.Engine.Dnssec.DnssecChainValidator.TryAuthenticateAnchor(Mk8.Dns.Engine.Dnssec.DnssecTrustAnchor! anchor, System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>! dnskeys, System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>! signatures, out Mk8.Dns.Engine.Dnssec.AuthenticatedDnskeySet? authenticatedKeys) -> bool
+Mk8.Dns.Engine.Dnssec.DnssecChainValidator.TryAuthenticateChild(Mk8.Dns.Engine.Dnssec.AuthenticatedDnskeySet! parent, Mk8.Dns.Domain.DnsName! child, System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>! ds, System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>! dsSignatures, System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>! dnskeys, System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>! keySignatures, out Mk8.Dns.Engine.Dnssec.AuthenticatedDnskeySet? authenticatedKeys) -> bool
+Mk8.Dns.Engine.Dnssec.DnssecChainValidator.TryAuthenticateRrset(Mk8.Dns.Engine.Dnssec.AuthenticatedDnskeySet! keys, Mk8.Dns.Domain.DnsQuestion! expected, System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>! records, System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>! signatures, out uint authenticatedTtl) -> bool
+Mk8.Dns.Engine.Dnssec.DnssecChainValidator.GetRemainingTtl(Mk8.Dns.Engine.Dnssec.AuthenticatedDnskeySet! keys) -> uint
