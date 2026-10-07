@@ -22,3 +22,20 @@ static Mk8.Dns.Wire.DnsMessageCodec.EncodeResponse(Mk8.Dns.Domain.DnsQuery! quer
 Mk8.Dns.Wire.SignedZoneBundleCodec
 static Mk8.Dns.Wire.SignedZoneBundleCodec.Compile(System.Guid zoneId, long revision, Mk8.Dns.Domain.ZoneContents! contents) -> Mk8.Dns.Domain.ZoneSnapshot!
 static Mk8.Dns.Wire.SignedZoneBundleCodec.Decode(Mk8.Dns.Domain.ZoneSnapshot! snapshot) -> Mk8.Dns.Domain.ZoneContents!
+Mk8.Dns.Wire.UpstreamMessageCodec
+static Mk8.Dns.Wire.UpstreamMessageCodec.EncodeQuery(ushort id, Mk8.Dns.Domain.DnsQuestion! question) -> byte[]!
+static Mk8.Dns.Wire.UpstreamMessageCodec.DecodeResponse(System.ReadOnlySpan<byte> message, ushort id, Mk8.Dns.Domain.DnsQuestion! question) -> Mk8.Dns.Wire.UpstreamResponse!
+Mk8.Dns.Wire.UpstreamResponse
+Mk8.Dns.Wire.UpstreamResponse.<Clone>$() -> Mk8.Dns.Wire.UpstreamResponse!
+Mk8.Dns.Wire.UpstreamResponse.Answer.get -> Mk8.Dns.Domain.DnsAnswer!
+Mk8.Dns.Wire.UpstreamResponse.Answer.init -> void
+Mk8.Dns.Wire.UpstreamResponse.Deconstruct(out Mk8.Dns.Domain.DnsAnswer! Answer, out bool Truncated) -> void
+Mk8.Dns.Wire.UpstreamResponse.Equals(Mk8.Dns.Wire.UpstreamResponse? other) -> bool
+Mk8.Dns.Wire.UpstreamResponse.Truncated.get -> bool
+Mk8.Dns.Wire.UpstreamResponse.Truncated.init -> void
+Mk8.Dns.Wire.UpstreamResponse.UpstreamResponse(Mk8.Dns.Domain.DnsAnswer! Answer, bool Truncated) -> void
+override Mk8.Dns.Wire.UpstreamResponse.Equals(object? obj) -> bool
+override Mk8.Dns.Wire.UpstreamResponse.GetHashCode() -> int
+override Mk8.Dns.Wire.UpstreamResponse.ToString() -> string!
+static Mk8.Dns.Wire.UpstreamResponse.operator !=(Mk8.Dns.Wire.UpstreamResponse? left, Mk8.Dns.Wire.UpstreamResponse? right) -> bool
+static Mk8.Dns.Wire.UpstreamResponse.operator ==(Mk8.Dns.Wire.UpstreamResponse? left, Mk8.Dns.Wire.UpstreamResponse? right) -> bool

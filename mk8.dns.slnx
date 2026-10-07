@@ -9,6 +9,7 @@
   <Project Path="mk8.dns.Domain/mk8.dns.Domain.csproj" />
   <Project Path="mk8.dns.Engine.Authoritative/mk8.dns.Engine.Authoritative.csproj" />
   <Project Path="mk8.dns.Engine.Dnssec/mk8.dns.Engine.Dnssec.csproj" />
+  <Project Path="mk8.dns.Engine.Recursive/mk8.dns.Engine.Recursive.csproj" />
   <Project Path="mk8.dns.Gateway/mk8.dns.Gateway.csproj" />
   <Project Path="mk8.dns.IntegrationTests/mk8.dns.IntegrationTests.csproj" />
   <Project Path="mk8.dns.Infrastructure/mk8.dns.Infrastructure.csproj" />

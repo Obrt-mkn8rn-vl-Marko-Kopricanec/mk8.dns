@@ -8,4 +8,7 @@
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'mk8.dns.Domain' or '$(MSBuildProjectName)' == 'mk8.dns.Application.DAL' or '$(MSBuildProjectName)' == 'mk8.dns.Wire' or '$(MSBuildProjectName)' == 'mk8.dns.Engine.Authoritative' or '$(MSBuildProjectName)' == 'mk8.dns.Engine.Dnssec' or '$(MSBuildProjectName)' == 'mk8.dns.Presentation'">
     <PackageReference Include="NetFabric.Hyperlinq.Analyzer" PrivateAssets="all" />
   </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'mk8.dns.Engine.Recursive'">
+    <PackageReference Include="NetFabric.Hyperlinq.Analyzer" PrivateAssets="all" />
+  </ItemGroup>
 </Project>

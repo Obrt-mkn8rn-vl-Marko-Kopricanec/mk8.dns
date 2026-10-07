@@ -1,0 +1,4 @@
+#nullable enable
+Mk8.Dns.Engine.Recursive.NonValidatingIterativeResolver
+Mk8.Dns.Engine.Recursive.NonValidatingIterativeResolver.NonValidatingIterativeResolver(Mk8.Dns.Domain.IDnsUpstream! upstream, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! roots, ushort authorityPort = 53, int maximumExchanges = 64, int maximumAliasHops = 16, int maximumDependencyDepth = 8, System.TimeProvider? time = null) -> void
+Mk8.Dns.Engine.Recursive.NonValidatingIterativeResolver.ResolveAsync(Mk8.Dns.Domain.DnsQuestion! question, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.DnsAnswer!>

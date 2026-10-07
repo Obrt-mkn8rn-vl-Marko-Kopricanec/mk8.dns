@@ -112,3 +112,6 @@ static Mk8.Dns.Infrastructure.DnssecSigningPolicy.operator ==(Mk8.Dns.Infrastruc
 override Mk8.Dns.Infrastructure.DnssecSigningPolicy.Equals(object? obj) -> bool
 override Mk8.Dns.Infrastructure.DnssecSigningPolicy.GetHashCode() -> int
 override Mk8.Dns.Infrastructure.DnssecSigningPolicy.ToString() -> string!
+Mk8.Dns.Infrastructure.DnsUpstreamClient
+Mk8.Dns.Infrastructure.DnsUpstreamClient.DnsUpstreamClient(System.Func<Mk8.Dns.Domain.DnsServerEndpoint!, bool>! permits, System.TimeSpan timeout) -> void
+Mk8.Dns.Infrastructure.DnsUpstreamClient.ExchangeAsync(Mk8.Dns.Domain.DnsQuestion! question, Mk8.Dns.Domain.DnsServerEndpoint! server, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.DnsAnswer!>

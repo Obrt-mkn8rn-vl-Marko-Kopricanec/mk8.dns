@@ -144,3 +144,12 @@ Mk8.Dns.Domain.ZoneContents.Source.get -> Mk8.Dns.Domain.AuthoritativeZone!
 Mk8.Dns.Domain.ZoneContents.IsSigned.get -> bool
 Mk8.Dns.Domain.ZoneContents.GetSecurityRecords() -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
 Mk8.Dns.Domain.ZoneContents.GetAllRecords() -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Domain.DnsServerEndpoint
+Mk8.Dns.Domain.DnsServerEndpoint.DnsServerEndpoint(System.ReadOnlySpan<byte> address, ushort port = 53) -> void
+Mk8.Dns.Domain.DnsServerEndpoint.Equals(Mk8.Dns.Domain.DnsServerEndpoint? other) -> bool
+Mk8.Dns.Domain.DnsServerEndpoint.GetAddress() -> byte[]!
+Mk8.Dns.Domain.DnsServerEndpoint.Port.get -> ushort
+Mk8.Dns.Domain.IDnsUpstream
+Mk8.Dns.Domain.IDnsUpstream.ExchangeAsync(Mk8.Dns.Domain.DnsQuestion! question, Mk8.Dns.Domain.DnsServerEndpoint! server, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.DnsAnswer!>
+override Mk8.Dns.Domain.DnsServerEndpoint.Equals(object? obj) -> bool
+override Mk8.Dns.Domain.DnsServerEndpoint.GetHashCode() -> int

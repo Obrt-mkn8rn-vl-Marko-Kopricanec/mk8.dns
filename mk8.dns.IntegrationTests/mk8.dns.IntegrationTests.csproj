@@ -9,6 +9,7 @@
     <ProjectReference Include="../mk8.dns.Transport/mk8.dns.Transport.csproj" />
     <ProjectReference Include="../mk8.dns.Application.BLL/mk8.dns.Application.BLL.csproj" />
     <ProjectReference Include="../mk8.dns.Infrastructure/mk8.dns.Infrastructure.csproj" />
+    <ProjectReference Include="../mk8.dns.Engine.Recursive/mk8.dns.Engine.Recursive.csproj" />
     <ProjectReference Include="../mk8.dns.Infrastructure.Cryptography/mk8.dns.Infrastructure.Cryptography.csproj" />
     <ProjectReference Include="../mk8.dns.Operator/mk8.dns.Operator.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../mk8.dns.Application.DAL/mk8.dns.Application.DAL.csproj" />
