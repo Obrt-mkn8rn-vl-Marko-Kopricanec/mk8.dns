@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 
 namespace Mk8.Dns.Wire;
 
@@ -22,7 +23,8 @@ internal static class MasterFileServiceBinding
             var key = Key(name);
             var text = equals < 0 ? string.Empty : field.Text[(equals + 1)..];
             // RFC 9460 unknown-key notation supplies raw wire octets even for a known key.
-            var value = name.StartsWith("key", StringComparison.Ordinal) ? MasterFileData.Octets(text) : Parameter(key, text);
+            var decoded = MasterFileData.Octets(text);
+            var value = name.StartsWith("key", StringComparison.Ordinal) ? decoded : Parameter(key, decoded);
             Require(parameters.TryAdd(key, value));
             size += value.Length + 4;
             Require(size <= ushort.MaxValue);
@@ -60,14 +62,15 @@ internal static class MasterFileServiceBinding
         return (ushort)MasterFileData.Number(new MasterFileToken(number, false), ushort.MaxValue - 1U);
     }
 
-    private static byte[] Parameter(ushort key, string text)
+    private static byte[] Parameter(ushort key, byte[] value)
     {
-        if (key != 1)
-            Require(!text.Contains('\\', StringComparison.Ordinal));
+        if (key == 1)
+            return Alpn(value);
+        Require(value.All(octet => octet <= 127));
+        var text = Encoding.ASCII.GetString(value);
         return key switch
         {
             0 => Mandatory(text),
-            1 => Alpn(MasterFileData.Octets(text)),
             2 when text.Length == 0 => [],
             3 => Port(text),
             4 => Hints(text, AddressFamily.InterNetwork),

@@ -76,7 +76,6 @@ public sealed class SvcbMasterFileTests
     [InlineData("SVCB 1 . mandatory=alpn")]
     [InlineData("SVCB 1 . mandatory=alpn,key1 alpn=h2")]
     [InlineData("SVCB 1 . mandatory=alpn, alpn=h2")]
-    [InlineData("SVCB 1 . mandatory=\\097lpn alpn=h2")]
     [InlineData("SVCB 1 . alpn=\"\"")]
     [InlineData("SVCB 1 . alpn=,h2")]
     [InlineData("SVCB 1 . alpn=h2,")]
@@ -86,23 +85,24 @@ public sealed class SvcbMasterFileTests
     [InlineData("SVCB 1 . port=65536")]
     [InlineData("SVCB 1 . port=-1")]
     [InlineData("SVCB 1 . port=+443")]
-    [InlineData("SVCB 1 . port=\\05243")]
     [InlineData("SVCB 1 . port=\"4 43\"")]
+    [InlineData("SVCB 1 . port=\\000443")]
     [InlineData("SVCB 1 . ipv4hint=127.1")]
     [InlineData("SVCB 1 . ipv4hint=256.0.0.1")]
     [InlineData("SVCB 1 . ipv4hint=2001:db8::1")]
     [InlineData("SVCB 1 . ipv4hint=192.0.2.1,")]
-    [InlineData("SVCB 1 . ipv4hint=\\04992.0.2.1")]
     [InlineData("SVCB 1 . ipv6hint=192.0.2.1")]
     [InlineData("SVCB 1 . ipv6hint=fe80::1%2")]
     [InlineData("SVCB 1 . ipv6hint=::1,")]
     [InlineData("SVCB 1 . ipv6hint=::g")]
     [InlineData("SVCB 1 . ipv6hint=\" ::1\"")]
+    [InlineData("SVCB 1 . ipv6hint=\\091::1\\093")]
+    [InlineData("SVCB 1 . mandatory=\\000alpn alpn=h2")]
     [InlineData("SVCB 1 . ech")]
     [InlineData("SVCB 1 . ech=AA")]
     [InlineData("SVCB 1 . ech=AB==")]
     [InlineData("SVCB 1 . ech=\"AA== \"")]
-    [InlineData("SVCB 1 . ech=\\065A==")]
+    [InlineData("SVCB 1 . ech=\\255")]
     [InlineData("SVCB 1 . key01=\\002h2")]
     [InlineData("SVCB 1 . key65535")]
     [InlineData("SVCB 1 . key65536")]
@@ -119,6 +119,20 @@ public sealed class SvcbMasterFileTests
     [InlineData("SVCB 1 . key1=abc")]
     [InlineData("SVCB 1 . key3=443")]
     public void InvalidTypedOrRawParametersFailSharedAdmission(string input) => Assert.Throws<FormatException>(() => Parse(input));
+
+    [Theory]
+    [InlineData("mandatory=\\097lpn alpn=h2", "00010000000002000100010003026832")]
+    [InlineData("port=\\05243", "0001000003000201bb")]
+    [InlineData("ipv4hint=\\04992.0.2.1", "00010000040004c0000201")]
+    [InlineData("ech=\\065A==", "0001000005000100")]
+    [InlineData("ipv6hint=\\058\\0581", "0001000006001000000000000000000000000000000001")]
+    [InlineData("mandatory=alpn\\044port alpn=h2 port=443", "0001000000000400010003000100030268320003000201bb")]
+    [InlineData("ipv4hint=192.0.2.1\\044198.51.100.2", "00010000040008c0000201c6336402")]
+    public void EveryTypedValueDecodesCharacterStringBeforeItsWireFormat(string parameters, string hex)
+    {
+        var record = Assert.Single(Parse("HTTPS 1 . " + parameters).GetRecords(DnsName.Parse("svc.example.")));
+        Assert.Equal(Convert.FromHexString(hex), record.GetData());
+    }
 
     [Theory]
     [InlineData("[::1]")]
