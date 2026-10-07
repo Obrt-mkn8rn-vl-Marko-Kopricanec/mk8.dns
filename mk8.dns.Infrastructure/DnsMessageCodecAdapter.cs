@@ -9,5 +9,6 @@ public sealed class DnsMessageCodecAdapter : IDnsMessageCodec
     public DnsQuery Decode(ReadOnlySpan<byte> message) => DnsMessageCodec.DecodeQuery(message);
     public byte[] Encode(DnsQuery query, DnsAnswer answer, bool tcp) => DnsMessageCodec.EncodeResponse(query, answer, tcp);
     public byte[] Encode(DnsQuery query, DnsAnswer answer, bool tcp, ReadOnlySpan<byte> cookie, ushort udpLimit) => DnsMessageCodec.EncodeResponse(query, answer, tcp, cookie, udpLimit);
+    public byte[] Encode(DnsQuery query, DnsAnswer answer, bool tcp, ReadOnlySpan<byte> cookie, ushort udpLimit, ushort reservedBytes) => DnsMessageCodec.EncodeResponse(query, answer, tcp, cookie, udpLimit, reservedBytes);
     public byte[] EncodeError(ReadOnlySpan<byte> message, byte code) => DnsMessageCodec.EncodeError(message, code);
 }

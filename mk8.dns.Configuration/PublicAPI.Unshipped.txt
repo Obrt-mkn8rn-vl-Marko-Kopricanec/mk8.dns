@@ -52,3 +52,5 @@ Mk8.Dns.Configuration.GatewaySettings.ManagementSocketPath.get -> string?
 Mk8.Dns.Configuration.GatewaySettings.ManagementSocketPath.init -> void
 Mk8.Dns.Configuration.ApplicationSettings.CookieSecretFile.get -> string?
 Mk8.Dns.Configuration.ApplicationSettings.CookieSecretFile.init -> void
+Mk8.Dns.Configuration.ApplicationSettings.TsigKeyFile.get -> string?
+Mk8.Dns.Configuration.ApplicationSettings.TsigKeyFile.init -> void

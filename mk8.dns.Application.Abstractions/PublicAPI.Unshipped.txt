@@ -44,3 +44,14 @@ Mk8.Dns.Application.Abstractions.IDnsCookieService.IsAvailable.get -> bool
 Mk8.Dns.Application.Abstractions.IDnsCookieService.Create(System.ReadOnlySpan<byte> clientCookie, System.ReadOnlySpan<byte> peerAddress) -> byte[]?
 Mk8.Dns.Application.Abstractions.IDnsCookieService.Validate(System.ReadOnlySpan<byte> cookie, System.ReadOnlySpan<byte> peerAddress) -> bool
 Mk8.Dns.Application.Abstractions.IDnsMessageCodec.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit) -> byte[]!
+Mk8.Dns.Application.Abstractions.ITsigService
+Mk8.Dns.Application.Abstractions.ITsigService.IsAvailable.get -> bool
+Mk8.Dns.Application.Abstractions.ITsigService.Open(System.ReadOnlySpan<byte> message, System.ReadOnlySpan<byte> peerAddress) -> Mk8.Dns.Application.Abstractions.ITsigTransaction?
+Mk8.Dns.Application.Abstractions.ITsigTransaction
+Mk8.Dns.Application.Abstractions.ITsigTransaction.TsigError.get -> ushort
+Mk8.Dns.Application.Abstractions.ITsigTransaction.SignatureBytes.get -> ushort
+Mk8.Dns.Application.Abstractions.ITsigTransaction.PeerAllowed.get -> bool
+Mk8.Dns.Application.Abstractions.ITsigTransaction.GetRequest() -> byte[]!
+Mk8.Dns.Application.Abstractions.ITsigTransaction.Authorizes(Mk8.Dns.Domain.DnsName! origin) -> bool
+Mk8.Dns.Application.Abstractions.ITsigTransaction.Complete(System.ReadOnlySpan<byte> response) -> byte[]!
+Mk8.Dns.Application.Abstractions.IDnsMessageCodec.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit, ushort reservedBytes) -> byte[]!

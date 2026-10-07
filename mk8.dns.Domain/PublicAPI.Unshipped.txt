@@ -119,3 +119,14 @@ static Mk8.Dns.Domain.ZoneOwnership.operator ==(Mk8.Dns.Domain.ZoneOwnership? le
 Mk8.Dns.Domain.DnsRecord.GetCanonicalData() -> byte[]!
 Mk8.Dns.Domain.DnsQuery.DnsQuery(ushort id, ushort flags, Mk8.Dns.Domain.DnsQuestion? question, byte[]! name, ushort udpPayloadSize, bool hasEdns, byte ednsVersion, bool dnssecOk, byte[]? cookie) -> void
 Mk8.Dns.Domain.DnsQuery.GetCookieWire() -> byte[]?
+Mk8.Dns.Domain.TsigRequest
+Mk8.Dns.Domain.TsigRequest.TsigRequest(byte[]! message, Mk8.Dns.Domain.DnsName! keyName, Mk8.Dns.Domain.DnsName! algorithm, ulong timeSigned, ushort fudge, byte[]! mac, ushort originalId, ushort error, byte[]! otherData) -> void
+Mk8.Dns.Domain.TsigRequest.KeyName.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Domain.TsigRequest.Algorithm.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Domain.TsigRequest.TimeSigned.get -> ulong
+Mk8.Dns.Domain.TsigRequest.Fudge.get -> ushort
+Mk8.Dns.Domain.TsigRequest.OriginalId.get -> ushort
+Mk8.Dns.Domain.TsigRequest.Error.get -> ushort
+Mk8.Dns.Domain.TsigRequest.GetMessage() -> byte[]!
+Mk8.Dns.Domain.TsigRequest.GetMac() -> byte[]!
+Mk8.Dns.Domain.TsigRequest.GetOtherData() -> byte[]!

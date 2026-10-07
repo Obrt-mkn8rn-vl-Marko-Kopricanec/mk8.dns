@@ -70,10 +70,13 @@ public static class DnsMessageCodec
     public static byte[] EncodeResponse(DnsQuery query, DnsAnswer answer, bool tcp) => EncodeResponse(query, answer, tcp, [], MaximumUdpPayloadSize);
 
     public static byte[] EncodeResponse(DnsQuery query, DnsAnswer answer, bool tcp, ReadOnlySpan<byte> cookie, ushort udpLimit)
+        => EncodeResponse(query, answer, tcp, cookie, udpLimit, 0);
+
+    public static byte[] EncodeResponse(DnsQuery query, DnsAnswer answer, bool tcp, ReadOnlySpan<byte> cookie, ushort udpLimit, ushort reservedBytes)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(answer);
-        if (udpLimit is < 512 or > MaximumUdpPayloadSize || cookie.Length != 0 && (cookie.Length != 24 || !query.HasEdns
+        if (reservedBytes > 160 || udpLimit is < 512 or > MaximumUdpPayloadSize || cookie.Length != 0 && (cookie.Length != 24 || !query.HasEdns
             || query.GetCookieWire() is not { Length: >= 8 } requestCookie || !cookie[..8].SequenceEqual(requestCookie.AsSpan(0, 8))))
             throw new ArgumentException("Invalid response cookie or UDP policy.", nameof(cookie));
         if (query.EdnsVersion != 0)
@@ -94,11 +97,20 @@ public static class DnsMessageCodec
             Write16(buffer, ref offset, question.Type);
             Write16(buffer, ref offset, question.Class);
         }
-        var usable = limit - (query.HasEdns ? 11 + (cookie.Length == 0 ? 0 : 4 + cookie.Length) : 0);
+        var usable = limit - reservedBytes - (query.HasEdns ? 11 + (cookie.Length == 0 ? 0 : 4 + cookie.Length) : 0);
+        if (offset > usable)
+            throw new ArgumentException("The question and reserved metadata exceed the response bounds.", nameof(reservedBytes));
         var truncated = false;
         var answers = WriteSection(answer.Answers, buffer, ref offset, usable, query, ref truncated);
         var authority = WriteSection(answer.Authority, buffer, ref offset, usable, query, ref truncated);
         var additional = WriteSection(answer.Additional, buffer, ref offset, usable, query, ref truncated);
+        if (truncated && reservedBytes != 0)
+        {
+            // RFC 8945: signed truncation carries only the question and TSIG.
+            offset = 12 + originalName.Length + (query.Question is null ? 0 : 4);
+            WriteHeader(buffer, query, new DnsAnswer(0, answer.Authoritative, [], [], []), true, 0, 0, 0);
+            return buffer[..offset];
+        }
         if (query.HasEdns)
         {
             WriteOpt(buffer, ref offset, query, answer.ResponseCode, cookie);
@@ -186,7 +198,7 @@ public static class DnsMessageCodec
         return count;
     }
 
-    private static byte[] ReadName(ReadOnlySpan<byte> message, ref int offset, HashSet<int> boundaries)
+    internal static byte[] ReadName(ReadOnlySpan<byte> message, ref int offset, HashSet<int> boundaries)
     {
         var cursor = offset;
         var consumed = -1;

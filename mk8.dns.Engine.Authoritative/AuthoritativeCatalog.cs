@@ -8,6 +8,12 @@ public sealed class AuthoritativeCatalog
 
     public uint ZoneCount => (uint)zones.Length;
 
+    public DnsName? GetZoneOrigin(DnsName name, ushort type)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return SelectZone(name, type)?.Origin;
+    }
+
     public AuthoritativeCatalog(IEnumerable<AuthoritativeZone> zones)
     {
         ArgumentNullException.ThrowIfNull(zones);

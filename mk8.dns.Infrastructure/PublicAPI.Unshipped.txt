@@ -75,3 +75,14 @@ Mk8.Dns.Infrastructure.DnsCookieService.Validate(System.ReadOnlySpan<byte> cooki
 Mk8.Dns.Infrastructure.DnsCookieService.Dispose() -> void
 static Mk8.Dns.Infrastructure.DnsCookieService.CreateEphemeral(System.TimeProvider! clock) -> Mk8.Dns.Infrastructure.DnsCookieService!
 Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit) -> byte[]!
+Mk8.Dns.Infrastructure.TsigKey
+Mk8.Dns.Infrastructure.TsigKey.TsigKey(Mk8.Dns.Domain.DnsName! name, byte[]! secret, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsName!>! zones, System.Collections.Generic.IEnumerable<byte[]!>! peers, byte minimumMacBytes = 16) -> void
+Mk8.Dns.Infrastructure.TsigKey.Name.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Infrastructure.TsigKey.MinimumMacBytes.get -> byte
+Mk8.Dns.Infrastructure.TsigKey.Dispose() -> void
+Mk8.Dns.Infrastructure.TsigService
+Mk8.Dns.Infrastructure.TsigService.TsigService(System.Collections.Generic.IEnumerable<Mk8.Dns.Infrastructure.TsigKey!>! keys, System.TimeProvider! clock) -> void
+Mk8.Dns.Infrastructure.TsigService.IsAvailable.get -> bool
+Mk8.Dns.Infrastructure.TsigService.Open(System.ReadOnlySpan<byte> message, System.ReadOnlySpan<byte> peerAddress) -> Mk8.Dns.Application.Abstractions.ITsigTransaction?
+Mk8.Dns.Infrastructure.TsigService.Dispose() -> void
+Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit, ushort reservedBytes) -> byte[]!

@@ -13,3 +13,9 @@ const Mk8.Dns.Wire.ZoneMasterFileCodec.MaximumTextBytes = 1000000 -> int
 static Mk8.Dns.Wire.ZoneMasterFileCodec.Import(Mk8.Dns.Domain.DnsName! origin, string! text) -> Mk8.Dns.Domain.AuthoritativeZone!
 static Mk8.Dns.Wire.ZoneMasterFileCodec.Export(Mk8.Dns.Domain.AuthoritativeZone! zone) -> string!
 static Mk8.Dns.Wire.DnsMessageCodec.EncodeResponse(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit) -> byte[]!
+Mk8.Dns.Wire.TsigMessageCodec
+static Mk8.Dns.Wire.TsigMessageCodec.DecodeRequest(System.ReadOnlySpan<byte> message) -> Mk8.Dns.Domain.TsigRequest?
+static Mk8.Dns.Wire.TsigMessageCodec.GetRecordSize(Mk8.Dns.Domain.TsigRequest! request, int macBytes, int otherBytes) -> int
+static Mk8.Dns.Wire.TsigMessageCodec.CreateMacInput(System.ReadOnlySpan<byte> message, Mk8.Dns.Domain.TsigRequest! request, System.ReadOnlySpan<byte> requestMac, ulong timeSigned, ushort fudge, ushort error, System.ReadOnlySpan<byte> otherData) -> byte[]!
+static Mk8.Dns.Wire.TsigMessageCodec.AppendRecord(System.ReadOnlySpan<byte> message, Mk8.Dns.Domain.TsigRequest! request, ulong timeSigned, ushort fudge, ushort error, System.ReadOnlySpan<byte> mac, System.ReadOnlySpan<byte> otherData) -> byte[]!
+static Mk8.Dns.Wire.DnsMessageCodec.EncodeResponse(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit, ushort reservedBytes) -> byte[]!

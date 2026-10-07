@@ -6,6 +6,17 @@ namespace Mk8.Dns.UnitTests;
 public sealed class ConfigurationTests
 {
     [Fact]
+    public void TsigKeyInputsAreExplicitPrivateReplicaInputs()
+    {
+        var replica = new[] { "--socket", "/tmp/app.sock", "--state", "/tmp/state", "--node", "node1", "--role", "authoritative-replica" };
+        Assert.Null(ApplicationSettings.Parse(replica).TsigKeyFile);
+        Assert.Equal("/tmp/tsig.keys", ApplicationSettings.Parse([.. replica, "--tsig-key-file", "/tmp/tsig.keys"]).TsigKeyFile);
+        Assert.Throws<ArgumentException>(() => ApplicationSettings.Parse([.. replica, "--tsig-key-file", "relative.key"]));
+        Assert.Throws<ArgumentException>(() => ApplicationSettings.Parse(["--socket", "/tmp/app.sock", "--state", "/tmp/state", "--node", "node1", "--role", "controller", "--tsig-key-file", "/tmp/tsig.keys"]));
+        Assert.Throws<ArgumentException>(() => GatewaySettings.Parse(["--socket", "/tmp/app.sock", "--health-port", "8080", "--tsig-key-file", "/tmp/tsig.keys"]));
+    }
+
+    [Fact]
     public void CookieSecretInputsAreExplicitPrivateReplicaInputs()
     {
         var replica = new[] { "--socket", "/tmp/app.sock", "--state", "/tmp/state", "--node", "node1", "--role", "authoritative-replica" };
