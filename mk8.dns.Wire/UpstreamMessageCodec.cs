@@ -3,7 +3,7 @@ using Mk8.Dns.Domain;
 
 namespace Mk8.Dns.Wire;
 
-public static class UpstreamMessageCodec
+public static partial class UpstreamMessageCodec
 {
     public static byte[] EncodeQuery(ushort id, DnsQuestion question)
     {

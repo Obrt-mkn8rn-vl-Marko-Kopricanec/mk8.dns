@@ -39,3 +39,8 @@ override Mk8.Dns.Wire.UpstreamResponse.GetHashCode() -> int
 override Mk8.Dns.Wire.UpstreamResponse.ToString() -> string!
 static Mk8.Dns.Wire.UpstreamResponse.operator !=(Mk8.Dns.Wire.UpstreamResponse? left, Mk8.Dns.Wire.UpstreamResponse? right) -> bool
 static Mk8.Dns.Wire.UpstreamResponse.operator ==(Mk8.Dns.Wire.UpstreamResponse? left, Mk8.Dns.Wire.UpstreamResponse? right) -> bool
+Mk8.Dns.Wire.DnssecUpstreamResponse
+Mk8.Dns.Wire.DnssecUpstreamResponse.Evidence.get -> Mk8.Dns.Domain.DnsUpstreamEvidence?
+Mk8.Dns.Wire.DnssecUpstreamResponse.Truncated.get -> bool
+static Mk8.Dns.Wire.UpstreamMessageCodec.EncodeDnssecQuery(ushort id, Mk8.Dns.Domain.DnsQuestion! question) -> byte[]!
+static Mk8.Dns.Wire.UpstreamMessageCodec.DecodeDnssecResponse(System.ReadOnlySpan<byte> message, ushort id, Mk8.Dns.Domain.DnsQuestion! question, Mk8.Dns.Domain.DnsServerEndpoint! server) -> Mk8.Dns.Wire.DnssecUpstreamResponse!

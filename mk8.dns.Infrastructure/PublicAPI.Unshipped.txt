@@ -115,3 +115,6 @@ override Mk8.Dns.Infrastructure.DnssecSigningPolicy.ToString() -> string!
 Mk8.Dns.Infrastructure.DnsUpstreamClient
 Mk8.Dns.Infrastructure.DnsUpstreamClient.DnsUpstreamClient(System.Func<Mk8.Dns.Domain.DnsServerEndpoint!, bool>! permits, System.TimeSpan timeout) -> void
 Mk8.Dns.Infrastructure.DnsUpstreamClient.ExchangeAsync(Mk8.Dns.Domain.DnsQuestion! question, Mk8.Dns.Domain.DnsServerEndpoint! server, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.DnsAnswer!>
+Mk8.Dns.Infrastructure.DnssecUpstreamClient
+Mk8.Dns.Infrastructure.DnssecUpstreamClient.DnssecUpstreamClient(System.Func<Mk8.Dns.Domain.DnsServerEndpoint!, bool>! permits, System.TimeSpan timeout, System.TimeProvider? time = null) -> void
+Mk8.Dns.Infrastructure.DnssecUpstreamClient.ExchangeDnssecAsync(Mk8.Dns.Domain.DnsQuestion! question, Mk8.Dns.Domain.DnsServerEndpoint! server, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.DnsUpstreamEvidence!>

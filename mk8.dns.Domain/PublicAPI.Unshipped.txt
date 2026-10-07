@@ -155,3 +155,26 @@ override Mk8.Dns.Domain.DnsServerEndpoint.Equals(object? obj) -> bool
 override Mk8.Dns.Domain.DnsServerEndpoint.GetHashCode() -> int
 Mk8.Dns.Domain.IDnsResolver
 Mk8.Dns.Domain.IDnsResolver.ResolveAsync(Mk8.Dns.Domain.DnsQuestion! question, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.DnsAnswer!>
+Mk8.Dns.Domain.IDnssecUpstream
+Mk8.Dns.Domain.IDnssecUpstream.ExchangeDnssecAsync(Mk8.Dns.Domain.DnsQuestion! question, Mk8.Dns.Domain.DnsServerEndpoint! server, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.DnsUpstreamEvidence!>
+Mk8.Dns.Domain.DnsUpstreamEvidence
+const Mk8.Dns.Domain.DnsUpstreamEvidence.MaximumRecords = 512 -> int
+const Mk8.Dns.Domain.DnsUpstreamEvidence.MaximumExpandedBytes = 1048576 -> int
+Mk8.Dns.Domain.DnsUpstreamEvidence.DnsUpstreamEvidence(Mk8.Dns.Domain.DnsQuestion! question, Mk8.Dns.Domain.DnsServerEndpoint! server, ushort id, ushort flags, ushort responseCode, bool hasEdns, ushort udpPayloadSize, byte ednsVersion, ushort ednsFlags, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsRecord!>! answers, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsRecord!>! authority, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsRecord!>! additional) -> void
+Mk8.Dns.Domain.DnsUpstreamEvidence.Question.get -> Mk8.Dns.Domain.DnsQuestion!
+Mk8.Dns.Domain.DnsUpstreamEvidence.Server.get -> Mk8.Dns.Domain.DnsServerEndpoint!
+Mk8.Dns.Domain.DnsUpstreamEvidence.Id.get -> ushort
+Mk8.Dns.Domain.DnsUpstreamEvidence.Flags.get -> ushort
+Mk8.Dns.Domain.DnsUpstreamEvidence.ResponseCode.get -> ushort
+Mk8.Dns.Domain.DnsUpstreamEvidence.Authoritative.get -> bool
+Mk8.Dns.Domain.DnsUpstreamEvidence.RecursionAvailable.get -> bool
+Mk8.Dns.Domain.DnsUpstreamEvidence.AuthenticatedDataObserved.get -> bool
+Mk8.Dns.Domain.DnsUpstreamEvidence.CheckingDisabledObserved.get -> bool
+Mk8.Dns.Domain.DnsUpstreamEvidence.HasEdns.get -> bool
+Mk8.Dns.Domain.DnsUpstreamEvidence.UdpPayloadSize.get -> ushort
+Mk8.Dns.Domain.DnsUpstreamEvidence.EdnsVersion.get -> byte
+Mk8.Dns.Domain.DnsUpstreamEvidence.EdnsFlags.get -> ushort
+Mk8.Dns.Domain.DnsUpstreamEvidence.DnssecOkObserved.get -> bool
+Mk8.Dns.Domain.DnsUpstreamEvidence.Answers.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Domain.DnsUpstreamEvidence.Authority.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Domain.DnsUpstreamEvidence.Additional.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
