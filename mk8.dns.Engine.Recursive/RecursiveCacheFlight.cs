@@ -43,7 +43,12 @@ internal sealed class RecursiveCacheFlight : IAsyncDisposable
         lock (cancellationGate)
         {
             if (!finishing)
+            {
                 cancellationTask ??= cancellation.CancelAsync();
+                // CancelAsync marks Token synchronously, but a provider callback can hold
+                // its serial dispatcher. Waiter cancellation must not await that cleanup.
+                Completion.TrySetCanceled(Token);
+            }
         }
     }
 
