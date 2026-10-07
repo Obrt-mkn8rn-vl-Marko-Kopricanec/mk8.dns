@@ -1,0 +1,11 @@
+#nullable enable
+Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecSigningKey
+Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecSigningKey.Algorithm.get -> byte
+Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecSigningKey.GetPublicKey() -> byte[]!
+Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecSigningKey.SignHash(System.ReadOnlySpan<byte> digest) -> byte[]!
+Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecSigningKey.Dispose() -> void
+static Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecSigningKey.Create() -> Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecSigningKey!
+static Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecSigningKey.ImportPkcs8(System.ReadOnlySpan<byte> privateKey) -> Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecSigningKey!
+Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecVerifier
+Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecVerifier.EcdsaP256DnssecVerifier() -> void
+Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecVerifier.VerifyHash(byte algorithm, System.ReadOnlySpan<byte> publicKey, System.ReadOnlySpan<byte> digest, System.ReadOnlySpan<byte> signature) -> bool

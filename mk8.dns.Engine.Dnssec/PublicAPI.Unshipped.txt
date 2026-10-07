@@ -1,0 +1,37 @@
+#nullable enable
+Mk8.Dns.Engine.Dnssec.DnssecNameOrder
+static Mk8.Dns.Engine.Dnssec.DnssecNameOrder.Instance.get -> Mk8.Dns.Engine.Dnssec.DnssecNameOrder!
+Mk8.Dns.Engine.Dnssec.DnssecNameOrder.Compare(Mk8.Dns.Domain.DnsName? x, Mk8.Dns.Domain.DnsName? y) -> int
+Mk8.Dns.Engine.Dnssec.DnssecSignatureWindow
+Mk8.Dns.Engine.Dnssec.DnssecSignatureWindow.DnssecSignatureWindow(uint inception, uint expiration) -> void
+Mk8.Dns.Engine.Dnssec.DnssecSignatureWindow.Inception.get -> uint
+Mk8.Dns.Engine.Dnssec.DnssecSignatureWindow.Expiration.get -> uint
+Mk8.Dns.Engine.Dnssec.DnssecSignatureWindow.Contains(uint now) -> bool
+Mk8.Dns.Engine.Dnssec.DnssecCanonical
+const Mk8.Dns.Engine.Dnssec.DnssecCanonical.MaximumRrsetBytes = 1048576 -> int
+static Mk8.Dns.Engine.Dnssec.DnssecCanonical.GetRdata(Mk8.Dns.Domain.DnsRecord! record) -> byte[]!
+static Mk8.Dns.Engine.Dnssec.DnssecCanonical.GetRrset(System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>! records, uint originalTtl, byte labels) -> byte[]!
+Mk8.Dns.Engine.Dnssec.DnssecKeys
+static Mk8.Dns.Engine.Dnssec.DnssecKeys.CreateDnskey(Mk8.Dns.Domain.DnsName! origin, uint ttl, System.ReadOnlySpan<byte> publicKey, bool secureEntryPoint = true) -> Mk8.Dns.Domain.DnsRecord!
+static Mk8.Dns.Engine.Dnssec.DnssecKeys.KeyTag(Mk8.Dns.Domain.DnsRecord! dnskey) -> ushort
+static Mk8.Dns.Engine.Dnssec.DnssecKeys.CreateDs(Mk8.Dns.Domain.DnsRecord! dnskey, uint ttl) -> Mk8.Dns.Domain.DnsRecord!
+Mk8.Dns.Engine.Dnssec.NsecBitmap
+static Mk8.Dns.Engine.Dnssec.NsecBitmap.Encode(System.Collections.Generic.IEnumerable<ushort>! types) -> byte[]!
+static Mk8.Dns.Engine.Dnssec.NsecBitmap.Decode(System.ReadOnlySpan<byte> bitmap) -> ushort[]!
+Mk8.Dns.Engine.Dnssec.DnssecRrsetSigner
+static Mk8.Dns.Engine.Dnssec.DnssecRrsetSigner.Sign(System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>! records, Mk8.Dns.Domain.DnsRecord! dnskey, Mk8.Dns.Domain.IDnssecSigningKey! key, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, Mk8.Dns.Engine.Dnssec.DnssecSignatureWindow! window) -> Mk8.Dns.Domain.DnsRecord!
+Mk8.Dns.Engine.Dnssec.DnssecRrsetVerifier
+static Mk8.Dns.Engine.Dnssec.DnssecRrsetVerifier.TryVerify(System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>! records, Mk8.Dns.Domain.DnsRecord! signature, Mk8.Dns.Domain.DnsRecord! dnskey, uint now, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, out uint authenticatedTtl) -> bool
+Mk8.Dns.Engine.Dnssec.NsecZoneSigner
+static Mk8.Dns.Engine.Dnssec.NsecZoneSigner.Sign(Mk8.Dns.Domain.AuthoritativeZone! zone, Mk8.Dns.Domain.IDnssecSigningKey! key, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, Mk8.Dns.Engine.Dnssec.DnssecSignatureWindow! window, uint dnskeyTtl = 3600, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Mk8.Dns.Engine.Dnssec.SignedZone!
+Mk8.Dns.Engine.Dnssec.SignedZone
+const Mk8.Dns.Engine.Dnssec.SignedZone.MaximumRecords = 40002 -> int
+const Mk8.Dns.Engine.Dnssec.SignedZone.MaximumWireBytes = 4194304 -> int
+const Mk8.Dns.Engine.Dnssec.SignedZone.MaximumExportCharacters = 8000000 -> int
+Mk8.Dns.Engine.Dnssec.SignedZone.Source.get -> Mk8.Dns.Domain.AuthoritativeZone!
+Mk8.Dns.Engine.Dnssec.SignedZone.Origin.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Engine.Dnssec.SignedZone.Dnskey.get -> Mk8.Dns.Domain.DnsRecord!
+Mk8.Dns.Engine.Dnssec.SignedZone.ParentDs.get -> Mk8.Dns.Domain.DnsRecord!
+Mk8.Dns.Engine.Dnssec.SignedZone.Window.get -> Mk8.Dns.Engine.Dnssec.DnssecSignatureWindow!
+Mk8.Dns.Engine.Dnssec.SignedZone.GetAllRecords() -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Engine.Dnssec.SignedZone.ExportMasterFile() -> string!

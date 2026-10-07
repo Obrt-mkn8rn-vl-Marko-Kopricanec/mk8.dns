@@ -11,6 +11,8 @@
     <ProjectReference Include="../mk8.dns.Configuration/mk8.dns.Configuration.csproj" />
     <ProjectReference Include="../mk8.dns.Wire/mk8.dns.Wire.csproj" />
     <ProjectReference Include="../mk8.dns.Engine.Authoritative/mk8.dns.Engine.Authoritative.csproj" />
+    <ProjectReference Include="../mk8.dns.Engine.Dnssec/mk8.dns.Engine.Dnssec.csproj" />
+    <ProjectReference Include="../mk8.dns.Infrastructure.Cryptography/mk8.dns.Infrastructure.Cryptography.csproj" />
     <ProjectReference Include="../mk8.dns.Application.BLL/mk8.dns.Application.BLL.csproj" />
     <ProjectReference Include="../mk8.dns.Infrastructure/mk8.dns.Infrastructure.csproj" />
     <ProjectReference Include="../mk8.dns.Presentation/mk8.dns.Presentation.csproj" />

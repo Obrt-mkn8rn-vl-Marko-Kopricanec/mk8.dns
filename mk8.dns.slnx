@@ -8,9 +8,11 @@
   <Project Path="mk8.dns.Contracts/mk8.dns.Contracts.csproj" />
   <Project Path="mk8.dns.Domain/mk8.dns.Domain.csproj" />
   <Project Path="mk8.dns.Engine.Authoritative/mk8.dns.Engine.Authoritative.csproj" />
+  <Project Path="mk8.dns.Engine.Dnssec/mk8.dns.Engine.Dnssec.csproj" />
   <Project Path="mk8.dns.Gateway/mk8.dns.Gateway.csproj" />
   <Project Path="mk8.dns.IntegrationTests/mk8.dns.IntegrationTests.csproj" />
   <Project Path="mk8.dns.Infrastructure/mk8.dns.Infrastructure.csproj" />
+  <Project Path="mk8.dns.Infrastructure.Cryptography/mk8.dns.Infrastructure.Cryptography.csproj" />
   <Project Path="mk8.dns.Operator/mk8.dns.Operator.csproj" />
   <Project Path="mk8.dns.Presentation/mk8.dns.Presentation.csproj" />
   <Project Path="mk8.dns.Transport/mk8.dns.Transport.csproj" />

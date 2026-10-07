@@ -130,3 +130,9 @@ Mk8.Dns.Domain.TsigRequest.Error.get -> ushort
 Mk8.Dns.Domain.TsigRequest.GetMessage() -> byte[]!
 Mk8.Dns.Domain.TsigRequest.GetMac() -> byte[]!
 Mk8.Dns.Domain.TsigRequest.GetOtherData() -> byte[]!
+Mk8.Dns.Domain.IDnssecSigningKey
+Mk8.Dns.Domain.IDnssecSigningKey.Algorithm.get -> byte
+Mk8.Dns.Domain.IDnssecSigningKey.GetPublicKey() -> byte[]!
+Mk8.Dns.Domain.IDnssecSigningKey.SignHash(System.ReadOnlySpan<byte> digest) -> byte[]!
+Mk8.Dns.Domain.IDnssecSignatureVerifier
+Mk8.Dns.Domain.IDnssecSignatureVerifier.VerifyHash(byte algorithm, System.ReadOnlySpan<byte> publicKey, System.ReadOnlySpan<byte> digest, System.ReadOnlySpan<byte> signature) -> bool
