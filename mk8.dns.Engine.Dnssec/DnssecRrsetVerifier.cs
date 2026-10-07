@@ -22,9 +22,10 @@ public static class DnssecRrsetVerifier
             var key = DnssecKeys.ReadKey(dnskey);
             var data = RrsigData.Decode(signature);
             var first = items[0];
+            var minimumLabels = data.Signer.LabelCount - (first.Owner.Equals(data.Signer) && DnssecData.IsWildcard(data.Signer) ? 1 : 0);
             if (!signature.Owner.Equals(first.Owner) || data.Type != first.Type || data.Type == 46
                 || !data.Signer.Equals(dnskey.Owner) || !first.Owner.IsSubdomainOf(data.Signer)
-                || data.Labels < data.Signer.LabelCount || data.Labels > first.Owner.LabelCount
+                || data.Labels < minimumLabels || data.Labels > first.Owner.LabelCount
                 || DnssecData.IsWildcard(first.Owner) && data.Labels != first.Owner.LabelCount - 1
                 || data.KeyTag != DnssecKeys.KeyTag(dnskey) || !data.Window.Contains(now))
                 return false;

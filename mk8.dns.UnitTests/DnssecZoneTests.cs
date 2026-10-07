@@ -100,6 +100,29 @@ public sealed class DnssecZoneTests
     }
 
     [Theory]
+    [InlineData("*.example.", false)]
+    [InlineData("*.example.", true)]
+    [InlineData("*.", false)]
+    [InlineData("*.", true)]
+    public void LiteralWildcardZoneApexAuthenticatesWithoutBecomingASynthesisSource(string text, bool includeChild)
+    {
+        using var key = DnssecFixture.Key();
+        var origin = DnsName.Parse(text);
+        var original = AuthorityFixture.Zone();
+        var records = original.GetAllRecords().Select(record => record.WithOwner(origin));
+        if (includeChild)
+            records = records.Append(DnssecFixture.A("www." + text));
+        var signed = Sign(new AuthoritativeZone(origin, records), key);
+        CheckAllSignatures(signed);
+        CheckChain(signed.GetAllRecords().Where(record => record.Type == 47).ToArray());
+        var soa = Assert.Single(signed.GetAllRecords(), record => record.Type == 6);
+        var signature = Assert.Single(signed.GetAllRecords(), record => record.Type == 46 && DnssecFixture.CoveredType(record) == 6);
+        Assert.Equal((byte)(origin.LabelCount - 1), signature.GetData()[3]);
+        var expanded = DnsName.Parse("invented." + text);
+        Assert.False(DnssecRrsetVerifier.TryVerify([soa.WithOwner(expanded)], signature.WithOwner(expanded), signed.Dnskey, 100, DnssecFixture.Verifier, out _));
+    }
+
+    [Theory]
     [InlineData(0u)]
     [InlineData(30u)]
     [InlineData(60u)]
