@@ -57,3 +57,7 @@ Mk8.Dns.Application.Abstractions.ITsigTransaction.Complete(System.ReadOnlySpan<b
 Mk8.Dns.Application.Abstractions.IDnsMessageCodec.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit, ushort reservedBytes) -> byte[]!
 Mk8.Dns.Application.Abstractions.IDnsResponseLimiter
 Mk8.Dns.Application.Abstractions.IDnsResponseLimiter.TryAdmit(System.ReadOnlySpan<byte> peerAddress, int responseBytes) -> bool
+Mk8.Dns.Application.Abstractions.IZoneSigner
+Mk8.Dns.Application.Abstractions.IZoneSigner.Sign(Mk8.Dns.Domain.AuthoritativeZone! zone) -> Mk8.Dns.Domain.ZoneContents!
+Mk8.Dns.Application.Abstractions.IZoneBundleCodec.CompileIntent(System.Guid zoneId, long revision, Mk8.Dns.Domain.AuthoritativeZone! zone) -> Mk8.Dns.Domain.ZoneSnapshot!
+Mk8.Dns.Application.Abstractions.IZoneBundleCodec.DecodeContents(Mk8.Dns.Domain.ZoneSnapshot! snapshot) -> Mk8.Dns.Domain.ZoneContents!

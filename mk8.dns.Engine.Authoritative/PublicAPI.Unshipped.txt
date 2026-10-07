@@ -5,3 +5,7 @@ Mk8.Dns.Engine.Authoritative.AuthoritativeCatalog.Resolve(Mk8.Dns.Domain.DnsQues
 Mk8.Dns.Engine.Authoritative.AuthoritativeCatalog.Resolve(Mk8.Dns.Domain.DnsQuestion! question, System.Func<Mk8.Dns.Domain.DnsName!, bool>! authorizeZone) -> Mk8.Dns.Domain.DnsAnswer!
 Mk8.Dns.Engine.Authoritative.AuthoritativeCatalog.ZoneCount.get -> uint
 Mk8.Dns.Engine.Authoritative.AuthoritativeCatalog.GetZoneOrigin(Mk8.Dns.Domain.DnsName! name, ushort type) -> Mk8.Dns.Domain.DnsName?
+Mk8.Dns.Engine.Authoritative.AuthoritativeCatalog.IsAvailable.get -> bool
+Mk8.Dns.Engine.Authoritative.AuthoritativeCatalog.AuthoritativeCatalog(System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.ZoneContents!>! zones, Mk8.Dns.Domain.IDnssecSignatureVerifier? verifier, System.TimeProvider! time) -> void
+Mk8.Dns.Engine.Authoritative.AuthoritativeCatalog.Resolve(Mk8.Dns.Domain.DnsQuestion! question, bool dnssecOk) -> Mk8.Dns.Domain.DnsAnswer!
+Mk8.Dns.Engine.Authoritative.AuthoritativeCatalog.Resolve(Mk8.Dns.Domain.DnsQuestion! question, System.Func<Mk8.Dns.Domain.DnsName!, bool>! authorizeZone, bool dnssecOk) -> Mk8.Dns.Domain.DnsAnswer!

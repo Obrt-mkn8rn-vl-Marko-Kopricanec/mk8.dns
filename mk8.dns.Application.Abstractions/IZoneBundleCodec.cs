@@ -7,4 +7,6 @@ public interface IZoneBundleCodec
 {
     ZoneSnapshot Compile(Guid zoneId, long revision, AuthoritativeZone zone);
     AuthoritativeZone Decode(ZoneSnapshot snapshot);
+    ZoneSnapshot CompileIntent(Guid zoneId, long revision, AuthoritativeZone zone) => Compile(zoneId, revision, zone);
+    ZoneContents DecodeContents(ZoneSnapshot snapshot) => new(Decode(snapshot));
 }

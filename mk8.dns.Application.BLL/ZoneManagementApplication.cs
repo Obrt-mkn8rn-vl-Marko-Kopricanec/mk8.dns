@@ -28,7 +28,7 @@ public sealed class ZoneManagementApplication(IControlPlaneStore store, IManagem
         {
             intent = request.Action is "import" ? RequireMasterFile().Import(origin, request.ZoneFile!)
                 : new AuthoritativeZone(origin, request.Records.Select(record => new DnsRecord(record.Owner.Span, record.Type, record.Ttl, record.Data.Span)));
-            fingerprint = ManagementFingerprint.Edit(request, actor, targetNode, codec.Compile(request.ZoneId, 1, WithSerial(intent, 0)));
+            fingerprint = ManagementFingerprint.Edit(request, actor, targetNode, codec.CompileIntent(request.ZoneId, 1, WithSerial(intent, 0)));
         }
         else if (request.Action is "patch")
         {
@@ -87,6 +87,7 @@ public sealed class ZoneManagementApplication(IControlPlaneStore store, IManagem
         var revision = checked(request.ExpectedRevision + 1);
         var serial = current is null ? 1U : SoaSerial.Next(current.Serial);
         var snapshot = codec.Compile(request.ZoneId, revision, WithSerial(intent!, serial));
+        SigningContinuity.Require(current is null ? null : codec.DecodeContents(current), codec.DecodeContents(snapshot));
         var operation = new ZoneOperation(request.TenantId, request.OperationId, fingerprint, actor, targetNode, snapshot, Activated: false);
         if (!string.Equals(actor, authorizer.Authorize(request), StringComparison.Ordinal))
             throw new UnauthorizedAccessException("Management principal changed during admission.");

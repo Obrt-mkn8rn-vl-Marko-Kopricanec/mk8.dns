@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
+    <ProjectReference Include="../mk8.dns.Infrastructure.Cryptography/mk8.dns.Infrastructure.Cryptography.csproj" />
     <ProjectReference Include="../mk8.dns.Infrastructure/mk8.dns.Infrastructure.csproj" />
     <ProjectReference Include="../mk8.dns.Application.BLL/mk8.dns.Application.BLL.csproj" />
     <ProjectReference Include="../mk8.dns.Application.DAL/mk8.dns.Application.DAL.csproj" />

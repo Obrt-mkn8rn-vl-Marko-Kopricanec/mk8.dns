@@ -103,7 +103,7 @@ public static class DnsMessageCodec
         var truncated = false;
         var answers = WriteSection(answer.Answers, buffer, ref offset, usable, query, ref truncated);
         var authority = WriteSection(answer.Authority, buffer, ref offset, usable, query, ref truncated);
-        var additional = WriteSection(answer.Additional, buffer, ref offset, usable, query, ref truncated);
+        var additional = WriteSection(answer.Additional, buffer, ref offset, usable, query, ref truncated, optionalSignatures: true);
         if (truncated && reservedBytes != 0)
         {
             // RFC 8945: signed truncation carries only the question and TSIG.
@@ -167,18 +167,22 @@ public static class DnsMessageCodec
         return response;
     }
 
-    private static ushort WriteSection(IReadOnlyList<DnsRecord> records, byte[] buffer, ref int offset, int limit, DnsQuery query, ref bool truncated)
+    private static ushort WriteSection(IReadOnlyList<DnsRecord> records, byte[] buffer, ref int offset, int limit, DnsQuery query, ref bool truncated, bool optionalSignatures = false)
     {
         if (truncated)
             return 0;
         ushort count = 0;
-        foreach (var rrset in records.GroupBy(record => (record.Owner, record.Type)))
+        var dataSets = records.Where(record => record.Type != 46).Select(record => (record.Owner, record.Type)).ToHashSet();
+        foreach (var rrset in records.GroupBy(record => ResponseGroup(record, dataSets)))
         {
             var values = rrset.Select(record => (Record: record, Data: record.GetData())).ToArray();
             var owner = query.Question is { } question && rrset.Key.Owner.Equals(question.Name) ? new byte[] { 0xc0, 0x0c } : values[0].Record.GetOwnerWire();
             var needed = values.Sum(item => owner.Length + 10 + item.Data.Length);
             if (needed > limit - offset || values.Length > ushort.MaxValue - count)
             {
+                // Optional additional RRsets and their signatures can be omitted together.
+                if (optionalSignatures && values.Any(item => item.Record.Type == 46))
+                    continue;
                 truncated = true;
                 break;
             }
@@ -196,6 +200,20 @@ public static class DnsMessageCodec
             }
         }
         return count;
+    }
+
+    private static (DnsName Owner, ushort Type) ResponseGroup(DnsRecord record, HashSet<(DnsName Owner, ushort Type)> dataSets)
+    {
+        if (record.Type == 46)
+        {
+            var data = record.GetData();
+            if (data.Length < 2)
+                return (record.Owner, record.Type);
+            var covered = BinaryPrimitives.ReadUInt16BigEndian(data);
+            if (dataSets.Contains((record.Owner, covered)))
+                return (record.Owner, covered);
+        }
+        return (record.Owner, record.Type);
     }
 
     internal static byte[] ReadName(ReadOnlySpan<byte> message, ref int offset, HashSet<int> boundaries)

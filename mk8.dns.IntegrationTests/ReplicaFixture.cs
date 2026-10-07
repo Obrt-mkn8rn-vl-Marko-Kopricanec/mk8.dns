@@ -3,6 +3,7 @@ using Mk8.Dns.Application.BLL;
 using Mk8.Dns.Application.DAL;
 using Mk8.Dns.Domain;
 using Mk8.Dns.Infrastructure;
+using Mk8.Dns.Infrastructure.Cryptography;
 
 namespace Mk8.Dns.IntegrationTests;
 
@@ -35,6 +36,9 @@ internal sealed class ReplicaFixture : IAsyncDisposable
     }
 
     internal async Task OpenAsync() => Publication = await ZonePublicationApplication.OpenAsync(snapshots, journal, verifier, new ZoneBundleAdapter(), Authority, ControlFixture.Node, [zone], CancellationToken.None).ConfigureAwait(true);
+
+    internal async Task OpenSignedAsync(TimeProvider time) => Publication = await ZonePublicationApplication.OpenAsync(snapshots, journal, verifier, new ZoneBundleAdapter(), Authority, ControlFixture.Node, [zone],
+        new EcdsaP256DnssecVerifier(), time, CancellationToken.None).ConfigureAwait(true);
 
     public async ValueTask DisposeAsync()
     {

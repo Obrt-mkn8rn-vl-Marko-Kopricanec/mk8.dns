@@ -19,13 +19,7 @@ public sealed class ArchitectureTests
                 references.Add(Path.GetFileNameWithoutExtension(reference.Attribute("Include")!.Value));
             graph.Add(Path.GetFileName(directory), references);
         }
-        var allowedGateway = new HashSet<string>(["mk8.dns.Configuration", "mk8.dns.Transport", "mk8.dns.Presentation"], StringComparer.Ordinal);
-        Assert.True(graph["mk8.dns.Gateway"].SetEquals(allowedGateway));
-        Assert.Empty(graph["mk8.dns.Domain"]);
-        Assert.Empty(graph["mk8.dns.Contracts"]);
-        Assert.True(graph["mk8.dns.Wire"].SetEquals(["mk8.dns.Domain"]));
-        Assert.True(graph["mk8.dns.Engine.Authoritative"].SetEquals(["mk8.dns.Domain"]));
-        Assert.DoesNotContain("mk8.dns.Application.DAL", graph["mk8.dns.Application.BLL"]);
+        CheckLayers(graph);
 
         HashSet<string> visited = new(StringComparer.Ordinal);
         HashSet<string> active = new(StringComparer.Ordinal);
@@ -37,6 +31,8 @@ public sealed class ArchitectureTests
         Assert.DoesNotContain("mk8.dns.Application.DAL", gatewayClosure);
         Assert.DoesNotContain("mk8.dns.Application", gatewayClosure);
         Assert.DoesNotContain("mk8.dns.Engine.Authoritative", gatewayClosure);
+        Assert.DoesNotContain("mk8.dns.Engine.Dnssec", gatewayClosure);
+        Assert.DoesNotContain("mk8.dns.Infrastructure.Cryptography", gatewayClosure);
 
         void Visit(string node)
         {
@@ -56,5 +52,18 @@ public sealed class ArchitectureTests
             foreach (var dependency in graph[node])
                 Collect(dependency);
         }
+    }
+
+    private static void CheckLayers(Dictionary<string, HashSet<string>> graph)
+    {
+        var allowedGateway = new HashSet<string>(["mk8.dns.Configuration", "mk8.dns.Transport", "mk8.dns.Presentation"], StringComparer.Ordinal);
+        Assert.True(graph["mk8.dns.Gateway"].SetEquals(allowedGateway));
+        Assert.Empty(graph["mk8.dns.Domain"]);
+        Assert.Empty(graph["mk8.dns.Contracts"]);
+        Assert.True(graph["mk8.dns.Wire"].SetEquals(["mk8.dns.Domain"]));
+        Assert.True(graph["mk8.dns.Engine.Authoritative"].SetEquals(["mk8.dns.Domain", "mk8.dns.Engine.Dnssec"]));
+        Assert.True(graph["mk8.dns.Engine.Dnssec"].SetEquals(["mk8.dns.Domain"]));
+        Assert.True(graph["mk8.dns.Infrastructure.Cryptography"].SetEquals(["mk8.dns.Domain"]));
+        Assert.DoesNotContain("mk8.dns.Application.DAL", graph["mk8.dns.Application.BLL"]);
     }
 }

@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../mk8.dns.Domain/mk8.dns.Domain.csproj" />
+    <ProjectReference Include="../mk8.dns.Engine.Dnssec/mk8.dns.Engine.Dnssec.csproj" />
   </ItemGroup>
 </Project>

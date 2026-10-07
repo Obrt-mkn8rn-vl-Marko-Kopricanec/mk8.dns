@@ -136,3 +136,11 @@ Mk8.Dns.Domain.IDnssecSigningKey.GetPublicKey() -> byte[]!
 Mk8.Dns.Domain.IDnssecSigningKey.SignHash(System.ReadOnlySpan<byte> digest) -> byte[]!
 Mk8.Dns.Domain.IDnssecSignatureVerifier
 Mk8.Dns.Domain.IDnssecSignatureVerifier.VerifyHash(byte algorithm, System.ReadOnlySpan<byte> publicKey, System.ReadOnlySpan<byte> digest, System.ReadOnlySpan<byte> signature) -> bool
+Mk8.Dns.Domain.ZoneContents
+const Mk8.Dns.Domain.ZoneContents.MaximumRecords = 40002 -> int
+Mk8.Dns.Domain.ZoneContents.ZoneContents(Mk8.Dns.Domain.AuthoritativeZone! source) -> void
+Mk8.Dns.Domain.ZoneContents.ZoneContents(Mk8.Dns.Domain.AuthoritativeZone! source, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsRecord!>! securityRecords) -> void
+Mk8.Dns.Domain.ZoneContents.Source.get -> Mk8.Dns.Domain.AuthoritativeZone!
+Mk8.Dns.Domain.ZoneContents.IsSigned.get -> bool
+Mk8.Dns.Domain.ZoneContents.GetSecurityRecords() -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Domain.ZoneContents.GetAllRecords() -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!

@@ -11,6 +11,7 @@ using Mk8.Dns.Configuration;
 using Mk8.Dns.Contracts;
 using Mk8.Dns.Domain;
 using Mk8.Dns.Infrastructure;
+using Mk8.Dns.Infrastructure.Cryptography;
 using Mk8.Dns.Transport;
 
 namespace Mk8.Dns.Application;
@@ -22,6 +23,7 @@ internal sealed class ControlRuntime : IAsyncDisposable
     private FilePublicationJournal? journal;
     private UnixControlClient? client;
     private OutboxPublisher? publisher;
+    private readonly List<EcdsaP256DnssecSigningKey> dnssecKeys = [];
     internal AuthoritativeApplication? Authority { get; private set; }
     internal ZoneManagementApplication? Management { get; private set; }
     internal ZonePublicationApplication? Publication { get; private set; }
@@ -40,11 +42,43 @@ internal sealed class ControlRuntime : IAsyncDisposable
             throw new InvalidDataException("Publisher trust targets a different replica.");
         var identity = new P256PublicationAuthenticator(configuration.Epoch, configuration.TargetNode, zones, Encoding.UTF8.GetString(PrivateFile.Read(configuration.KeyFile, 4096)), controller);
         authenticator = identity;
-        var codec = new ZoneBundleAdapter();
+        if (!controller && configuration.Zones.Any(zone => zone.SigningKeyFile is not null || zone.SignatureLifetimeSeconds != 604_800 || zone.DnskeyTtl != 3600))
+            throw new InvalidDataException("A serving replica cannot take private signing configuration.");
+        var codec = controller ? CreateCodec(configuration) : new ZoneBundleAdapter();
         if (controller)
             await InitializeControllerAsync(configuration, zones, codec, identity).ConfigureAwait(false);
         else
             await InitializeReplicaAsync(settings, configuration, snapshots, zones, codec, identity, cookies, tsig, limiter).ConfigureAwait(false);
+    }
+
+    private ZoneBundleAdapter CreateCodec(ControlConfiguration configuration)
+    {
+        Dictionary<DnsName, DnssecSigningPolicy> policies = [];
+        foreach (var scope in configuration.Zones)
+        {
+            if (scope.SigningKeyFile is null)
+            {
+                if (scope.SignatureLifetimeSeconds != 604_800 || scope.DnskeyTtl != 3600)
+                    throw new InvalidDataException("Signing policy requires a private key.");
+                continue;
+            }
+            var bytes = PrivateFile.Read(scope.SigningKeyFile, 4096);
+            try
+            {
+                var key = EcdsaP256DnssecSigningKey.ImportPkcs8(bytes);
+                dnssecKeys.Add(key);
+                var origin = DnsName.Parse(scope.Origin);
+                if (origin.ToWire().AsSpan().StartsWith(new byte[] { 1, (byte)'*' }))
+                    throw new InvalidDataException("Signed serving excludes a literal wildcard apex.");
+                policies.Add(origin, new DnssecSigningPolicy(key, scope.SignatureLifetimeSeconds, scope.DnskeyTtl));
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(bytes);
+            }
+        }
+        return policies.Count == 0 ? new ZoneBundleAdapter()
+            : new ZoneBundleAdapter(new DnssecZoneSigningService(policies, new EcdsaP256DnssecVerifier(), TimeProvider.System));
     }
 
     private async ValueTask InitializeControllerAsync(ControlConfiguration configuration, Dictionary<Guid, DnsName> zones, ZoneBundleAdapter codec, P256PublicationAuthenticator identity)
@@ -81,7 +115,8 @@ internal sealed class ControlRuntime : IAsyncDisposable
             throw new InvalidDataException("A serving replica cannot take controller configuration.");
         journal = new FilePublicationJournal(settings.StateDirectory + ".publications");
         Authority = new AuthoritativeApplication(new DnsMessageCodecAdapter(), settings.NodeId, cookies, tsig, limiter);
-        Publication = await ZonePublicationApplication.OpenAsync(snapshots, journal, identity, codec, Authority, settings.NodeId, zones.Keys, CancellationToken.None).ConfigureAwait(false);
+        Publication = await ZonePublicationApplication.OpenAsync(snapshots, journal, identity, codec, Authority, settings.NodeId, zones.Keys,
+            new EcdsaP256DnssecVerifier(), TimeProvider.System, CancellationToken.None).ConfigureAwait(false);
     }
 
     internal async Task PublishAsync(ILogger logger, CancellationToken cancellationToken)
@@ -124,5 +159,7 @@ internal sealed class ControlRuntime : IAsyncDisposable
         authenticator?.Dispose();
         if (store is not null)
             await store.DisposeAsync().ConfigureAwait(false);
+        foreach (var key in dnssecKeys)
+            key.Dispose();
     }
 }

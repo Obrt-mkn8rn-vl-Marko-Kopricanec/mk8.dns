@@ -3,6 +3,7 @@ using Mk8.Dns.Application.Abstractions;
 using Mk8.Dns.Contracts;
 using Mk8.Dns.Domain;
 using Mk8.Dns.Engine.Authoritative;
+using Mk8.Dns.Engine.Dnssec;
 
 namespace Mk8.Dns.Application.BLL;
 
@@ -14,7 +15,9 @@ public sealed class ZonePublicationApplication : IZonePublication, IAsyncDisposa
     private readonly IZoneBundleCodec codec;
     private readonly AuthoritativeApplication authority;
     private readonly string node;
-    private Dictionary<Guid, AuthoritativeZone> zones = [];
+    private Dictionary<Guid, ZoneContents> zones = [];
+    private readonly IDnssecSignatureVerifier? dnssecVerifier;
+    private readonly TimeProvider time;
     private readonly Dictionary<Guid, ZoneSnapshot> generations = [];
     private readonly Lock sync = new();
     private Task tail = Task.CompletedTask;
@@ -22,7 +25,7 @@ public sealed class ZonePublicationApplication : IZonePublication, IAsyncDisposa
     private bool reconciliationRequired;
     private int queued;
 
-    private ZonePublicationApplication(IZoneSnapshotStore snapshots, IPublicationJournal journal, IPublicationAuthenticator authenticator, IZoneBundleCodec codec, AuthoritativeApplication authority, string node)
+    private ZonePublicationApplication(IZoneSnapshotStore snapshots, IPublicationJournal journal, IPublicationAuthenticator authenticator, IZoneBundleCodec codec, AuthoritativeApplication authority, string node, IDnssecSignatureVerifier? dnssecVerifier, TimeProvider time)
     {
         this.snapshots = snapshots;
         this.journal = journal;
@@ -30,9 +33,14 @@ public sealed class ZonePublicationApplication : IZonePublication, IAsyncDisposa
         this.codec = codec;
         this.authority = authority;
         this.node = node;
+        this.dnssecVerifier = dnssecVerifier;
+        this.time = time;
     }
 
-    public static async ValueTask<ZonePublicationApplication> OpenAsync(IZoneSnapshotStore snapshots, IPublicationJournal journal, IPublicationAuthenticator authenticator, IZoneBundleCodec codec, AuthoritativeApplication authority, string node, IEnumerable<Guid> zoneIds, CancellationToken cancellationToken)
+    public static ValueTask<ZonePublicationApplication> OpenAsync(IZoneSnapshotStore snapshots, IPublicationJournal journal, IPublicationAuthenticator authenticator, IZoneBundleCodec codec, AuthoritativeApplication authority, string node, IEnumerable<Guid> zoneIds, CancellationToken cancellationToken)
+        => OpenAsync(snapshots, journal, authenticator, codec, authority, node, zoneIds, null, TimeProvider.System, cancellationToken);
+
+    public static async ValueTask<ZonePublicationApplication> OpenAsync(IZoneSnapshotStore snapshots, IPublicationJournal journal, IPublicationAuthenticator authenticator, IZoneBundleCodec codec, AuthoritativeApplication authority, string node, IEnumerable<Guid> zoneIds, IDnssecSignatureVerifier? dnssecVerifier, TimeProvider time, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(snapshots);
         ArgumentNullException.ThrowIfNull(journal);
@@ -41,13 +49,14 @@ public sealed class ZonePublicationApplication : IZonePublication, IAsyncDisposa
         ArgumentNullException.ThrowIfNull(authority);
         ArgumentException.ThrowIfNullOrEmpty(node);
         ArgumentNullException.ThrowIfNull(zoneIds);
-        var result = new ZonePublicationApplication(snapshots, journal, authenticator, codec, authority, node);
+        ArgumentNullException.ThrowIfNull(time);
+        var result = new ZonePublicationApplication(snapshots, journal, authenticator, codec, authority, node, dnssecVerifier, time);
         var ids = zoneIds.Take(65).ToArray();
         if (ids.Length is 0 or > 64 || ids.Distinct().Count() != ids.Length || ids.Contains(Guid.Empty))
             throw new ArgumentException("Distinct configured publication zones are required.", nameof(zoneIds));
         authority.Suspend();
         await result.LoadAsync(ids, cancellationToken).ConfigureAwait(false);
-        authority.ReplaceCatalog(new AuthoritativeCatalog(result.zones.Values));
+        authority.ReplaceCatalog(new AuthoritativeCatalog(result.zones.Values, dnssecVerifier, time));
         return result;
     }
 
@@ -67,7 +76,7 @@ public sealed class ZonePublicationApplication : IZonePublication, IAsyncDisposa
                 throw new InvalidDataException("Active generation differs from its publisher proof.");
             var activation = await journal.ReadActivationSignatureAsync(publicationId, cancellationToken).ConfigureAwait(false);
             authenticator.VerifyActivation(publicationId, activation);
-            zones.Add(id, codec.Decode(verified));
+            zones.Add(id, codec.DecodeContents(verified));
             generations.Add(id, verified);
         }
         if (active != zones.Count)
@@ -154,7 +163,9 @@ public sealed class ZonePublicationApplication : IZonePublication, IAsyncDisposa
         var snapshot = authenticator.Verify(request.Body.Span, request.Signature.Span);
         if (!string.Equals(Identity(request.Body.Span), request.PublicationId, StringComparison.Ordinal))
             throw new ArgumentException("Publication identity differs from its signed body.", nameof(request));
-        _ = Replacement(snapshot.ZoneId, codec.Decode(snapshot));
+        var contents = codec.DecodeContents(snapshot);
+        VerifyCurrent(contents);
+        _ = Replacement(snapshot.ZoneId, contents);
         await CheckFreshnessAsync(snapshot, cancellationToken).ConfigureAwait(false);
         await journal.SaveAsync(request.PublicationId, request.Body, request.Signature, cancellationToken).ConfigureAwait(false);
         var retained = await journal.ReadAsync(request.PublicationId, cancellationToken).ConfigureAwait(false);
@@ -167,7 +178,8 @@ public sealed class ZonePublicationApplication : IZonePublication, IAsyncDisposa
         authenticator.VerifyActivation(request.PublicationId, request.Signature.Span);
         var proof = await journal.ReadAsync(request.PublicationId, cancellationToken).ConfigureAwait(false);
         var verified = VerifyRetainedProof(proof);
-        var decoded = codec.Decode(verified);
+        var decoded = codec.DecodeContents(verified);
+        VerifyCurrent(decoded);
         var replacement = Replacement(verified.ZoneId, decoded);
         var current = await CheckFreshnessAsync(verified, cancellationToken).ConfigureAwait(false);
         try
@@ -191,10 +203,19 @@ public sealed class ZonePublicationApplication : IZonePublication, IAsyncDisposa
         return Receipt(verified, request.PublicationId, "activated");
     }
 
-    private (Dictionary<Guid, AuthoritativeZone> Zones, AuthoritativeCatalog Catalog) Replacement(Guid id, AuthoritativeZone zone)
+    private (Dictionary<Guid, ZoneContents> Zones, AuthoritativeCatalog Catalog) Replacement(Guid id, ZoneContents zone)
     {
-        var replacement = new Dictionary<Guid, AuthoritativeZone>(zones) { [id] = zone };
-        return (replacement, new AuthoritativeCatalog(replacement.Values));
+        _ = zones.TryGetValue(id, out var previous);
+        SigningContinuity.Require(previous, zone);
+        var replacement = new Dictionary<Guid, ZoneContents>(zones) { [id] = zone };
+        return (replacement, new AuthoritativeCatalog(replacement.Values, dnssecVerifier, time));
+    }
+
+    private void VerifyCurrent(ZoneContents zone)
+    {
+        if (zone.IsSigned)
+            _ = SignedZoneAdmission.Verify(zone, unchecked((uint)time.GetUtcNow().ToUnixTimeSeconds()),
+                dnssecVerifier ?? throw new FormatException("Signed publication requires a verifier."));
     }
 
     private ZoneSnapshot VerifyRetainedProof(PublicationRequest proof)

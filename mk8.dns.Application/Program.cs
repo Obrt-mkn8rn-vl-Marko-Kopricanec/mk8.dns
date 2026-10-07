@@ -7,6 +7,7 @@ using Mk8.Dns.Contracts;
 using Mk8.Dns.Domain;
 using Mk8.Dns.Engine.Authoritative;
 using Mk8.Dns.Infrastructure;
+using Mk8.Dns.Infrastructure.Cryptography;
 using Mk8.Dns.Transport;
 using Mk8.Dns.Wire;
 
@@ -28,14 +29,14 @@ AuthoritativeApplication? authority = control.Authority;
 if (settings.ZoneIds.Count != 0)
 {
     _ = await snapshots.CountActiveAsync(CancellationToken.None).ConfigureAwait(false);
-    List<AuthoritativeZone> zones = [];
+    List<ZoneContents> zones = [];
     foreach (var id in settings.ZoneIds)
     {
         var snapshot = await snapshots.ReadActiveAsync(id, CancellationToken.None).ConfigureAwait(false)
             ?? throw new InvalidDataException("A configured authoritative zone has no active generation.");
-        zones.Add(ZoneBundleCodec.Decode(snapshot));
+        zones.Add(SignedZoneBundleCodec.Decode(snapshot));
     }
-    authority = new AuthoritativeApplication(new AuthoritativeCatalog(zones), new DnsMessageCodecAdapter(), settings.NodeId, cookies, tsig, limiter);
+    authority = new AuthoritativeApplication(new AuthoritativeCatalog(zones, new EcdsaP256DnssecVerifier(), TimeProvider.System), new DnsMessageCodecAdapter(), settings.NodeId, cookies, tsig, limiter);
 }
 
 var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { Args = [] });

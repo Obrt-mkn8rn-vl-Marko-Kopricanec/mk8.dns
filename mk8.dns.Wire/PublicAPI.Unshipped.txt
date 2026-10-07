@@ -19,3 +19,6 @@ static Mk8.Dns.Wire.TsigMessageCodec.GetRecordSize(Mk8.Dns.Domain.TsigRequest! r
 static Mk8.Dns.Wire.TsigMessageCodec.CreateMacInput(System.ReadOnlySpan<byte> message, Mk8.Dns.Domain.TsigRequest! request, System.ReadOnlySpan<byte> requestMac, ulong timeSigned, ushort fudge, ushort error, System.ReadOnlySpan<byte> otherData) -> byte[]!
 static Mk8.Dns.Wire.TsigMessageCodec.AppendRecord(System.ReadOnlySpan<byte> message, Mk8.Dns.Domain.TsigRequest! request, ulong timeSigned, ushort fudge, ushort error, System.ReadOnlySpan<byte> mac, System.ReadOnlySpan<byte> otherData) -> byte[]!
 static Mk8.Dns.Wire.DnsMessageCodec.EncodeResponse(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit, ushort reservedBytes) -> byte[]!
+Mk8.Dns.Wire.SignedZoneBundleCodec
+static Mk8.Dns.Wire.SignedZoneBundleCodec.Compile(System.Guid zoneId, long revision, Mk8.Dns.Domain.ZoneContents! contents) -> Mk8.Dns.Domain.ZoneSnapshot!
+static Mk8.Dns.Wire.SignedZoneBundleCodec.Decode(Mk8.Dns.Domain.ZoneSnapshot! snapshot) -> Mk8.Dns.Domain.ZoneContents!

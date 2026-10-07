@@ -90,3 +90,25 @@ Mk8.Dns.Infrastructure.DnsResponseLimiter
 Mk8.Dns.Infrastructure.DnsResponseLimiter.DnsResponseLimiter(System.TimeProvider! clock, int responsesPerSecond = 100, int responseBurst = 200, int bytesPerSecond = 51200, int byteBurst = 102400, int globalResponsesPerSecond = 10000, int globalResponseBurst = 20000, int globalBytesPerSecond = 5120000, int globalByteBurst = 10240000, int maximumPrefixes = 4096) -> void
 Mk8.Dns.Infrastructure.DnsResponseLimiter.TryAdmit(System.ReadOnlySpan<byte> peerAddress, int responseBytes) -> bool
 Mk8.Dns.Infrastructure.DnsResponseLimiter.Statistics.get -> (long Admitted, long Dropped, int TrackedPrefixes)
+Mk8.Dns.Infrastructure.ZoneBundleAdapter.ZoneBundleAdapter(Mk8.Dns.Application.Abstractions.IZoneSigner! signer) -> void
+Mk8.Dns.Infrastructure.ZoneBundleAdapter.CompileIntent(System.Guid zoneId, long revision, Mk8.Dns.Domain.AuthoritativeZone! zone) -> Mk8.Dns.Domain.ZoneSnapshot!
+Mk8.Dns.Infrastructure.ZoneBundleAdapter.DecodeContents(Mk8.Dns.Domain.ZoneSnapshot! snapshot) -> Mk8.Dns.Domain.ZoneContents!
+Mk8.Dns.Infrastructure.DnssecZoneSigningService
+Mk8.Dns.Infrastructure.DnssecZoneSigningService.DnssecZoneSigningService(System.Collections.Generic.IReadOnlyDictionary<Mk8.Dns.Domain.DnsName!, Mk8.Dns.Infrastructure.DnssecSigningPolicy!>! policies, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, System.TimeProvider! time) -> void
+Mk8.Dns.Infrastructure.DnssecZoneSigningService.Sign(Mk8.Dns.Domain.AuthoritativeZone! zone) -> Mk8.Dns.Domain.ZoneContents!
+Mk8.Dns.Infrastructure.DnssecSigningPolicy
+Mk8.Dns.Infrastructure.DnssecSigningPolicy.DnssecSigningPolicy(Mk8.Dns.Domain.IDnssecSigningKey! Key, uint LifetimeSeconds = 604800, uint DnskeyTtl = 3600) -> void
+Mk8.Dns.Infrastructure.DnssecSigningPolicy.Key.get -> Mk8.Dns.Domain.IDnssecSigningKey!
+Mk8.Dns.Infrastructure.DnssecSigningPolicy.Key.init -> void
+Mk8.Dns.Infrastructure.DnssecSigningPolicy.LifetimeSeconds.get -> uint
+Mk8.Dns.Infrastructure.DnssecSigningPolicy.LifetimeSeconds.init -> void
+Mk8.Dns.Infrastructure.DnssecSigningPolicy.DnskeyTtl.get -> uint
+Mk8.Dns.Infrastructure.DnssecSigningPolicy.DnskeyTtl.init -> void
+Mk8.Dns.Infrastructure.DnssecSigningPolicy.<Clone>$() -> Mk8.Dns.Infrastructure.DnssecSigningPolicy!
+Mk8.Dns.Infrastructure.DnssecSigningPolicy.Deconstruct(out Mk8.Dns.Domain.IDnssecSigningKey! Key, out uint LifetimeSeconds, out uint DnskeyTtl) -> void
+Mk8.Dns.Infrastructure.DnssecSigningPolicy.Equals(Mk8.Dns.Infrastructure.DnssecSigningPolicy? other) -> bool
+static Mk8.Dns.Infrastructure.DnssecSigningPolicy.operator !=(Mk8.Dns.Infrastructure.DnssecSigningPolicy? left, Mk8.Dns.Infrastructure.DnssecSigningPolicy? right) -> bool
+static Mk8.Dns.Infrastructure.DnssecSigningPolicy.operator ==(Mk8.Dns.Infrastructure.DnssecSigningPolicy? left, Mk8.Dns.Infrastructure.DnssecSigningPolicy? right) -> bool
+override Mk8.Dns.Infrastructure.DnssecSigningPolicy.Equals(object? obj) -> bool
+override Mk8.Dns.Infrastructure.DnssecSigningPolicy.GetHashCode() -> int
+override Mk8.Dns.Infrastructure.DnssecSigningPolicy.ToString() -> string!

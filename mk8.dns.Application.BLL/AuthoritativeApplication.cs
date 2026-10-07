@@ -68,7 +68,7 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         var generation = Volatile.Read(ref catalog);
         if (generation is null)
             throw new InvalidOperationException("Authoritative storage requires verified reconciliation.");
-        return ValueTask.FromResult(new ApplicationStatus(ProtocolVersion.Current, nodeId, "authoritative-replica", generation.ZoneCount != 0 && cookies?.IsAvailable != false && tsig?.IsAvailable != false, generation.ZoneCount));
+        return ValueTask.FromResult(new ApplicationStatus(ProtocolVersion.Current, nodeId, "authoritative-replica", generation.ZoneCount != 0 && generation.IsAvailable && cookies?.IsAvailable != false && tsig?.IsAvailable != false, generation.ZoneCount));
     }
 
     public ValueTask<byte[]> ExchangeAsync(ReadOnlyMemory<byte> message, bool tcp, ReadOnlyMemory<byte> peerAddress, CancellationToken cancellationToken)
@@ -158,7 +158,7 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
             throw new FormatException("Cookie-only requests require the cookie service.");
         var challenge = option is not null && cookies is not null && !valid && (prefetch ? option.Length != 8 : !tcp);
         var answer = challenge ? new DnsAnswer(23, false, [], [], [])
-            : query.Question is { } question ? transaction is null ? generation.Resolve(question) : generation.Resolve(question, transaction.Authorizes)
+            : query.Question is { } question ? transaction is null ? generation.Resolve(question, query.DnssecOk) : generation.Resolve(question, transaction.Authorizes, query.DnssecOk)
             : new DnsAnswer(0, false, [], [], []);
         var limit = (ushort)(cookies is null || valid ? 1232 : 512);
         return codec.Encode(query, answer, tcp, responseCookie, limit, reservedBytes);

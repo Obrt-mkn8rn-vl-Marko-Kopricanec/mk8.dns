@@ -35,3 +35,18 @@ Mk8.Dns.Engine.Dnssec.SignedZone.ParentDs.get -> Mk8.Dns.Domain.DnsRecord!
 Mk8.Dns.Engine.Dnssec.SignedZone.Window.get -> Mk8.Dns.Engine.Dnssec.DnssecSignatureWindow!
 Mk8.Dns.Engine.Dnssec.SignedZone.GetAllRecords() -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
 Mk8.Dns.Engine.Dnssec.SignedZone.ExportMasterFile() -> string!
+Mk8.Dns.Engine.Dnssec.DnssecServingProfile
+static Mk8.Dns.Engine.Dnssec.DnssecServingProfile.ValidateSource(Mk8.Dns.Domain.AuthoritativeZone! source) -> void
+Mk8.Dns.Engine.Dnssec.SignedZoneAdmission
+static Mk8.Dns.Engine.Dnssec.SignedZoneAdmission.ValidateCapacity(Mk8.Dns.Domain.AuthoritativeZone! source, Mk8.Dns.Domain.DnsRecord! dnskey) -> void
+static Mk8.Dns.Engine.Dnssec.SignedZoneAdmission.Verify(Mk8.Dns.Domain.ZoneContents! contents, uint now, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier) -> Mk8.Dns.Engine.Dnssec.VerifiedSignedZone!
+static Mk8.Dns.Engine.Dnssec.SignedZoneAdmission.VerifyRetained(Mk8.Dns.Domain.ZoneContents! contents, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier) -> Mk8.Dns.Engine.Dnssec.VerifiedSignedZone!
+Mk8.Dns.Engine.Dnssec.VerifiedSignedZone
+Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.Contents.get -> Mk8.Dns.Domain.ZoneContents!
+Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.Dnskey.get -> Mk8.Dns.Domain.DnsRecord!
+Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.Window.get -> Mk8.Dns.Engine.Dnssec.DnssecSignatureWindow!
+Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.IsAvailable(uint now) -> bool
+Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.BoundTtl(uint ttl, uint now) -> uint
+Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.GetRecords(Mk8.Dns.Domain.DnsName! name) -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.GetSignature(Mk8.Dns.Domain.DnsName! owner, ushort type) -> Mk8.Dns.Domain.DnsRecord?
+Mk8.Dns.Engine.Dnssec.VerifiedSignedZone.GetCover(Mk8.Dns.Domain.DnsName! name) -> Mk8.Dns.Domain.DnsRecord!
