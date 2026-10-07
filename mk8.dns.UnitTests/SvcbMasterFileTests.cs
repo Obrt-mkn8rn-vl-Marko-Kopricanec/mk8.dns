@@ -121,6 +121,12 @@ public sealed class SvcbMasterFileTests
     public void InvalidTypedOrRawParametersFailSharedAdmission(string input) => Assert.Throws<FormatException>(() => Parse(input));
 
     [Theory]
+    [InlineData("[::1]")]
+    [InlineData("[::1]:443")]
+    [InlineData("[::1]:0x1bb")]
+    public void BracketedEndpointIsNotAnIpv6Hint(string hint) => Assert.Throws<FormatException>(() => Parse("HTTPS 1 . ipv6hint=\"" + hint + "\""));
+
+    [Theory]
     [InlineData("host=\"label\" TXT value")]
     [InlineData("svc A host=\"192.0.2.1\"")]
     [InlineData("svc TXT key=\"value\"")]

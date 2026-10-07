@@ -110,6 +110,7 @@ internal static class MasterFileServiceBinding
             }
             else
             {
+                Require(item.All(character => char.IsAsciiHexDigit(character) || character is ':' or '.'));
                 Require(IPAddress.TryParse(item, out var address) && address.AddressFamily == family);
                 output.Write(address!.GetAddressBytes());
             }

@@ -58,6 +58,7 @@ public sealed class ZoneFileManagementTests(PostgresFixture postgres) : IClassFi
     [InlineData("svc SVCB 1 . key3=443")]
     [InlineData("svc SVCB 0 .")]
     [InlineData("svc HTTPS 1 . ech=AB==")]
+    [InlineData("svc HTTPS 1 . ipv6hint=\"[::1]:443\"")]
     public async Task InvalidImportsCannotAppendZoneAuditOrOutbox(string invalid)
     {
         var control = new ControlFixture();
