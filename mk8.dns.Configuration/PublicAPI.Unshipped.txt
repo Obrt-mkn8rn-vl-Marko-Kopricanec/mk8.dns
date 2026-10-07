@@ -54,3 +54,32 @@ Mk8.Dns.Configuration.ApplicationSettings.CookieSecretFile.get -> string?
 Mk8.Dns.Configuration.ApplicationSettings.CookieSecretFile.init -> void
 Mk8.Dns.Configuration.ApplicationSettings.TsigKeyFile.get -> string?
 Mk8.Dns.Configuration.ApplicationSettings.TsigKeyFile.init -> void
+Mk8.Dns.Configuration.ApplicationSettings.UdpResponseLimits.get -> Mk8.Dns.Configuration.UdpResponseBudgetSettings!
+Mk8.Dns.Configuration.ApplicationSettings.UdpResponseLimits.init -> void
+Mk8.Dns.Configuration.UdpResponseBudgetSettings
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.UdpResponseBudgetSettings() -> void
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.<Clone>$() -> Mk8.Dns.Configuration.UdpResponseBudgetSettings!
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.Equals(Mk8.Dns.Configuration.UdpResponseBudgetSettings? other) -> bool
+override Mk8.Dns.Configuration.UdpResponseBudgetSettings.Equals(object? obj) -> bool
+override Mk8.Dns.Configuration.UdpResponseBudgetSettings.GetHashCode() -> int
+override Mk8.Dns.Configuration.UdpResponseBudgetSettings.ToString() -> string!
+static Mk8.Dns.Configuration.UdpResponseBudgetSettings.operator !=(Mk8.Dns.Configuration.UdpResponseBudgetSettings? left, Mk8.Dns.Configuration.UdpResponseBudgetSettings? right) -> bool
+static Mk8.Dns.Configuration.UdpResponseBudgetSettings.operator ==(Mk8.Dns.Configuration.UdpResponseBudgetSettings? left, Mk8.Dns.Configuration.UdpResponseBudgetSettings? right) -> bool
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.ResponsesPerSecond.get -> int
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.ResponsesPerSecond.init -> void
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.ResponseBurst.get -> int
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.ResponseBurst.init -> void
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.BytesPerSecond.get -> int
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.BytesPerSecond.init -> void
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.ByteBurst.get -> int
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.ByteBurst.init -> void
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.GlobalResponsesPerSecond.get -> int
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.GlobalResponsesPerSecond.init -> void
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.GlobalResponseBurst.get -> int
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.GlobalResponseBurst.init -> void
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.GlobalBytesPerSecond.get -> int
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.GlobalBytesPerSecond.init -> void
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.GlobalByteBurst.get -> int
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.GlobalByteBurst.init -> void
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.MaximumPrefixes.get -> int
+Mk8.Dns.Configuration.UdpResponseBudgetSettings.MaximumPrefixes.init -> void

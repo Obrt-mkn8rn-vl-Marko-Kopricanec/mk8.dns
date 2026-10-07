@@ -12,6 +12,7 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
     private readonly string nodeId;
     private readonly IDnsCookieService? cookies;
     private readonly ITsigService? tsig;
+    private readonly IDnsResponseLimiter? limiter;
 
     public AuthoritativeApplication(AuthoritativeCatalog catalog, IDnsMessageCodec codec, string nodeId)
         : this(catalog, codec, nodeId, null) { }
@@ -20,6 +21,9 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         : this(catalog, codec, nodeId, cookies, null) { }
 
     public AuthoritativeApplication(AuthoritativeCatalog catalog, IDnsMessageCodec codec, string nodeId, IDnsCookieService? cookies, ITsigService? tsig)
+        : this(catalog, codec, nodeId, cookies, tsig, null) { }
+
+    public AuthoritativeApplication(AuthoritativeCatalog catalog, IDnsMessageCodec codec, string nodeId, IDnsCookieService? cookies, ITsigService? tsig, IDnsResponseLimiter? limiter)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(codec);
@@ -31,6 +35,7 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         this.nodeId = nodeId;
         this.cookies = cookies;
         this.tsig = tsig;
+        this.limiter = limiter;
     }
 
     public AuthoritativeApplication(IDnsMessageCodec codec, string nodeId)
@@ -40,6 +45,9 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         : this(codec, nodeId, cookies, null) { }
 
     public AuthoritativeApplication(IDnsMessageCodec codec, string nodeId, IDnsCookieService? cookies, ITsigService? tsig)
+        : this(codec, nodeId, cookies, tsig, null) { }
+
+    public AuthoritativeApplication(IDnsMessageCodec codec, string nodeId, IDnsCookieService? cookies, ITsigService? tsig, IDnsResponseLimiter? limiter)
     {
         ArgumentNullException.ThrowIfNull(codec);
         ArgumentException.ThrowIfNullOrEmpty(nodeId);
@@ -47,6 +55,7 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         this.nodeId = nodeId;
         this.cookies = cookies;
         this.tsig = tsig;
+        this.limiter = limiter;
         catalog = new AuthoritativeCatalog([]);
     }
 
@@ -67,18 +76,20 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         cancellationToken.ThrowIfCancellationRequested();
         if (message.Length > ushort.MaxValue || peerAddress.Length is not (4 or 16))
             throw new ArgumentException("Invalid DNS exchange bounds.", nameof(message));
+        byte[] response;
+        var peerProved = false;
         try
         {
             using var transaction = tsig?.Open(message.Span, peerAddress.Span);
             ReadOnlyMemory<byte> request = transaction is null ? message : transaction.GetRequest();
             var generation = Volatile.Read(ref catalog);
-            byte[] response;
+            var cookieValidated = false;
             if (transaction?.TsigError is > 0)
                 response = codec.EncodeError(request.Span, 9);
             else if (generation is null || cookies?.IsAvailable == false || tsig?.IsAvailable == false)
                 response = codec.EncodeError(request.Span, 2);
             else
-                response = Process(request.Span, generation, tcp, peerAddress.Span, transaction);
+                response = Process(request.Span, generation, tcp, peerAddress.Span, transaction, ref cookieValidated);
             if (transaction is not null && response.Length != 0)
             {
                 response = transaction.Complete(response);
@@ -86,19 +97,23 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
                 if (!tcp && (response.Length > 1232 || transaction.TsigError != 0 && response.Length > 512))
                     response = [];
             }
-            return ValueTask.FromResult(response);
+            // Proof of the return path does not change the exact served-origin signing grants.
+            peerProved = cookieValidated || transaction is { TsigError: 0, PeerAllowed: true };
         }
         catch (FormatException)
         {
-            return ValueTask.FromResult(codec.EncodeError(message.Span, 1));
+            response = codec.EncodeError(message.Span, 1);
         }
         catch (NotSupportedException)
         {
-            return ValueTask.FromResult(codec.EncodeError(message.Span, 4));
+            response = codec.EncodeError(message.Span, 4);
         }
+        if (!tcp && !peerProved && response.Length != 0 && limiter?.TryAdmit(peerAddress.Span, response.Length) == false)
+            response = [];
+        return ValueTask.FromResult(response);
     }
 
-    private byte[] Process(ReadOnlySpan<byte> message, AuthoritativeCatalog generation, bool tcp, ReadOnlySpan<byte> peer, ITsigTransaction? transaction)
+    private byte[] Process(ReadOnlySpan<byte> message, AuthoritativeCatalog generation, bool tcp, ReadOnlySpan<byte> peer, ITsigTransaction? transaction, ref bool cookieValidated)
     {
         try
         {
@@ -107,7 +122,7 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
             if (transaction is not null && (!transaction.PeerAllowed || query.Question is { } question
                 && (generation.GetZoneOrigin(question.Name, question.Type) is not { } origin || !transaction.Authorizes(origin))))
                 return codec.Encode(query, new DnsAnswer(5, false, [], [], []), tcp, [], 512, reserve);
-            return Respond(query, generation, tcp, peer, transaction);
+            return Respond(query, generation, tcp, peer, transaction, ref cookieValidated);
         }
         catch (FormatException)
         {
@@ -119,7 +134,7 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         }
     }
 
-    private byte[] Respond(DnsQuery query, AuthoritativeCatalog generation, bool tcp, ReadOnlySpan<byte> peer, ITsigTransaction? transaction)
+    private byte[] Respond(DnsQuery query, AuthoritativeCatalog generation, bool tcp, ReadOnlySpan<byte> peer, ITsigTransaction? transaction, ref bool cookieValidated)
     {
         var reservedBytes = transaction?.SignatureBytes ?? 0;
         if (query.EdnsVersion != 0)
@@ -132,6 +147,7 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
             if (option.Length != 8 && option.Length is not (>= 16 and <= 40))
                 throw new FormatException("Malformed DNS cookie option length.");
             valid = cookies.Validate(option, peer);
+            cookieValidated = valid;
             var issued = cookies.Create(option.AsSpan(0, 8), peer);
             if (issued is null)
                 return codec.Encode(query, new DnsAnswer(2, false, [], [], []), tcp, [], 512, reservedBytes);

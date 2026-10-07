@@ -7,10 +7,11 @@ public sealed record ApplicationSettings(string SocketPath, string StateDirector
     public string? PublicationSocket { get; init; }
     public string? CookieSecretFile { get; init; }
     public string? TsigKeyFile { get; init; }
+    public UdpResponseBudgetSettings UdpResponseLimits { get; init; } = new();
 
     public static ApplicationSettings Parse(string[] args)
     {
-        var values = HostArguments.Parse(args, ["--socket", "--state", "--node", "--role", "--zones", "--control", "--publication-socket", "--cookie-secret-file", "--tsig-key-file"]);
+        var values = HostArguments.Parse(args, ["--socket", "--state", "--node", "--role", "--zones", "--control", "--publication-socket", "--cookie-secret-file", "--tsig-key-file", .. UdpResponseBudgetSettings.Arguments]);
         var socket = HostArguments.AbsolutePath(values, "--socket");
         var state = HostArguments.AbsolutePath(values, "--state");
         var node = HostArguments.Required(values, "--node");
@@ -43,6 +44,6 @@ public sealed record ApplicationSettings(string SocketPath, string StateDirector
             || control is not null && string.Equals(role, "authoritative-replica", StringComparison.Ordinal) && (publication is null || zones.Count != 0)
             || publication is not null && string.Equals(publication, socket, StringComparison.Ordinal))
             throw new ArgumentException("Trusted replica publication requires a separate socket and its configured zone scope.", nameof(args));
-        return new ApplicationSettings(socket, state, node, role) { ZoneIds = zones.AsReadOnly(), ControlFile = control, PublicationSocket = publication, CookieSecretFile = cookieSecret, TsigKeyFile = tsigKey };
+        return new ApplicationSettings(socket, state, node, role) { ZoneIds = zones.AsReadOnly(), ControlFile = control, PublicationSocket = publication, CookieSecretFile = cookieSecret, TsigKeyFile = tsigKey, UdpResponseLimits = UdpResponseBudgetSettings.Parse(values, role) };
     }
 }

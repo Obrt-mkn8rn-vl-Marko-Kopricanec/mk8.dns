@@ -55,3 +55,5 @@ Mk8.Dns.Application.Abstractions.ITsigTransaction.GetRequest() -> byte[]!
 Mk8.Dns.Application.Abstractions.ITsigTransaction.Authorizes(Mk8.Dns.Domain.DnsName! origin) -> bool
 Mk8.Dns.Application.Abstractions.ITsigTransaction.Complete(System.ReadOnlySpan<byte> response) -> byte[]!
 Mk8.Dns.Application.Abstractions.IDnsMessageCodec.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit, ushort reservedBytes) -> byte[]!
+Mk8.Dns.Application.Abstractions.IDnsResponseLimiter
+Mk8.Dns.Application.Abstractions.IDnsResponseLimiter.TryAdmit(System.ReadOnlySpan<byte> peerAddress, int responseBytes) -> bool

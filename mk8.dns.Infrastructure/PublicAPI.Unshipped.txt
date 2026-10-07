@@ -86,3 +86,7 @@ Mk8.Dns.Infrastructure.TsigService.IsAvailable.get -> bool
 Mk8.Dns.Infrastructure.TsigService.Open(System.ReadOnlySpan<byte> message, System.ReadOnlySpan<byte> peerAddress) -> Mk8.Dns.Application.Abstractions.ITsigTransaction?
 Mk8.Dns.Infrastructure.TsigService.Dispose() -> void
 Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit, ushort reservedBytes) -> byte[]!
+Mk8.Dns.Infrastructure.DnsResponseLimiter
+Mk8.Dns.Infrastructure.DnsResponseLimiter.DnsResponseLimiter(System.TimeProvider! clock, int responsesPerSecond = 100, int responseBurst = 200, int bytesPerSecond = 51200, int byteBurst = 102400, int globalResponsesPerSecond = 10000, int globalResponseBurst = 20000, int globalBytesPerSecond = 5120000, int globalByteBurst = 10240000, int maximumPrefixes = 4096) -> void
+Mk8.Dns.Infrastructure.DnsResponseLimiter.TryAdmit(System.ReadOnlySpan<byte> peerAddress, int responseBytes) -> bool
+Mk8.Dns.Infrastructure.DnsResponseLimiter.Statistics.get -> (long Admitted, long Dropped, int TrackedPrefixes)
