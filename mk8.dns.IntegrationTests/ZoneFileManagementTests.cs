@@ -51,6 +51,13 @@ public sealed class ZoneFileManagementTests(PostgresFixture postgres) : IClassFi
     [InlineData("host TYPE1 \\# 3 00ffab")]
     [InlineData("@ DS 1 8 2 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")]
     [InlineData("host CNAME target\nhost A 192.0.2.1")]
+    [InlineData("svc HTTPS 1 . alpn=h2 key1=\\002h3")]
+    [InlineData("svc HTTPS 1 . mandatory=port alpn=h2")]
+    [InlineData("svc HTTPS 1 . no-default-alpn")]
+    [InlineData("svc SVCB 1 . ipv4hint=2001:db8::1")]
+    [InlineData("svc SVCB 1 . key3=443")]
+    [InlineData("svc SVCB 0 .")]
+    [InlineData("svc HTTPS 1 . ech=AB==")]
     public async Task InvalidImportsCannotAppendZoneAuditOrOutbox(string invalid)
     {
         var control = new ControlFixture();

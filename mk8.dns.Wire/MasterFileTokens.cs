@@ -57,9 +57,8 @@ internal static class MasterFileTokens
 
     private static MasterFileToken ReadToken(string text, ref int position)
     {
-        var quoted = text[position] == '"';
-        if (quoted)
-            position++;
+        if (text[position] == '"')
+            return new MasterFileToken(ReadQuoted(text, ref position), true);
         var start = position;
         while (position < text.Length)
         {
@@ -70,18 +69,36 @@ internal static class MasterFileTokens
                 position += 2;
                 continue;
             }
-            if (quoted ? character == '"' : character is ' ' or '\t' or '\r' or '\n' or ';' or '(' or ')')
+            if (character is ' ' or '\t' or '\r' or '\n' or ';' or '(' or ')')
                 break;
-            Require(quoted || character != '"');
+            if (character == '"')
+            {
+                Require(position > start && text[position - 1] == '=');
+                var key = text[start..position];
+                return new MasterFileToken(key + ReadQuoted(text, ref position), false, HasQuotedValue: true);
+            }
             position++;
         }
-        var token = text[start..position];
-        if (quoted)
+        return new MasterFileToken(text[start..position], false);
+    }
+
+    private static string ReadQuoted(string text, ref int position)
+    {
+        position++;
+        var start = position;
+        while (position < text.Length && text[position] != '"')
         {
-            Require(position < text.Length && text[position++] == '"');
-            Require(position == text.Length || text[position] is ' ' or '\t' or '\r' or '\n' or ';' or '(' or ')');
+            if (text[position] == '\\')
+            {
+                Require(position + 1 < text.Length && text[position + 1] is not ('\r' or '\n'));
+                position++;
+            }
+            position++;
         }
-        return new MasterFileToken(token, quoted);
+        var result = text[start..position];
+        Require(position < text.Length && text[position++] == '"');
+        Require(position == text.Length || text[position] is ' ' or '\t' or '\r' or '\n' or ';' or '(' or ')');
+        return result;
     }
 
     private static void Require(bool condition)

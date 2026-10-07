@@ -56,6 +56,7 @@ public static class ZoneMasterFileCodec
         foreach (var entry in MasterFileTokens.Read(text))
         {
             var tokens = entry.Tokens;
+            Require(!tokens[0].HasQuotedValue);
             if (!tokens[0].Quoted && tokens[0].Text.StartsWith('$'))
             {
                 Require(tokens.Count == 2);

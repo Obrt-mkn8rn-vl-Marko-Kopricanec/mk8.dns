@@ -10,7 +10,7 @@ internal static class MasterFileData
 {
     internal static ushort Type(MasterFileToken token)
     {
-        Require(!token.Quoted);
+        Require(!token.Quoted && !token.HasQuotedValue);
         return token.Text.ToUpperInvariant() switch
         {
             "A" => 1,
@@ -34,8 +34,17 @@ internal static class MasterFileData
 
     internal static byte[] Record(ushort type, IReadOnlyList<MasterFileToken> fields, byte[] origin)
     {
+        if (type is not (64 or 65))
+            Require(fields.All(field => !field.HasQuotedValue));
         if (fields.Count != 0 && !fields[0].Quoted && string.Equals(fields[0].Text, "\\#", StringComparison.Ordinal))
             return Generic(fields);
+        if (type is 64 or 65)
+            return MasterFileServiceBinding.Encode(fields, origin);
+        return CommonRecord(type, fields, origin);
+    }
+
+    private static byte[] CommonRecord(ushort type, IReadOnlyList<MasterFileToken> fields, byte[] origin)
+    {
         using var output = new MemoryStream();
         switch (type)
         {
@@ -128,6 +137,7 @@ internal static class MasterFileData
 
     internal static byte[] Name(MasterFileToken token, byte[] origin)
     {
+        Require(!token.HasQuotedValue);
         if (!token.Quoted && string.Equals(token.Text, "@", StringComparison.Ordinal))
             return (byte[])origin.Clone();
         if (string.Equals(token.Text, ".", StringComparison.Ordinal))
@@ -186,7 +196,7 @@ internal static class MasterFileData
 
     internal static uint Time(MasterFileToken token, uint maximum)
     {
-        Require(!token.Quoted && token.Text.Length != 0);
+        Require(!token.Quoted && !token.HasQuotedValue && token.Text.Length != 0);
         ulong total = 0;
         for (var position = 0; position < token.Text.Length;)
         {
@@ -209,9 +219,9 @@ internal static class MasterFileData
         return (uint)total;
     }
 
-    private static uint Number(MasterFileToken token, uint maximum)
+    internal static uint Number(MasterFileToken token, uint maximum)
     {
-        Require(!token.Quoted && token.Text.Length != 0);
+        Require(!token.Quoted && !token.HasQuotedValue && token.Text.Length != 0);
         ulong number = 0;
         foreach (var character in token.Text)
         {
@@ -234,7 +244,7 @@ internal static class MasterFileData
         return output.ToArray();
     }
 
-    private static byte[] Octets(string text)
+    internal static byte[] Octets(string text)
     {
         List<byte> result = [];
         for (var position = 0; position < text.Length; position++)

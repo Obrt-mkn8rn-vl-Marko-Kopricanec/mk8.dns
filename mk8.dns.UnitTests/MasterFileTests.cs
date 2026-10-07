@@ -122,7 +122,7 @@ public sealed class MasterFileTests
     [InlineData("host TYPE0 \\# 0")]
     [InlineData("host TYPE41 \\# 0")]
     [InlineData("host TYPE252 \\# 0")]
-    [InlineData("host SVCB 1 . alpn=h2")]
+    [InlineData("host SVCB 1 . no-default-alpn")]
     [InlineData("host TXT \"unterminated")]
     [InlineData("host TXT \"a\"joined")]
     [InlineData("host TXT \\25")]
