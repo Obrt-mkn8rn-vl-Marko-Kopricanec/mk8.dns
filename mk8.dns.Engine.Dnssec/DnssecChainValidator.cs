@@ -4,7 +4,7 @@ using Mk8.Dns.Domain;
 
 namespace Mk8.Dns.Engine.Dnssec;
 
-public sealed class DnssecChainValidator
+public sealed partial class DnssecChainValidator
 {
     public const int MaximumKeys = 64;
     public const int MaximumSignatures = 16;
