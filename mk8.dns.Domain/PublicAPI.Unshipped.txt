@@ -153,3 +153,5 @@ Mk8.Dns.Domain.IDnsUpstream
 Mk8.Dns.Domain.IDnsUpstream.ExchangeAsync(Mk8.Dns.Domain.DnsQuestion! question, Mk8.Dns.Domain.DnsServerEndpoint! server, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.DnsAnswer!>
 override Mk8.Dns.Domain.DnsServerEndpoint.Equals(object? obj) -> bool
 override Mk8.Dns.Domain.DnsServerEndpoint.GetHashCode() -> int
+Mk8.Dns.Domain.IDnsResolver
+Mk8.Dns.Domain.IDnsResolver.ResolveAsync(Mk8.Dns.Domain.DnsQuestion! question, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.DnsAnswer!>

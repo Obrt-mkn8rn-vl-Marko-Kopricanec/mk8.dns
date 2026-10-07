@@ -2,3 +2,20 @@
 Mk8.Dns.Engine.Recursive.NonValidatingIterativeResolver
 Mk8.Dns.Engine.Recursive.NonValidatingIterativeResolver.NonValidatingIterativeResolver(Mk8.Dns.Domain.IDnsUpstream! upstream, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! roots, ushort authorityPort = 53, int maximumExchanges = 64, int maximumAliasHops = 16, int maximumDependencyDepth = 8, System.TimeProvider? time = null) -> void
 Mk8.Dns.Engine.Recursive.NonValidatingIterativeResolver.ResolveAsync(Mk8.Dns.Domain.DnsQuestion! question, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.DnsAnswer!>
+Mk8.Dns.Engine.Recursive.CachingRecursiveResolver
+Mk8.Dns.Engine.Recursive.CachingRecursiveResolver.CachingRecursiveResolver(Mk8.Dns.Domain.IDnsResolver! resolver, int maximumEntries = 4096, long maximumPayloadBytes = 16777216, int maximumFlights = 64, int maximumWaiters = 1024, uint maximumPositiveTtl = 86400, uint maximumNegativeTtl = 3600, System.TimeSpan? resolutionTimeout = null, System.TimeProvider? time = null) -> void
+Mk8.Dns.Engine.Recursive.CachingRecursiveResolver.Clear() -> void
+Mk8.Dns.Engine.Recursive.CachingRecursiveResolver.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Engine.Recursive.CachingRecursiveResolver.Statistics.get -> Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics!
+Mk8.Dns.Engine.Recursive.CachingRecursiveResolver.ResolveAsync(Mk8.Dns.Domain.DnsQuestion! question, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.DnsAnswer!>
+Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics
+Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.Entries.get -> int
+Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.PayloadBytes.get -> long
+Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.ActiveFlights.get -> int
+Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.Waiters.get -> int
+Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.Hits.get -> long
+Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.Misses.get -> long
+Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.Coalesced.get -> long
+Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.AdmissionRejections.get -> long
+Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.Evictions.get -> long
+Mk8.Dns.Engine.Recursive.RecursiveCacheStatistics.Expirations.get -> long

@@ -2,7 +2,7 @@ using Mk8.Dns.Domain;
 
 namespace Mk8.Dns.Engine.Recursive;
 
-public sealed class NonValidatingIterativeResolver
+public sealed class NonValidatingIterativeResolver : IDnsResolver
 {
     private static readonly DnsName Root = DnsName.Parse(".");
     private readonly IDnsUpstream upstream;
