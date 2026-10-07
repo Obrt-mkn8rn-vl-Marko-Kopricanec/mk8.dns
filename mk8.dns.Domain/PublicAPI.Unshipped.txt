@@ -28,7 +28,7 @@ Mk8.Dns.Domain.DnsQuery.Flags.get -> ushort
 Mk8.Dns.Domain.DnsQuery.GetQuestionNameWire() -> byte[]!
 Mk8.Dns.Domain.DnsQuery.HasEdns.get -> bool
 Mk8.Dns.Domain.DnsQuery.Id.get -> ushort
-Mk8.Dns.Domain.DnsQuery.Question.get -> Mk8.Dns.Domain.DnsQuestion!
+Mk8.Dns.Domain.DnsQuery.Question.get -> Mk8.Dns.Domain.DnsQuestion?
 Mk8.Dns.Domain.DnsQuery.UdpPayloadSize.get -> ushort
 Mk8.Dns.Domain.DnsQuestion
 Mk8.Dns.Domain.DnsQuestion.<Clone>$() -> Mk8.Dns.Domain.DnsQuestion!
@@ -117,3 +117,5 @@ static Mk8.Dns.Domain.ZoneOperation.operator ==(Mk8.Dns.Domain.ZoneOperation? le
 static Mk8.Dns.Domain.ZoneOwnership.operator !=(Mk8.Dns.Domain.ZoneOwnership? left, Mk8.Dns.Domain.ZoneOwnership? right) -> bool
 static Mk8.Dns.Domain.ZoneOwnership.operator ==(Mk8.Dns.Domain.ZoneOwnership? left, Mk8.Dns.Domain.ZoneOwnership? right) -> bool
 Mk8.Dns.Domain.DnsRecord.GetCanonicalData() -> byte[]!
+Mk8.Dns.Domain.DnsQuery.DnsQuery(ushort id, ushort flags, Mk8.Dns.Domain.DnsQuestion? question, byte[]! name, ushort udpPayloadSize, bool hasEdns, byte ednsVersion, bool dnssecOk, byte[]? cookie) -> void
+Mk8.Dns.Domain.DnsQuery.GetCookieWire() -> byte[]?

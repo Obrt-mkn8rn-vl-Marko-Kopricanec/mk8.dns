@@ -12,3 +12,4 @@ Mk8.Dns.Wire.ZoneMasterFileCodec
 const Mk8.Dns.Wire.ZoneMasterFileCodec.MaximumTextBytes = 1000000 -> int
 static Mk8.Dns.Wire.ZoneMasterFileCodec.Import(Mk8.Dns.Domain.DnsName! origin, string! text) -> Mk8.Dns.Domain.AuthoritativeZone!
 static Mk8.Dns.Wire.ZoneMasterFileCodec.Export(Mk8.Dns.Domain.AuthoritativeZone! zone) -> string!
+static Mk8.Dns.Wire.DnsMessageCodec.EncodeResponse(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit) -> byte[]!

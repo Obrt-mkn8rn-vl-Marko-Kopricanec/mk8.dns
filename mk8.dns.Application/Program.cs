@@ -11,12 +11,13 @@ using Mk8.Dns.Transport;
 using Mk8.Dns.Wire;
 
 var settings = ApplicationSettings.Parse(args);
+using var cookies = string.Equals(settings.Role, "authoritative-replica", StringComparison.Ordinal) ? CookieSecrets.Load(settings) : null;
 using var socket = new PrivateUnixSocket(settings.SocketPath);
 var snapshots = new FileZoneSnapshotStore(settings.StateDirectory);
 await using var snapshotLifetime = snapshots.ConfigureAwait(false);
 var control = new ControlRuntime();
 await using var controlLifetime = control.ConfigureAwait(false);
-await control.InitializeAsync(settings, snapshots).ConfigureAwait(false);
+await control.InitializeAsync(settings, snapshots, cookies).ConfigureAwait(false);
 AuthoritativeApplication? authority = control.Authority;
 if (settings.ZoneIds.Count != 0)
 {
@@ -28,7 +29,7 @@ if (settings.ZoneIds.Count != 0)
             ?? throw new InvalidDataException("A configured authoritative zone has no active generation.");
         zones.Add(ZoneBundleCodec.Decode(snapshot));
     }
-    authority = new AuthoritativeApplication(new AuthoritativeCatalog(zones), new DnsMessageCodecAdapter(), settings.NodeId);
+    authority = new AuthoritativeApplication(new AuthoritativeCatalog(zones), new DnsMessageCodecAdapter(), settings.NodeId, cookies);
 }
 
 var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { Args = [] });

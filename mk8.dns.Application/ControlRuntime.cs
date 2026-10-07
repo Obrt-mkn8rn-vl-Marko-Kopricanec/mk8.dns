@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using Grpc.Core;
 using Npgsql;
 using Mk8.Dns.Application.BLL;
+using Mk8.Dns.Application.Abstractions;
 using Mk8.Dns.Application.DAL;
 using Mk8.Dns.Configuration;
 using Mk8.Dns.Contracts;
@@ -25,7 +26,7 @@ internal sealed class ControlRuntime : IAsyncDisposable
     internal ZoneManagementApplication? Management { get; private set; }
     internal ZonePublicationApplication? Publication { get; private set; }
 
-    internal async ValueTask InitializeAsync(ApplicationSettings settings, FileZoneSnapshotStore snapshots)
+    internal async ValueTask InitializeAsync(ApplicationSettings settings, FileZoneSnapshotStore snapshots, IDnsCookieService? cookies)
     {
         if (settings.ControlFile is null)
             return;
@@ -43,7 +44,7 @@ internal sealed class ControlRuntime : IAsyncDisposable
         if (controller)
             await InitializeControllerAsync(configuration, zones, codec, identity).ConfigureAwait(false);
         else
-            await InitializeReplicaAsync(settings, configuration, snapshots, zones, codec, identity).ConfigureAwait(false);
+            await InitializeReplicaAsync(settings, configuration, snapshots, zones, codec, identity, cookies).ConfigureAwait(false);
     }
 
     private async ValueTask InitializeControllerAsync(ControlConfiguration configuration, Dictionary<Guid, DnsName> zones, ZoneBundleAdapter codec, P256PublicationAuthenticator identity)
@@ -74,12 +75,12 @@ internal sealed class ControlRuntime : IAsyncDisposable
         };
     }
 
-    private async ValueTask InitializeReplicaAsync(ApplicationSettings settings, ControlConfiguration configuration, FileZoneSnapshotStore snapshots, Dictionary<Guid, DnsName> zones, ZoneBundleAdapter codec, P256PublicationAuthenticator identity)
+    private async ValueTask InitializeReplicaAsync(ApplicationSettings settings, ControlConfiguration configuration, FileZoneSnapshotStore snapshots, Dictionary<Guid, DnsName> zones, ZoneBundleAdapter codec, P256PublicationAuthenticator identity, IDnsCookieService? cookies)
     {
         if (configuration.ConnectionStringFile is not null || configuration.PublicationSocket is not null || configuration.Grants is { Length: > 0 })
             throw new InvalidDataException("A serving replica cannot take controller configuration.");
         journal = new FilePublicationJournal(settings.StateDirectory + ".publications");
-        Authority = new AuthoritativeApplication(new DnsMessageCodecAdapter(), settings.NodeId);
+        Authority = new AuthoritativeApplication(new DnsMessageCodecAdapter(), settings.NodeId, cookies);
         Publication = await ZonePublicationApplication.OpenAsync(snapshots, journal, identity, codec, Authority, settings.NodeId, zones.Keys, CancellationToken.None).ConfigureAwait(false);
     }
 

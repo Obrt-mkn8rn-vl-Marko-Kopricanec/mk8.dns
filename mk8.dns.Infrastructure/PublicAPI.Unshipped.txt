@@ -67,3 +67,11 @@ Mk8.Dns.Infrastructure.ZoneMasterFileAdapter
 Mk8.Dns.Infrastructure.ZoneMasterFileAdapter.ZoneMasterFileAdapter() -> void
 Mk8.Dns.Infrastructure.ZoneMasterFileAdapter.Import(Mk8.Dns.Domain.DnsName! origin, string! text) -> Mk8.Dns.Domain.AuthoritativeZone!
 Mk8.Dns.Infrastructure.ZoneMasterFileAdapter.Export(Mk8.Dns.Domain.AuthoritativeZone! zone) -> string!
+Mk8.Dns.Infrastructure.DnsCookieService
+Mk8.Dns.Infrastructure.DnsCookieService.DnsCookieService(byte[]! primarySecret, System.DateTimeOffset primaryCreatedAt, byte[]? alternateSecret, System.DateTimeOffset? alternateCreatedAt, System.TimeProvider! clock) -> void
+Mk8.Dns.Infrastructure.DnsCookieService.IsAvailable.get -> bool
+Mk8.Dns.Infrastructure.DnsCookieService.Create(System.ReadOnlySpan<byte> clientCookie, System.ReadOnlySpan<byte> peerAddress) -> byte[]?
+Mk8.Dns.Infrastructure.DnsCookieService.Validate(System.ReadOnlySpan<byte> cookie, System.ReadOnlySpan<byte> peerAddress) -> bool
+Mk8.Dns.Infrastructure.DnsCookieService.Dispose() -> void
+static Mk8.Dns.Infrastructure.DnsCookieService.CreateEphemeral(System.TimeProvider! clock) -> Mk8.Dns.Infrastructure.DnsCookieService!
+Mk8.Dns.Infrastructure.DnsMessageCodecAdapter.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit) -> byte[]!

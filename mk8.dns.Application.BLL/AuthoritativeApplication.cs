@@ -1,6 +1,7 @@
 using Mk8.Dns.Application.Abstractions;
 using Mk8.Dns.Contracts;
 using Mk8.Dns.Engine.Authoritative;
+using Mk8.Dns.Domain;
 
 namespace Mk8.Dns.Application.BLL;
 
@@ -9,8 +10,12 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
     private AuthoritativeCatalog? catalog;
     private readonly IDnsMessageCodec codec;
     private readonly string nodeId;
+    private readonly IDnsCookieService? cookies;
 
     public AuthoritativeApplication(AuthoritativeCatalog catalog, IDnsMessageCodec codec, string nodeId)
+        : this(catalog, codec, nodeId, null) { }
+
+    public AuthoritativeApplication(AuthoritativeCatalog catalog, IDnsMessageCodec codec, string nodeId, IDnsCookieService? cookies)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(codec);
@@ -20,14 +25,19 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         this.catalog = catalog;
         this.codec = codec;
         this.nodeId = nodeId;
+        this.cookies = cookies;
     }
 
     public AuthoritativeApplication(IDnsMessageCodec codec, string nodeId)
+        : this(codec, nodeId, null) { }
+
+    public AuthoritativeApplication(IDnsMessageCodec codec, string nodeId, IDnsCookieService? cookies)
     {
         ArgumentNullException.ThrowIfNull(codec);
         ArgumentException.ThrowIfNullOrEmpty(nodeId);
         this.codec = codec;
         this.nodeId = nodeId;
+        this.cookies = cookies;
         catalog = new AuthoritativeCatalog([]);
     }
 
@@ -40,7 +50,7 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         var generation = Volatile.Read(ref catalog);
         if (generation is null)
             throw new InvalidOperationException("Authoritative storage requires verified reconciliation.");
-        return ValueTask.FromResult(new ApplicationStatus(ProtocolVersion.Current, nodeId, "authoritative-replica", generation.ZoneCount != 0, generation.ZoneCount));
+        return ValueTask.FromResult(new ApplicationStatus(ProtocolVersion.Current, nodeId, "authoritative-replica", generation.ZoneCount != 0 && cookies?.IsAvailable != false, generation.ZoneCount));
     }
 
     public ValueTask<byte[]> ExchangeAsync(ReadOnlyMemory<byte> message, bool tcp, ReadOnlyMemory<byte> peerAddress, CancellationToken cancellationToken)
@@ -51,10 +61,10 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         try
         {
             var generation = Volatile.Read(ref catalog);
-            if (generation is null)
+            if (generation is null || cookies?.IsAvailable == false)
                 return ValueTask.FromResult(codec.EncodeError(message.Span, 2));
             var query = codec.Decode(message.Span);
-            return ValueTask.FromResult(codec.Encode(query, generation.Resolve(query.Question), tcp));
+            return ValueTask.FromResult(Respond(query, generation, tcp, peerAddress.Span));
         }
         catch (FormatException)
         {
@@ -64,5 +74,32 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         {
             return ValueTask.FromResult(codec.EncodeError(message.Span, 4));
         }
+    }
+
+    private byte[] Respond(DnsQuery query, AuthoritativeCatalog generation, bool tcp, ReadOnlySpan<byte> peer)
+    {
+        if (query.EdnsVersion != 0)
+            return codec.Encode(query, new DnsAnswer(16, false, [], [], []), tcp);
+        var option = query.GetCookieWire();
+        byte[] responseCookie = [];
+        var valid = false;
+        if (option is not null && cookies is not null)
+        {
+            if (option.Length != 8 && option.Length is not (>= 16 and <= 40))
+                throw new FormatException("Malformed DNS cookie option length.");
+            valid = cookies.Validate(option, peer);
+            var issued = cookies.Create(option.AsSpan(0, 8), peer);
+            if (issued is null)
+                return codec.Encode(query, new DnsAnswer(2, false, [], [], []), tcp, [], 512);
+            responseCookie = issued;
+        }
+        var prefetch = query.Question is null;
+        if (prefetch && cookies is null)
+            throw new FormatException("Cookie-only requests require the cookie service.");
+        var challenge = option is not null && cookies is not null && !valid && (prefetch ? option.Length != 8 : !tcp);
+        var answer = challenge ? new DnsAnswer(23, false, [], [], [])
+            : query.Question is { } question ? generation.Resolve(question) : new DnsAnswer(0, false, [], [], []);
+        var limit = (ushort)(cookies is null || valid ? 1232 : 512);
+        return codec.Encode(query, answer, tcp, responseCookie, limit);
     }
 }

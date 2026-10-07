@@ -14,7 +14,7 @@ public sealed class WireTests
     {
         var request = AuthorityFixture.Query("WWW.Example.", flags: 0x0130);
         var query = DnsMessageCodec.DecodeQuery(request);
-        var response = DnsMessageCodec.EncodeResponse(query, new AuthoritativeCatalog([AuthorityFixture.Zone(AuthorityFixture.Record("www.example.", 1, [192, 0, 2, 1]))]).Resolve(query.Question), tcp: false);
+        var response = DnsMessageCodec.EncodeResponse(query, new AuthoritativeCatalog([AuthorityFixture.Zone(AuthorityFixture.Record("www.example.", 1, [192, 0, 2, 1]))]).Resolve(query.Question!), tcp: false);
         Assert.Equal(new byte[] { 0xab, 0xcd, 0x85, 0x10, 0, 1, 0, 1, 0, 0, 0, 0 }, response[..12]);
         Assert.Equal(request[12..], response[12..request.Length]);
         Assert.Equal(new byte[] { 0xc0, 0x0c, 0, 1, 0, 1, 0, 0, 1, 0x2c, 0, 4, 192, 0, 2, 1 }, response[request.Length..]);

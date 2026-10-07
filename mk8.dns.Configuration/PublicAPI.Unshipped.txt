@@ -50,3 +50,5 @@ Mk8.Dns.Configuration.GatewaySettings.Role.get -> Mk8.Dns.Configuration.GatewayR
 Mk8.Dns.Configuration.GatewaySettings.Role.init -> void
 Mk8.Dns.Configuration.GatewaySettings.ManagementSocketPath.get -> string?
 Mk8.Dns.Configuration.GatewaySettings.ManagementSocketPath.init -> void
+Mk8.Dns.Configuration.ApplicationSettings.CookieSecretFile.get -> string?
+Mk8.Dns.Configuration.ApplicationSettings.CookieSecretFile.init -> void

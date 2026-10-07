@@ -39,3 +39,8 @@ Mk8.Dns.Application.Abstractions.IManagementAuthorizer.AuthorizeOperation(Mk8.Dn
 Mk8.Dns.Application.Abstractions.IZoneMasterFileCodec
 Mk8.Dns.Application.Abstractions.IZoneMasterFileCodec.Import(Mk8.Dns.Domain.DnsName! origin, string! text) -> Mk8.Dns.Domain.AuthoritativeZone!
 Mk8.Dns.Application.Abstractions.IZoneMasterFileCodec.Export(Mk8.Dns.Domain.AuthoritativeZone! zone) -> string!
+Mk8.Dns.Application.Abstractions.IDnsCookieService
+Mk8.Dns.Application.Abstractions.IDnsCookieService.IsAvailable.get -> bool
+Mk8.Dns.Application.Abstractions.IDnsCookieService.Create(System.ReadOnlySpan<byte> clientCookie, System.ReadOnlySpan<byte> peerAddress) -> byte[]?
+Mk8.Dns.Application.Abstractions.IDnsCookieService.Validate(System.ReadOnlySpan<byte> cookie, System.ReadOnlySpan<byte> peerAddress) -> bool
+Mk8.Dns.Application.Abstractions.IDnsMessageCodec.Encode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Domain.DnsAnswer! answer, bool tcp, System.ReadOnlySpan<byte> cookie, ushort udpLimit) -> byte[]!

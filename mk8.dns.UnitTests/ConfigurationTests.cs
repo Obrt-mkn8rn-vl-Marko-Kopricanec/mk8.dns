@@ -6,6 +6,17 @@ namespace Mk8.Dns.UnitTests;
 public sealed class ConfigurationTests
 {
     [Fact]
+    public void CookieSecretInputsAreExplicitPrivateReplicaInputs()
+    {
+        var replica = new[] { "--socket", "/tmp/app.sock", "--state", "/tmp/state", "--node", "node1", "--role", "authoritative-replica" };
+        Assert.Null(ApplicationSettings.Parse(replica).CookieSecretFile);
+        Assert.Equal("/tmp/cookies.key", ApplicationSettings.Parse([.. replica, "--cookie-secret-file", "/tmp/cookies.key"]).CookieSecretFile);
+        Assert.Throws<ArgumentException>(() => ApplicationSettings.Parse([.. replica, "--cookie-secret-file", "relative.key"]));
+        Assert.Throws<ArgumentException>(() => ApplicationSettings.Parse(["--socket", "/tmp/app.sock", "--state", "/tmp/state", "--node", "node1", "--role", "controller", "--cookie-secret-file", "/tmp/cookies.key"]));
+        Assert.Throws<ArgumentException>(() => GatewaySettings.Parse(["--socket", "/tmp/app.sock", "--health-port", "8080", "--cookie-secret-file", "/tmp/cookies.key"]));
+    }
+
+    [Fact]
     public void ManagementGatewayRequiresAnIsolatedPrivateRole()
     {
         var settings = GatewaySettings.Parse(["--role", "management", "--socket", "/tmp/controller.sock", "--management-socket", "/tmp/api.sock"]);

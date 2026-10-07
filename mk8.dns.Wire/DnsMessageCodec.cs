@@ -15,74 +15,120 @@ public static class DnsMessageCodec
         Require((flags & 0x8040) == 0);
         if ((flags & 0x7800) != 0)
             throw new NotSupportedException("Only standard DNS queries are implemented.");
-        Require(Read16(message, 4) == 1 && Read16(message, 6) == 0 && Read16(message, 8) == 0);
+        var questions = Read16(message, 4);
+        Require(questions <= 1 && Read16(message, 6) == 0 && Read16(message, 8) == 0);
         var additional = Read16(message, 10);
         Require(additional <= 1);
         var offset = 12;
         HashSet<int> nameBoundaries = [];
-        var name = ReadName(message, ref offset, nameBoundaries);
-        Require(offset + 4 <= message.Length);
-        var question = new DnsQuestion(DnsName.FromWire(name), Read16(message, offset), Read16(message, offset + 2));
-        offset += 4;
+        byte[] name = [];
+        DnsQuestion? question = null;
+        if (questions != 0)
+        {
+            name = ReadName(message, ref offset, nameBoundaries);
+            Require(offset + 4 <= message.Length);
+            question = new DnsQuestion(DnsName.FromWire(name), Read16(message, offset), Read16(message, offset + 2));
+            offset += 4;
+        }
         ushort udpSize = 512;
         byte version = 0;
         var dnssecOk = false;
+        byte[]? cookie = null;
         if (additional != 0)
-        {
-            var owner = ReadName(message, ref offset, nameBoundaries);
-            Require(owner.Length == 1 && offset + 10 <= message.Length && Read16(message, offset) == 41);
-            udpSize = Math.Clamp(Read16(message, offset + 2), (ushort)512, MaximumUdpPayloadSize);
-            Require(message[offset + 4] == 0);
-            version = message[offset + 5];
-            dnssecOk = (Read16(message, offset + 6) & 0x8000) != 0;
-            var length = Read16(message, offset + 8);
-            offset += 10;
-            Require(length == message.Length - offset);
-            var end = offset + length;
-            while (offset < end)
-            {
-                Require(offset + 4 <= end);
-                var optionLength = Read16(message, offset + 2);
-                offset += 4;
-                Require(optionLength <= end - offset);
-                offset += optionLength;
-            }
-        }
+            (udpSize, version, dnssecOk, cookie) = ReadEdns(message, ref offset, nameBoundaries);
         Require(offset == message.Length);
-        return new DnsQuery(Read16(message, 0), flags, question, name, udpSize, additional != 0, version, dnssecOk);
+        Require(question is not null || cookie is not null);
+        return new DnsQuery(Read16(message, 0), flags, question, name, udpSize, additional != 0, version, dnssecOk, cookie);
     }
 
-    public static byte[] EncodeResponse(DnsQuery query, DnsAnswer answer, bool tcp)
+    private static (ushort Size, byte Version, bool DnssecOk, byte[]? Cookie) ReadEdns(ReadOnlySpan<byte> message, ref int offset, HashSet<int> boundaries)
+    {
+        var owner = ReadName(message, ref offset, boundaries);
+        Require(owner.Length == 1 && offset + 10 <= message.Length && Read16(message, offset) == 41);
+        var size = Math.Clamp(Read16(message, offset + 2), (ushort)512, MaximumUdpPayloadSize);
+        Require(message[offset + 4] == 0);
+        var version = message[offset + 5];
+        var dnssecOk = (Read16(message, offset + 6) & 0x8000) != 0;
+        var length = Read16(message, offset + 8);
+        offset += 10;
+        Require(length == message.Length - offset);
+        byte[]? cookie = null;
+        while (offset < message.Length)
+        {
+            Require(offset + 4 <= message.Length);
+            var code = Read16(message, offset);
+            var optionLength = Read16(message, offset + 2);
+            offset += 4;
+            Require(optionLength <= message.Length - offset);
+            if (code == 10 && cookie is null)
+                cookie = message.Slice(offset, optionLength).ToArray();
+            offset += optionLength;
+        }
+        return (size, version, dnssecOk, cookie);
+    }
+
+    public static byte[] EncodeResponse(DnsQuery query, DnsAnswer answer, bool tcp) => EncodeResponse(query, answer, tcp, [], MaximumUdpPayloadSize);
+
+    public static byte[] EncodeResponse(DnsQuery query, DnsAnswer answer, bool tcp, ReadOnlySpan<byte> cookie, ushort udpLimit)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(answer);
+        if (udpLimit is < 512 or > MaximumUdpPayloadSize || cookie.Length != 0 && (cookie.Length != 24 || !query.HasEdns
+            || query.GetCookieWire() is not { Length: >= 8 } requestCookie || !cookie[..8].SequenceEqual(requestCookie.AsSpan(0, 8))))
+            throw new ArgumentException("Invalid response cookie or UDP policy.", nameof(cookie));
         if (query.EdnsVersion != 0)
+        {
             answer = new DnsAnswer(16, false, [], [], []);
-        var limit = tcp ? MaximumMessageBytes : query.UdpPayloadSize;
+            cookie = [];
+        }
+        if (query.Question is null && (answer.Answers.Count != 0 || answer.Authority.Count != 0 || answer.Additional.Count != 0))
+            throw new ArgumentException("Cookie prefetch cannot contain DNS answer data.", nameof(answer));
+        var limit = tcp ? MaximumMessageBytes : Math.Min(query.UdpPayloadSize, udpLimit);
         var buffer = new byte[limit];
         var offset = 12;
         var originalName = query.GetQuestionNameWire();
         originalName.CopyTo(buffer, offset);
         offset += originalName.Length;
-        Write16(buffer, ref offset, query.Question.Type);
-        Write16(buffer, ref offset, query.Question.Class);
-        var usable = limit - (query.HasEdns ? 11 : 0);
+        if (query.Question is { } question)
+        {
+            Write16(buffer, ref offset, question.Type);
+            Write16(buffer, ref offset, question.Class);
+        }
+        var usable = limit - (query.HasEdns ? 11 + (cookie.Length == 0 ? 0 : 4 + cookie.Length) : 0);
         var truncated = false;
         var answers = WriteSection(answer.Answers, buffer, ref offset, usable, query, ref truncated);
         var authority = WriteSection(answer.Authority, buffer, ref offset, usable, query, ref truncated);
         var additional = WriteSection(answer.Additional, buffer, ref offset, usable, query, ref truncated);
         if (query.HasEdns)
         {
-            buffer[offset++] = 0;
-            Write16(buffer, ref offset, 41);
-            Write16(buffer, ref offset, MaximumUdpPayloadSize);
-            var optTtl = (uint)(answer.ResponseCode >> 4) << 24;
-            if (query.DnssecOk)
-                optTtl |= 0x8000;
-            Write32(buffer, ref offset, optTtl);
-            Write16(buffer, ref offset, 0);
+            WriteOpt(buffer, ref offset, query, answer.ResponseCode, cookie);
             additional++;
         }
+        WriteHeader(buffer, query, answer, truncated, answers, authority, additional);
+        return buffer[..offset];
+    }
+
+    private static void WriteOpt(Span<byte> buffer, ref int offset, DnsQuery query, byte code, ReadOnlySpan<byte> cookie)
+    {
+        buffer[offset++] = 0;
+        Write16(buffer, ref offset, 41);
+        Write16(buffer, ref offset, MaximumUdpPayloadSize);
+        var ttl = (uint)(code >> 4) << 24;
+        if (query.DnssecOk)
+            ttl |= 0x8000;
+        Write32(buffer, ref offset, ttl);
+        Write16(buffer, ref offset, (ushort)(cookie.Length == 0 ? 0 : 4 + cookie.Length));
+        if (cookie.Length != 0)
+        {
+            Write16(buffer, ref offset, 10);
+            Write16(buffer, ref offset, (ushort)cookie.Length);
+            cookie.CopyTo(buffer[offset..]);
+            offset += cookie.Length;
+        }
+    }
+
+    private static void WriteHeader(Span<byte> buffer, DnsQuery query, DnsAnswer answer, bool truncated, ushort answers, ushort authority, ushort additional)
+    {
         var header = 0;
         Write16(buffer, ref header, query.Id);
         var flags = 0x8000 | (query.Flags & 0x0110) | (answer.ResponseCode & 15);
@@ -91,11 +137,10 @@ public static class DnsMessageCodec
         if (truncated)
             flags |= 0x0200;
         Write16(buffer, ref header, (ushort)flags);
-        Write16(buffer, ref header, 1);
+        Write16(buffer, ref header, (ushort)(query.Question is null ? 0 : 1));
         Write16(buffer, ref header, answers);
         Write16(buffer, ref header, authority);
         Write16(buffer, ref header, additional);
-        return buffer[..offset];
     }
 
     public static byte[] EncodeError(ReadOnlySpan<byte> request, byte responseCode)
@@ -118,7 +163,7 @@ public static class DnsMessageCodec
         foreach (var rrset in records.GroupBy(record => (record.Owner, record.Type)))
         {
             var values = rrset.Select(record => (Record: record, Data: record.GetData())).ToArray();
-            var owner = rrset.Key.Owner.Equals(query.Question.Name) ? new byte[] { 0xc0, 0x0c } : values[0].Record.GetOwnerWire();
+            var owner = query.Question is { } question && rrset.Key.Owner.Equals(question.Name) ? new byte[] { 0xc0, 0x0c } : values[0].Record.GetOwnerWire();
             var needed = values.Sum(item => owner.Length + 10 + item.Data.Length);
             if (needed > limit - offset || values.Length > ushort.MaxValue - count)
             {
