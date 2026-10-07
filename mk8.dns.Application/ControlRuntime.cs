@@ -23,6 +23,9 @@ internal sealed class ControlRuntime : IAsyncDisposable
     private FilePublicationJournal? journal;
     private UnixControlClient? client;
     private OutboxPublisher? publisher;
+    private ZoneResigningApplication? resigning;
+    private DnssecRenewalScope[] renewalScopes = [];
+    private TimeSpan signingScan;
     private readonly List<EcdsaP256DnssecSigningKey> dnssecKeys = [];
     internal AuthoritativeApplication? Authority { get; private set; }
     internal ZoneManagementApplication? Management { get; private set; }
@@ -42,8 +45,18 @@ internal sealed class ControlRuntime : IAsyncDisposable
             throw new InvalidDataException("Publisher trust targets a different replica.");
         var identity = new P256PublicationAuthenticator(configuration.Epoch, configuration.TargetNode, zones, Encoding.UTF8.GetString(PrivateFile.Read(configuration.KeyFile, 4096)), controller);
         authenticator = identity;
-        if (!controller && configuration.Zones.Any(zone => zone.SigningKeyFile is not null || zone.SignatureLifetimeSeconds != 604_800 || zone.DnskeyTtl != 3600))
+        if (!controller && (configuration.SigningScanSeconds != 60 || configuration.Zones.Any(zone => zone.SigningKeyFile is not null
+            || zone.SignatureLifetimeSeconds != 604_800 || zone.DnskeyTtl != 3600 || zone.RenewBeforeSeconds is not null)))
             throw new InvalidDataException("A serving replica cannot take private signing configuration.");
+        if (controller)
+        {
+            renewalScopes = configuration.Zones.Where(zone => zone.SigningKeyFile is not null)
+                .Select(zone => new DnssecRenewalScope(zone.ZoneId, DnsName.Parse(zone.Origin), zone.SignatureLifetimeSeconds, zone.RenewBeforeSeconds)).ToArray();
+            if (configuration.SigningScanSeconds is 0 or > 300 || renewalScopes.Any(scope => configuration.SigningScanSeconds > scope.RenewBeforeSeconds / 2)
+                || renewalScopes.Length == 0 && configuration.SigningScanSeconds != 60)
+                throw new InvalidDataException("Invalid signing renewal scan interval.");
+            signingScan = TimeSpan.FromSeconds(configuration.SigningScanSeconds);
+        }
         var codec = controller ? CreateCodec(configuration) : new ZoneBundleAdapter();
         if (controller)
             await InitializeControllerAsync(configuration, zones, codec, identity).ConfigureAwait(false);
@@ -58,7 +71,7 @@ internal sealed class ControlRuntime : IAsyncDisposable
         {
             if (scope.SigningKeyFile is null)
             {
-                if (scope.SignatureLifetimeSeconds != 604_800 || scope.DnskeyTtl != 3600)
+                if (scope.SignatureLifetimeSeconds != 604_800 || scope.DnskeyTtl != 3600 || scope.RenewBeforeSeconds is not null)
                     throw new InvalidDataException("Signing policy requires a private key.");
                 continue;
             }
@@ -93,6 +106,8 @@ internal sealed class ControlRuntime : IAsyncDisposable
         Management = new ZoneManagementApplication(store, new ScopedManagementAuthorizer(grants, TimeProvider.System), codec, configuration.TargetNode, new ZoneMasterFileAdapter());
         client = new UnixControlClient(configuration.PublicationSocket);
         publisher = new OutboxPublisher(store, identity, client);
+        if (renewalScopes.Length > 0)
+            resigning = new ZoneResigningApplication(store, codec, new EcdsaP256DnssecVerifier(), TimeProvider.System, configuration.TargetNode, renewalScopes);
     }
 
     private static ManagementGrant CreateGrant(GrantConfiguration grant)
@@ -123,10 +138,17 @@ internal sealed class ControlRuntime : IAsyncDisposable
     {
         if (publisher is null)
             return;
+        long? lastScan = null;
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
+                var sample = TimeProvider.System.GetTimestamp();
+                if (resigning is not null && (lastScan is null || TimeProvider.System.GetElapsedTime(lastScan.Value, sample) >= signingScan))
+                {
+                    lastScan = sample;
+                    await RenewAsync(logger, cancellationToken).ConfigureAwait(false);
+                }
                 if (await publisher.DispatchOneAsync(cancellationToken).ConfigureAwait(false))
                     continue;
             }
@@ -146,6 +168,24 @@ internal sealed class ControlRuntime : IAsyncDisposable
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 return;
+            }
+        }
+    }
+
+    private async Task RenewAsync(ILogger logger, CancellationToken cancellationToken)
+    {
+        foreach (var scope in renewalScopes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (await resigning!.ResignAsync(scope.ZoneId, cancellationToken).ConfigureAwait(false) && logger.IsEnabled(LogLevel.Information))
+                    ControlLogs.Renewed(logger, scope.ZoneId);
+            }
+            catch (Exception exception) when (exception is IOException or InvalidOperationException or NpgsqlException or CryptographicException or FormatException or ArgumentException or OverflowException)
+            {
+                if (logger.IsEnabled(LogLevel.Information))
+                    ControlLogs.RenewalPending(logger, scope.ZoneId);
             }
         }
     }

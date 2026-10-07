@@ -5,9 +5,15 @@ using Npgsql;
 
 namespace Mk8.Dns.Application.DAL;
 
-public sealed class PostgresControlPlaneStore : IControlPlaneStore, IAsyncDisposable
+public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigningStore, IAsyncDisposable
 {
     private const string OperationColumns = "tenant_id,operation_id,fingerprint,actor,target_node,zone_id,origin,revision,serial,payload,content_hash,activated";
+    private const string SchemaSql = """
+                CREATE TABLE IF NOT EXISTS mk8_control_metadata(singleton boolean PRIMARY KEY CHECK(singleton), schema_version integer NOT NULL, epoch uuid NOT NULL, writer_id uuid NOT NULL);
+                CREATE TABLE IF NOT EXISTS mk8_zones(zone_id uuid PRIMARY KEY,tenant_id uuid NOT NULL,origin bytea NOT NULL,revision bigint NOT NULL CHECK(revision>0),serial bigint NOT NULL CHECK(serial BETWEEN 0 AND 4294967295),payload bytea NOT NULL,content_hash text NOT NULL);
+                CREATE TABLE IF NOT EXISTS mk8_operations(tenant_id uuid NOT NULL,operation_id uuid NOT NULL,fingerprint text NOT NULL,actor text NOT NULL,target_node text NOT NULL,zone_id uuid NOT NULL REFERENCES mk8_zones(zone_id),origin bytea NOT NULL,revision bigint NOT NULL,serial bigint NOT NULL,payload bytea NOT NULL,content_hash text NOT NULL,activated boolean NOT NULL DEFAULT false,accepted_at timestamptz NOT NULL DEFAULT clock_timestamp(),activated_at timestamptz,receipt text,PRIMARY KEY(tenant_id,operation_id),UNIQUE(zone_id,revision));
+                CREATE INDEX IF NOT EXISTS mk8_pending_operations ON mk8_operations(accepted_at,zone_id,revision) WHERE NOT activated;
+                """;
     private readonly NpgsqlDataSource source;
     private readonly NpgsqlConnection lease;
     private readonly Guid writerId;
@@ -132,6 +138,9 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IAsyncDispos
         }
     }
 
+    async ValueTask<IZoneResigningTransaction> IZoneResigningStore.BeginAsync(CancellationToken cancellationToken)
+        => (ControlTransaction)await BeginAsync(cancellationToken).ConfigureAwait(false);
+
     public async ValueTask<ZoneOperation?> ReadPendingAsync(CancellationToken cancellationToken)
     {
         using var registration = Register();
@@ -212,7 +221,7 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IAsyncDispos
         }
     }
 
-    private enum SqlQuery { AcquireLease, ReadDurability, AcquireTransaction, CreateSchema, BootstrapMetadata, ReadMetadata, FenceWriter, ReadWriter, ReadPending, ReadOperation, ReadZone, ReadOwnership, UpsertZone, AppendOperation, MarkActivated }
+    private enum SqlQuery { AcquireLease, ReadDurability, AcquireTransaction, CreateSchema, BootstrapMetadata, ReadMetadata, FenceWriter, ReadWriter, ReadPending, ReadOperation, ReadGeneration, HasPending, ReadZone, ReadOwnership, UpsertZone, AppendOperation, MarkActivated }
 
     private static NpgsqlCommand Command(NpgsqlConnection connection, NpgsqlTransaction? transaction, SqlQuery query, params object[] parameters)
     {
@@ -242,12 +251,7 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IAsyncDispos
                 command.CommandText = "SET LOCAL synchronous_commit=on; SELECT pg_advisory_xact_lock(5565946963831500801)";
                 break;
             case SqlQuery.CreateSchema:
-                command.CommandText = """
-                CREATE TABLE IF NOT EXISTS mk8_control_metadata(singleton boolean PRIMARY KEY CHECK(singleton), schema_version integer NOT NULL, epoch uuid NOT NULL, writer_id uuid NOT NULL);
-                CREATE TABLE IF NOT EXISTS mk8_zones(zone_id uuid PRIMARY KEY,tenant_id uuid NOT NULL,origin bytea NOT NULL,revision bigint NOT NULL CHECK(revision>0),serial bigint NOT NULL CHECK(serial BETWEEN 0 AND 4294967295),payload bytea NOT NULL,content_hash text NOT NULL);
-                CREATE TABLE IF NOT EXISTS mk8_operations(tenant_id uuid NOT NULL,operation_id uuid NOT NULL,fingerprint text NOT NULL,actor text NOT NULL,target_node text NOT NULL,zone_id uuid NOT NULL REFERENCES mk8_zones(zone_id),origin bytea NOT NULL,revision bigint NOT NULL,serial bigint NOT NULL,payload bytea NOT NULL,content_hash text NOT NULL,activated boolean NOT NULL DEFAULT false,accepted_at timestamptz NOT NULL DEFAULT clock_timestamp(),activated_at timestamptz,receipt text,PRIMARY KEY(tenant_id,operation_id),UNIQUE(zone_id,revision));
-                CREATE INDEX IF NOT EXISTS mk8_pending_operations ON mk8_operations(accepted_at,zone_id,revision) WHERE NOT activated;
-                """;
+                command.CommandText = SchemaSql;
                 break;
             case SqlQuery.BootstrapMetadata:
                 command.CommandText = "INSERT INTO mk8_control_metadata SELECT true,1,$1,$2 WHERE NOT EXISTS(SELECT 1 FROM mk8_zones) AND NOT EXISTS(SELECT 1 FROM mk8_operations) ON CONFLICT(singleton) DO NOTHING";
@@ -266,6 +270,12 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IAsyncDispos
                 break;
             case SqlQuery.ReadOperation:
                 command.CommandText = "SELECT " + OperationColumns + " FROM mk8_operations WHERE tenant_id=$1 AND operation_id=$2";
+                break;
+            case SqlQuery.ReadGeneration:
+                command.CommandText = "SELECT " + OperationColumns + " FROM mk8_operations WHERE tenant_id=$1 AND zone_id=$2 AND revision=$3";
+                break;
+            case SqlQuery.HasPending:
+                command.CommandText = "SELECT EXISTS(SELECT 1 FROM mk8_operations WHERE zone_id=$1 AND NOT activated)";
                 break;
             case SqlQuery.ReadZone:
                 command.CommandText = "SELECT zone_id,origin,revision,serial,payload,content_hash FROM mk8_zones WHERE tenant_id=$1 AND zone_id=$2";
@@ -297,7 +307,7 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IAsyncDispos
 
     private static async ValueTask<ZoneOperation> ReadOperationAsync(NpgsqlDataReader reader, CancellationToken cancellationToken) => new(reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), await SnapshotAsync(reader, 5, cancellationToken).ConfigureAwait(false), reader.GetBoolean(11));
 
-    private sealed class ControlTransaction(NpgsqlConnection connection, NpgsqlTransaction transaction, Registration registration) : IControlTransaction
+    private sealed class ControlTransaction(NpgsqlConnection connection, NpgsqlTransaction transaction, Registration registration) : IZoneResigningTransaction
     {
         public async ValueTask<ZoneOperation?> ReadOperationAsync(Guid tenantId, Guid operationId, CancellationToken cancellationToken)
         {
@@ -313,6 +323,20 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IAsyncDispos
             var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             await using var readerLifetime = reader.ConfigureAwait(false);
             return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? await SnapshotAsync(reader, 0, cancellationToken).ConfigureAwait(false) : null;
+        }
+
+        public async ValueTask<ZoneOperation?> ReadGenerationAsync(Guid tenantId, Guid zoneId, long revision, CancellationToken cancellationToken)
+        {
+            using var command = Command(connection, transaction, SqlQuery.ReadGeneration, tenantId, zoneId, revision);
+            var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            await using var readerLifetime = reader.ConfigureAwait(false);
+            return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? await PostgresControlPlaneStore.ReadOperationAsync(reader, cancellationToken).ConfigureAwait(false) : null;
+        }
+
+        public async ValueTask<bool> HasPendingAsync(Guid zoneId, CancellationToken cancellationToken)
+        {
+            using var command = Command(connection, transaction, SqlQuery.HasPending, zoneId);
+            return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is true;
         }
 
         public async ValueTask<IReadOnlyList<ZoneOwnership>> ReadOwnershipAsync(CancellationToken cancellationToken)

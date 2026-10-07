@@ -61,3 +61,8 @@ Mk8.Dns.Application.Abstractions.IZoneSigner
 Mk8.Dns.Application.Abstractions.IZoneSigner.Sign(Mk8.Dns.Domain.AuthoritativeZone! zone) -> Mk8.Dns.Domain.ZoneContents!
 Mk8.Dns.Application.Abstractions.IZoneBundleCodec.CompileIntent(System.Guid zoneId, long revision, Mk8.Dns.Domain.AuthoritativeZone! zone) -> Mk8.Dns.Domain.ZoneSnapshot!
 Mk8.Dns.Application.Abstractions.IZoneBundleCodec.DecodeContents(Mk8.Dns.Domain.ZoneSnapshot! snapshot) -> Mk8.Dns.Domain.ZoneContents!
+Mk8.Dns.Application.Abstractions.IZoneResigningStore
+Mk8.Dns.Application.Abstractions.IZoneResigningStore.BeginAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Application.Abstractions.IZoneResigningTransaction!>
+Mk8.Dns.Application.Abstractions.IZoneResigningTransaction
+Mk8.Dns.Application.Abstractions.IZoneResigningTransaction.HasPendingAsync(System.Guid zoneId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Mk8.Dns.Application.Abstractions.IZoneResigningTransaction.ReadGenerationAsync(System.Guid tenantId, System.Guid zoneId, long revision, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Domain.ZoneOperation?>
