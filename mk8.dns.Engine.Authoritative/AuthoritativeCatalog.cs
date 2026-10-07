@@ -28,7 +28,15 @@ public sealed class AuthoritativeCatalog
         }
     }
 
-    public DnsAnswer Resolve(DnsQuestion question)
+    public DnsAnswer Resolve(DnsQuestion question) => ResolveCore(question, null);
+
+    public DnsAnswer Resolve(DnsQuestion question, Func<DnsName, bool> authorizeZone)
+    {
+        ArgumentNullException.ThrowIfNull(authorizeZone);
+        return ResolveCore(question, authorizeZone);
+    }
+
+    private DnsAnswer ResolveCore(DnsQuestion question, Func<DnsName, bool>? authorizeZone)
     {
         ArgumentNullException.ThrowIfNull(question);
         ArgumentNullException.ThrowIfNull(question.Name, nameof(question));
@@ -36,23 +44,25 @@ public sealed class AuthoritativeCatalog
             return new DnsAnswer(1, false, [], [], []);
         if (question.Class is not (1 or 255) || question.Type is >= 249 and <= 254)
             return new DnsAnswer(5, false, [], [], []);
-        return ResolveName(question, question.Name, [], []);
+        return ResolveName(question, question.Name, [], [], authorizeZone);
     }
 
-    private DnsAnswer ResolveName(DnsQuestion question, DnsName name, List<DnsRecord> answers, HashSet<DnsName> aliases)
+    private DnsAnswer ResolveName(DnsQuestion question, DnsName name, List<DnsRecord> answers, HashSet<DnsName> aliases, Func<DnsName, bool>? authorizeZone)
     {
         if (aliases.Count >= 16 || !aliases.Add(name))
             return new DnsAnswer(2, false, [], [], []);
         var zone = SelectZone(name, question.Type);
         if (zone is null)
             return new DnsAnswer(answers.Count == 0 ? (byte)5 : (byte)0, answers.Count != 0, answers, [], []);
+        if (authorizeZone is not null && !authorizeZone(zone.Origin))
+            return new DnsAnswer(5, false, [], [], []);
         var cut = FindCut(zone, name, question.Type);
         if (cut is not null)
             return Referral(zone, cut, answers);
         var dname = Ancestors(zone, name).Where(ancestor => !ancestor.Equals(name))
             .SelectMany(zone.GetRecords).FirstOrDefault(record => record.Type == 39);
         if (dname is not null)
-            return RedirectDname(question, name, dname, answers, aliases);
+            return RedirectDname(question, name, dname, answers, aliases, authorizeZone);
         var records = Match(zone, name);
         if (records is null)
             return Negative(zone, answers, 3);
@@ -60,7 +70,7 @@ public sealed class AuthoritativeCatalog
         if (alias is not null && question.Type is not (5 or 255))
         {
             answers.Add(alias);
-            return ResolveName(question, alias.GetTarget(), answers, aliases);
+            return ResolveName(question, alias.GetTarget(), answers, aliases, authorizeZone);
         }
         // RFC 8482: answer ANY with one available RRset, never enumerate the zone.
         var selectedType = question.Type == 255 && records.Count != 0 ? records.Min(record => record.Type) : question.Type;
@@ -71,7 +81,7 @@ public sealed class AuthoritativeCatalog
         return new DnsAnswer(0, true, answers, [], []);
     }
 
-    private DnsAnswer RedirectDname(DnsQuestion question, DnsName name, DnsRecord dname, List<DnsRecord> answers, HashSet<DnsName> aliases)
+    private DnsAnswer RedirectDname(DnsQuestion question, DnsName name, DnsRecord dname, List<DnsRecord> answers, HashSet<DnsName> aliases, Func<DnsName, bool>? authorizeZone)
     {
         answers.Add(dname);
         var source = name.ToWire();
@@ -84,7 +94,7 @@ public sealed class AuthoritativeCatalog
         target.CopyTo(synthesized, prefixLength);
         var cname = new DnsRecord(name, 5, dname.Ttl, synthesized);
         answers.Add(cname);
-        return question.Type == 5 ? new DnsAnswer(0, true, answers, [], []) : ResolveName(question, cname.GetTarget(), answers, aliases);
+        return question.Type == 5 ? new DnsAnswer(0, true, answers, [], []) : ResolveName(question, cname.GetTarget(), answers, aliases, authorizeZone);
     }
 
     private AuthoritativeZone? SelectZone(DnsName name, ushort type)

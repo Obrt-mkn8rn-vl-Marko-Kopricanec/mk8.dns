@@ -107,7 +107,7 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
             if (transaction is not null && (!transaction.PeerAllowed || query.Question is { } question
                 && (generation.GetZoneOrigin(question.Name, question.Type) is not { } origin || !transaction.Authorizes(origin))))
                 return codec.Encode(query, new DnsAnswer(5, false, [], [], []), tcp, [], 512, reserve);
-            return Respond(query, generation, tcp, peer, reserve);
+            return Respond(query, generation, tcp, peer, transaction);
         }
         catch (FormatException)
         {
@@ -119,8 +119,9 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
         }
     }
 
-    private byte[] Respond(DnsQuery query, AuthoritativeCatalog generation, bool tcp, ReadOnlySpan<byte> peer, ushort reservedBytes)
+    private byte[] Respond(DnsQuery query, AuthoritativeCatalog generation, bool tcp, ReadOnlySpan<byte> peer, ITsigTransaction? transaction)
     {
+        var reservedBytes = transaction?.SignatureBytes ?? 0;
         if (query.EdnsVersion != 0)
             return codec.Encode(query, new DnsAnswer(16, false, [], [], []), tcp, [], 1232, reservedBytes);
         var option = query.GetCookieWire();
@@ -141,7 +142,8 @@ public sealed class AuthoritativeApplication : IDnsExchange, IApplicationStatusS
             throw new FormatException("Cookie-only requests require the cookie service.");
         var challenge = option is not null && cookies is not null && !valid && (prefetch ? option.Length != 8 : !tcp);
         var answer = challenge ? new DnsAnswer(23, false, [], [], [])
-            : query.Question is { } question ? generation.Resolve(question) : new DnsAnswer(0, false, [], [], []);
+            : query.Question is { } question ? transaction is null ? generation.Resolve(question) : generation.Resolve(question, transaction.Authorizes)
+            : new DnsAnswer(0, false, [], [], []);
         var limit = (ushort)(cookies is null || valid ? 1232 : 512);
         return codec.Encode(query, answer, tcp, responseCookie, limit, reservedBytes);
     }
