@@ -50,3 +50,20 @@ Mk8.Dns.Engine.Recursive.DnssecCacheStatistics.Misses.get -> long
 Mk8.Dns.Engine.Recursive.DnssecCacheStatistics.AdmissionRejections.get -> long
 Mk8.Dns.Engine.Recursive.DnssecCacheStatistics.Evictions.get -> long
 Mk8.Dns.Engine.Recursive.DnssecCacheStatistics.Expirations.get -> long
+Mk8.Dns.Engine.Recursive.DnssecRootPrimer
+Mk8.Dns.Engine.Recursive.DnssecRootPrimer.DnssecRootPrimer(Mk8.Dns.Domain.IDnssecUpstream! upstream, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, Mk8.Dns.Engine.Dnssec.DnssecTrustAnchor! anchor, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! bootstrap, ushort authorityPort = 53, int maximumExchanges = 128, int maximumVerificationAttempts = 512, System.TimeProvider? time = null) -> void
+Mk8.Dns.Engine.Recursive.DnssecRootPrimer.PrimeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Engine.Recursive.DnsRootPrimingResult?>
+Mk8.Dns.Engine.Recursive.DnsRootPrimingResult
+Mk8.Dns.Engine.Recursive.DnsRootPrimingResult.NameServers.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsName!>!
+Mk8.Dns.Engine.Recursive.DnsRootPrimingResult.RoutingHints.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Engine.Recursive.DnsRootRoutingHint!>!
+Mk8.Dns.Engine.Recursive.DnsRootPrimingResult.UnresolvedNames.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsName!>!
+Mk8.Dns.Engine.Recursive.DnsRootPrimingResult.Source.get -> Mk8.Dns.Domain.DnsServerEndpoint!
+Mk8.Dns.Engine.Recursive.DnsRootPrimingResult.RemainingTtl.get -> uint
+Mk8.Dns.Engine.Recursive.DnsRootPrimingResult.AddressesAuthenticated.get -> bool
+Mk8.Dns.Engine.Recursive.DnsRootRoutingHint
+Mk8.Dns.Engine.Recursive.DnsRootRoutingHint.Name.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Engine.Recursive.DnsRootRoutingHint.Server.get -> Mk8.Dns.Domain.DnsServerEndpoint!
+Mk8.Dns.Engine.Recursive.DnsRootRoutingHint.Source.get -> Mk8.Dns.Engine.Recursive.DnsRootHintSource
+Mk8.Dns.Engine.Recursive.DnsRootHintSource
+Mk8.Dns.Engine.Recursive.DnsRootHintSource.Additional = 0 -> Mk8.Dns.Engine.Recursive.DnsRootHintSource
+Mk8.Dns.Engine.Recursive.DnsRootHintSource.DirectAddressAnswer = 1 -> Mk8.Dns.Engine.Recursive.DnsRootHintSource

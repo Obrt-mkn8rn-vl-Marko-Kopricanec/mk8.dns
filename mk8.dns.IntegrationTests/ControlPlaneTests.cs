@@ -243,7 +243,7 @@ public sealed class ControlPlaneTests(PostgresFixture postgres) : IClassFixture<
         await using (connection.ConfigureAwait(true))
         {
             await connection.OpenAsync().ConfigureAwait(true);
-            using var terminate = new NpgsqlCommand("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name='mk8-old-writer' AND state='idle'", connection);
+            using var terminate = new NpgsqlCommand("SELECT pg_terminate_backend(pid, 5000) FROM pg_stat_activity WHERE application_name='mk8-old-writer' AND state='idle'", connection);
             Assert.Equal(true, await terminate.ExecuteScalarAsync().ConfigureAwait(true));
         }
         var successor = new PostgresControlPlaneStore(connectionString);
