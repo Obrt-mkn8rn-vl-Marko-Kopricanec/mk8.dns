@@ -44,14 +44,14 @@ internal static class DnssecValidationInput
 
     internal static bool IsUsableKey(DnsRecord record)
     {
-        try { _ = DnssecKeys.ReadKey(record); return true; }
+        try { _ = DnssecKeys.ReadValidationKey(record); return true; }
         catch (FormatException) { return false; }
     }
 
     internal static bool MatchesDs(DnsRecord ds, DnsRecord key)
     {
         var data = ds.GetData();
-        if (!ds.Owner.Equals(key.Owner) || ds.Type != 43 || data.Length != 36 || data[2] != 13 || data[3] != 2 || !IsUsableKey(key))
+        if (!ds.Owner.Equals(key.Owner) || ds.Type != 43 || data.Length != 36 || data[2] is not (8 or 13) || data[3] != 2 || !IsUsableKey(key))
             return false;
         return CryptographicOperations.FixedTimeEquals(data, DnssecKeys.CreateDs(key, 0).GetData());
     }

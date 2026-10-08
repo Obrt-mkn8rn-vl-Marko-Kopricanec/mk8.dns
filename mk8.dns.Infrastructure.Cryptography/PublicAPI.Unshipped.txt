@@ -9,3 +9,9 @@ static Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecSigningKey.ImportPkcs8
 Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecVerifier
 Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecVerifier.EcdsaP256DnssecVerifier() -> void
 Mk8.Dns.Infrastructure.Cryptography.EcdsaP256DnssecVerifier.VerifyHash(byte algorithm, System.ReadOnlySpan<byte> publicKey, System.ReadOnlySpan<byte> digest, System.ReadOnlySpan<byte> signature) -> bool
+Mk8.Dns.Infrastructure.Cryptography.RsaSha256DnssecVerifier
+Mk8.Dns.Infrastructure.Cryptography.RsaSha256DnssecVerifier.RsaSha256DnssecVerifier() -> void
+Mk8.Dns.Infrastructure.Cryptography.RsaSha256DnssecVerifier.VerifyHash(byte algorithm, System.ReadOnlySpan<byte> publicKey, System.ReadOnlySpan<byte> digest, System.ReadOnlySpan<byte> signature) -> bool
+Mk8.Dns.Infrastructure.Cryptography.DnssecSignatureVerifier
+Mk8.Dns.Infrastructure.Cryptography.DnssecSignatureVerifier.DnssecSignatureVerifier() -> void
+Mk8.Dns.Infrastructure.Cryptography.DnssecSignatureVerifier.VerifyHash(byte algorithm, System.ReadOnlySpan<byte> publicKey, System.ReadOnlySpan<byte> digest, System.ReadOnlySpan<byte> signature) -> bool

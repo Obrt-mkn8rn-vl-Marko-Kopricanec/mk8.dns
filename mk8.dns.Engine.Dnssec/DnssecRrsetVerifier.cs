@@ -19,8 +19,11 @@ public static class DnssecRrsetVerifier
             var items = records.ToArray();
             if (items.Any(record => record is null))
                 return false;
-            var key = DnssecKeys.ReadKey(dnskey);
+            var key = DnssecKeys.ReadValidationKey(dnskey);
             var data = RrsigData.Decode(signature);
+            if (data.Algorithm != key[3] || data.Algorithm == 8
+                && (!DnssecRsaPublicKey.TryParse(key.AsSpan(4), out var rsa) || data.Signature.Length != rsa.SignatureSize))
+                return false;
             var first = items[0];
             var minimumLabels = data.Signer.LabelCount - (first.Owner.Equals(data.Signer) && DnssecData.IsWildcard(data.Signer) ? 1 : 0);
             if (!signature.Owner.Equals(first.Owner) || data.Type != first.Type || data.Type == 46

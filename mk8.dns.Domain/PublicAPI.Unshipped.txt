@@ -178,3 +178,11 @@ Mk8.Dns.Domain.DnsUpstreamEvidence.DnssecOkObserved.get -> bool
 Mk8.Dns.Domain.DnsUpstreamEvidence.Answers.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
 Mk8.Dns.Domain.DnsUpstreamEvidence.Authority.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
 Mk8.Dns.Domain.DnsUpstreamEvidence.Additional.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Domain.DnssecRsaPublicKey
+Mk8.Dns.Domain.DnssecRsaPublicKey.DnssecRsaPublicKey(System.ReadOnlySpan<byte> publicKey) -> void
+Mk8.Dns.Domain.DnssecRsaPublicKey.ModulusBits.get -> int
+Mk8.Dns.Domain.DnssecRsaPublicKey.SignatureSize.get -> int
+Mk8.Dns.Domain.DnssecRsaPublicKey.GetExponent() -> byte[]!
+Mk8.Dns.Domain.DnssecRsaPublicKey.GetModulus() -> byte[]!
+Mk8.Dns.Domain.DnssecRsaPublicKey.ToWire() -> byte[]!
+static Mk8.Dns.Domain.DnssecRsaPublicKey.TryParse(System.ReadOnlySpan<byte> publicKey, out Mk8.Dns.Domain.DnssecRsaPublicKey? key) -> bool

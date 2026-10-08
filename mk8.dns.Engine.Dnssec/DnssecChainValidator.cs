@@ -117,7 +117,7 @@ public sealed partial class DnssecChainValidator
                 continue;
             foreach (var key in eligible)
             {
-                if (!data.Signer.Equals(key.Owner) || data.KeyTag != DnssecKeys.KeyTag(key))
+                if (!data.Signer.Equals(key.Owner) || data.Algorithm != key.GetData()[3] || data.KeyTag != DnssecKeys.KeyTag(key))
                     continue;
                 if (!budget.Take())
                     return false;

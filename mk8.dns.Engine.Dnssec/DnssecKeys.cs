@@ -21,7 +21,7 @@ public static class DnssecKeys
 
     public static ushort KeyTag(DnsRecord dnskey)
     {
-        var data = ReadKey(dnskey);
+        var data = ReadValidationKey(dnskey);
         uint accumulator = 0;
         for (var index = 0; index < data.Length; index++)
             accumulator += (index & 1) == 0 ? (uint)data[index] << 8 : data[index];
@@ -31,13 +31,13 @@ public static class DnssecKeys
 
     public static DnsRecord CreateDs(DnsRecord dnskey, uint ttl)
     {
-        var data = ReadKey(dnskey);
+        var data = ReadValidationKey(dnskey);
         var owner = dnskey.Owner.ToWire();
         byte[] canonical = [.. owner, .. data];
         var digest = SHA256.HashData(canonical);
         var value = new byte[36];
         BinaryPrimitives.WriteUInt16BigEndian(value, KeyTag(dnskey));
-        value[2] = 13;
+        value[2] = data[3];
         value[3] = 2;
         digest.CopyTo(value, 4);
         // This is parent-side publication material, never child-apex zone data.
@@ -51,6 +51,19 @@ public static class DnssecKeys
         DnssecData.Require(key.Type == 48 && data.Length == 68 && data[2] == 3 && data[3] == 13
             && (BinaryPrimitives.ReadUInt16BigEndian(data) & 256) != 0
             && (BinaryPrimitives.ReadUInt16BigEndian(data) & 128) == 0);
+        return data;
+    }
+
+    // Validation may consume RSA; the signing/serving ReadKey profile remains algorithm13 only.
+    internal static byte[] ReadValidationKey(DnsRecord key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        var data = key.GetData();
+        DnssecData.Require(key.Type == 48 && data.Length >= 4 && data[2] == 3
+            && (BinaryPrimitives.ReadUInt16BigEndian(data) & 256) != 0
+            && (BinaryPrimitives.ReadUInt16BigEndian(data) & 128) == 0);
+        DnssecData.Require(data[3] == 13 && data.Length == 68
+            || data[3] == 8 && DnssecRsaPublicKey.TryParse(data.AsSpan(4), out _));
         return data;
     }
 }
