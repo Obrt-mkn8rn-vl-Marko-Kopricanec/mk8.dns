@@ -66,7 +66,7 @@ public sealed partial class DnssecIterativeResolver
         if (reply.Evidence.Answers.Count != 0) return false;
         var soa = Rrset(reply.Evidence.Authority, context.Keys.Origin, 6);
         if (soa.Length != 1) return false;
-        var nsecs = reply.Evidence.Authority.Where(record => record.Type == 47).ToArray();
+        var nsecs = reply.Evidence.Authority.Where(record => record.Type is 47 or 50).ToArray();
         var soaSignatures = Signatures(reply.Evidence.Authority, soa);
         var denialSignatures = Signatures(reply.Evidence.Authority, nsecs);
         if (!DnssecResolutionProof.TryCreate(DnssecResolutionProofKind.Exact, context.Keys, new DnsQuestion(context.Keys.Origin, 6, 1),

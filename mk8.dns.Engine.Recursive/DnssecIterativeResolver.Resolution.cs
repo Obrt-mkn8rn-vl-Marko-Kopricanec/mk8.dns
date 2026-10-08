@@ -74,7 +74,7 @@ public sealed partial class DnssecIterativeResolver
         var signatures = Signatures(reply.Evidence.Answers, records);
         if (DnssecResolutionProof.TryCreate(DnssecResolutionProofKind.Exact, context.Keys, question, records, [], [], signatures,
             reply.Received, out var exact) && exact.Authenticate(work.Validator, work.Clock)) return exact;
-        var nsecs = reply.Evidence.Authority.Where(record => record.Type == 47).ToArray();
+        var nsecs = reply.Evidence.Authority.Where(record => record.Type is 47 or 50).ToArray();
         signatures = [.. signatures, .. Signatures(reply.Evidence.Authority, nsecs)];
         return DnssecResolutionProof.TryCreate(DnssecResolutionProofKind.Wildcard, context.Keys, question, records, [], nsecs,
             signatures, reply.Received, out var wildcard) && wildcard.Authenticate(work.Validator, work.Clock) ? wildcard : null;
@@ -85,7 +85,7 @@ public sealed partial class DnssecIterativeResolver
         if (reply.Evidence.Answers.Count != 0) return null;
         var soa = Rrset(reply.Evidence.Authority, context.Keys.Origin, 6);
         if (soa.Length != 1) return null;
-        var nsecs = reply.Evidence.Authority.Where(record => record.Type == 47).ToArray();
+        var nsecs = reply.Evidence.Authority.Where(record => record.Type is 47 or 50).ToArray();
         var signatures = Signatures(reply.Evidence.Authority, soa, nsecs);
         var kind = reply.Evidence.ResponseCode == 3 ? DnssecResolutionProofKind.NameError : DnssecResolutionProofKind.NoData;
         return DnssecResolutionProof.TryCreate(kind, context.Keys, question, [], soa, nsecs, signatures, reply.Received, out var proof)

@@ -10,6 +10,7 @@ internal sealed class DnssecResolutionProof
     private readonly DnsRecord[] records;
     private readonly DnsRecord[] soa;
     private readonly DnsRecord[] nsecs;
+    private readonly bool nsec3;
     private readonly DnsRecord[] signatures;
     private readonly DnssecSignatureWindow[] windows;
     private readonly long received;
@@ -26,6 +27,7 @@ internal sealed class DnssecResolutionProof
         this.records = records;
         this.soa = soa.Select(record => record.WithTtl(Math.Min(record.Ttl, record.GetSoaMinimum()))).ToArray();
         this.nsecs = nsecs;
+        nsec3 = nsecs.Length != 0 && nsecs[0].Type == 50;
         this.signatures = signatures;
         this.received = received;
         this.synthetic = synthetic;
@@ -41,7 +43,9 @@ internal sealed class DnssecResolutionProof
         [NotNullWhen(true)] out DnssecResolutionProof? proof, DnsRecord? synthetic = null)
     {
         proof = null;
-        if (signatures.Length is 0 or > DnssecChainValidator.MaximumSignatures)
+        if (signatures.Length is 0 or > DnssecChainValidator.MaximumSignatures
+            || nsecs.Length > DnssecChainValidator.MaximumNsec3Records
+            || nsecs.Any(record => record.Type is not (47 or 50) || record.Type != nsecs[0].Type))
             return false;
         try { proof = new DnssecResolutionProof(kind, keys, question, records, soa, nsecs, signatures, received, synthetic); return true; }
         catch (Exception error) when (error is ArgumentException or FormatException) { return false; }
@@ -57,10 +61,18 @@ internal sealed class DnssecResolutionProof
         var valid = Kind switch
         {
             DnssecResolutionProofKind.Exact => validator.TryAuthenticateRrset(Keys, Question, data, sigs, out verifiedTtl),
-            DnssecResolutionProofKind.Wildcard => validator.TryAuthenticateWildcard(Keys, Question, data, denial, sigs, out verifiedTtl),
-            DnssecResolutionProofKind.NoData => validator.TryAuthenticateNoData(Keys, Question, negativeSoa, denial, sigs, out verifiedTtl),
-            DnssecResolutionProofKind.NameError => validator.TryAuthenticateNameError(Keys, Question, negativeSoa, denial, sigs, out verifiedTtl),
-            DnssecResolutionProofKind.DsAbsence => validator.TryAuthenticateDsAbsence(Keys, Question.Name, denial, sigs, out verifiedTtl),
+            DnssecResolutionProofKind.Wildcard => nsec3
+                ? validator.TryAuthenticateNsec3Wildcard(Keys, Question, data, denial, sigs, out verifiedTtl)
+                : validator.TryAuthenticateWildcard(Keys, Question, data, denial, sigs, out verifiedTtl),
+            DnssecResolutionProofKind.NoData => nsec3
+                ? validator.TryAuthenticateNsec3NoData(Keys, Question, negativeSoa, denial, sigs, out verifiedTtl)
+                : validator.TryAuthenticateNoData(Keys, Question, negativeSoa, denial, sigs, out verifiedTtl),
+            DnssecResolutionProofKind.NameError => nsec3
+                ? validator.TryAuthenticateNsec3NameError(Keys, Question, negativeSoa, denial, sigs, out verifiedTtl)
+                : validator.TryAuthenticateNameError(Keys, Question, negativeSoa, denial, sigs, out verifiedTtl),
+            DnssecResolutionProofKind.DsAbsence => nsec3
+                ? validator.TryAuthenticateNsec3DsAbsence(Keys, Question.Name, denial, sigs, out verifiedTtl, out _)
+                : validator.TryAuthenticateDsAbsence(Keys, Question.Name, denial, sigs, out verifiedTtl),
             _ => false,
         };
         verifiedAt = clock.GetTimestamp();
