@@ -15,6 +15,21 @@ internal static class DnssecUpstreamFixture
         socket.Client.Bind(new IPEndPoint(ipv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback, 0));
         return socket;
     }
+    internal static (UdpClient Udp, TcpListener Tcp) BindPair(bool ipv6)
+    {
+        for (var attempt = 0; attempt < 32; attempt++)
+        {
+            var udpSocket = DnssecUpstreamFixture.Bind(ipv6);
+            var server = DnssecUpstreamFixture.Endpoint(udpSocket);
+            var tcpSocket = new TcpListener(new IPEndPoint(new IPAddress(server.GetAddress()), server.Port));
+            if (ipv6) tcpSocket.Server.DualMode = false;
+            try { tcpSocket.Start(); return (udpSocket, tcpSocket); }
+            catch (SocketException error) when (error.SocketErrorCode == SocketError.AddressAlreadyInUse)
+            { udpSocket.Dispose(); tcpSocket.Dispose(); }
+            catch { udpSocket.Dispose(); tcpSocket.Dispose(); throw; }
+        }
+        throw new IOException("Unable to allocate an owned UDP/TCP fixture pair.");
+    }
     internal static DnsServerEndpoint Endpoint(UdpClient socket)
     {
         var bound = (IPEndPoint)socket.Client.LocalEndPoint!;

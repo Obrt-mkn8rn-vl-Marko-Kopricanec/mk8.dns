@@ -104,8 +104,10 @@ public sealed class OnlineDnssecAliasTests
         using var fixture = new OnlineDnssecFixture();
         var question = new DnsQuestion(DnsName.Parse("a.branch.example."), 1, 1);
         var dname = new DnsRecord(DnsName.Parse("branch.example."), 39, 300, DnsName.Parse("other.example.").ToWire());
+        var signature = fixture.Sign([dname]);
+        var invalid = signature.GetData(); invalid[^1] ^= 1;
         fixture.Transform = reply => reply.Question.Equals(question)
-            ? OnlineDnssecFixture.Reply(question, reply.Server, [dname, fixture.Sign([dname])]) : reply;
+            ? OnlineDnssecFixture.Reply(question, reply.Server, [dname, new DnsRecord(signature.Owner, 46, signature.Ttl, invalid)]) : reply;
         var result = await fixture.Resolver().ResolveDnssecAsync(question, CancellationToken.None);
         Assert.Equal(DnssecResolutionOutcome.Failure, result.Outcome);
         Assert.Empty(result.Answers);

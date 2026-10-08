@@ -66,7 +66,7 @@ public sealed partial class DnssecIterativeResolver
             var reply = await upstream.ExchangeDnssecAsync(question, server, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (reply is null || !work.TakeEvidence(reply) || !reply.Question.Equals(question) || !reply.Server.Equals(server)
-                || reply.ResponseCode is not (0 or 3) || reply.HasEdns && reply.EdnsVersion != 0)
+                || reply.ResponseCode is not (0 or 3 or 6) || reply.HasEdns && reply.EdnsVersion != 0)
                 return null;
             return new DnssecReceivedEvidence(reply, received);
         }

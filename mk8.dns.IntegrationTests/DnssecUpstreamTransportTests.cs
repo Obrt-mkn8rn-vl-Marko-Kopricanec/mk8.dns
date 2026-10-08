@@ -1,6 +1,4 @@
 using System.Buffers.Binary;
-using System.Net;
-using System.Net.Sockets;
 using Mk8.Dns.Domain;
 using Mk8.Dns.Infrastructure;
 using Mk8.Dns.Wire;
@@ -75,8 +73,9 @@ public sealed class DnssecUpstreamTransportTests
     [InlineData(true, true)]
     public async Task TcpRetryReusesExactDoCdTransactionAndRefusesPersistentTc(bool ipv6, bool persistentTc)
     {
-        using var closure = new CancellationTokenSource(TimeSpan.FromSeconds(10)); using var udp = DnssecUpstreamFixture.Bind(ipv6);
-        var server = DnssecUpstreamFixture.Endpoint(udp); using var tcp = new TcpListener(new IPEndPoint(new IPAddress(server.GetAddress()), server.Port)); tcp.Start();
+        using var closure = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var pair = DnssecUpstreamFixture.BindPair(ipv6); using var udp = pair.Udp; using var tcp = pair.Tcp;
+        var server = DnssecUpstreamFixture.Endpoint(udp);
         byte[]? datagram = null;
         var udpWorker = Task.Run(async () =>
         {
@@ -107,8 +106,9 @@ public sealed class DnssecUpstreamTransportTests
     [Fact]
     public async Task RevocationBeforeTcpDoesNotOpenTheListener()
     {
-        using var closure = new CancellationTokenSource(TimeSpan.FromSeconds(10)); using var udp = DnssecUpstreamFixture.Bind(false);
-        var server = DnssecUpstreamFixture.Endpoint(udp); using var tcp = new TcpListener(new IPEndPoint(IPAddress.Loopback, server.Port)); tcp.Start(); var policyCalls = 0;
+        using var closure = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var pair = DnssecUpstreamFixture.BindPair(false); using var udp = pair.Udp; using var tcp = pair.Tcp;
+        var server = DnssecUpstreamFixture.Endpoint(udp); var policyCalls = 0;
         var worker = Task.Run(async () =>
         {
             var received = await udp.ReceiveAsync(closure.Token).ConfigureAwait(true);

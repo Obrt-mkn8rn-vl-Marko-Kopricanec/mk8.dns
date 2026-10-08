@@ -45,9 +45,10 @@ public sealed partial class DnssecIterativeResolver
 
     private static ResolutionStep? Terminal(DnsQuestion question, AuthorityContext context, DnssecReceivedEvidence reply, DnssecResolutionWork work)
     {
-        if (reply.Evidence.Answers.Any(record => record.Type == 39 && !record.Owner.Equals(question.Name)
-            && question.Name.IsSubdomainOf(record.Owner)))
-            return null; // DNAME descendant synthesis is outside this initial validating profile.
+        var dnames = reply.Evidence.Answers.Where(record => record.Type == 39 && !record.Owner.Equals(question.Name)
+            && question.Name.IsSubdomainOf(record.Owner)).ToArray();
+        if (dnames.Length != 0) return Dname(question, context, reply, dnames, work);
+        if (reply.Evidence.ResponseCode == 6) return null;
         var atName = reply.Evidence.Answers.Where(record => record.Owner.Equals(question.Name)).ToArray();
         var cnames = atName.Where(record => record.Type == 5).ToArray();
         if (cnames.Length != 0)

@@ -14,16 +14,25 @@ internal sealed class OnlineDnssecWireFixture : IDisposable
 {
     private readonly EcdsaP256DnssecSigningKey rootKey = EcdsaP256DnssecSigningKey.Create();
     private readonly EcdsaP256DnssecSigningKey childKey = EcdsaP256DnssecSigningKey.Create();
-    internal OnlineDnssecWireFixture(bool ipv6, bool unsigned)
+    internal OnlineDnssecWireFixture(bool ipv6, bool unsigned, bool dname = false)
     {
         var address = ipv6 ? IPAddress.IPv6Loopback.GetAddressBytes() : IPAddress.Loopback.GetAddressBytes();
-        var child = Zone("child.example.", address, [Record("www.child.example.", 1, [192, 0, 2, 43])]);
+        var childRecords = new List<DnsRecord> { Record("www.child.example.", 1, [192, 0, 2, 43]) };
+        if (dname) childRecords.Add(Record("branch.child.example.", 39, DnsName.Parse("example.").ToWire()));
+        var child = Zone("child.example.", address, childRecords.ToArray());
         var signedChild = NsecZoneSigner.Sign(child, childKey, Verifier, Window);
         var ns = DnsName.Parse("ns.child.example.");
         var delegation = new DnsRecord(DnsName.Parse("child.example."), 2, 300, ns.ToWire());
         var glue = new DnsRecord(ns, ipv6 ? (ushort)28 : (ushort)1, 300, address);
         var alias = Record("alias.example.", 5, DnsName.Parse("www.child.example.").ToWire());
-        var root = Zone("example.", address, unsigned ? [delegation, glue, alias] : [delegation, glue, alias, signedChild.ParentDs.WithTtl(300)]);
+        var rootRecords = new List<DnsRecord> { delegation, glue, alias };
+        if (!unsigned) rootRecords.Add(signedChild.ParentDs.WithTtl(300));
+        if (dname)
+        {
+            rootRecords.Add(Record("branch.example.", 39, DnsName.Parse("child.example.").ToWire()));
+            rootRecords.Add(Record("www.example.", 1, [192, 0, 2, 44]));
+        }
+        var root = Zone("example.", address, rootRecords.ToArray());
         var signedRoot = NsecZoneSigner.Sign(root, rootKey, Verifier, Window);
         Root = Catalog(signedRoot);
         Child = unsigned ? new AuthoritativeCatalog([child]) : Catalog(signedChild);
@@ -71,16 +80,13 @@ internal sealed class OnlineDnssecWireFixture : IDisposable
         private Task[] workers = [];
         internal Node(bool ipv6, bool forceTcp, bool corrupt, CancellationToken token)
         {
-            udp = DnssecUpstreamFixture.Bind(ipv6);
+            (udp, tcp) = DnssecUpstreamFixture.BindPair(ipv6);
             Server = DnssecUpstreamFixture.Endpoint(udp);
-            tcp = new TcpListener(new IPEndPoint(new IPAddress(Server.GetAddress()), Server.Port));
-            if (ipv6) tcp.Server.DualMode = false;
             closure = CancellationTokenSource.CreateLinkedTokenSource(token);
             this.forceTcp = forceTcp;
             this.corrupt = corrupt;
-            try { tcp.Start(); }
-            catch { udp.Dispose(); tcp.Dispose(); closure.Dispose(); throw; }
         }
+
         internal DnsServerEndpoint Server { get; }
         internal ConcurrentQueue<(DnsQuestion Question, bool Tcp)> Requests { get; } = new();
         internal void Start(AuthoritativeCatalog catalog)

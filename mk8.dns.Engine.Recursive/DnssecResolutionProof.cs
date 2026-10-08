@@ -13,11 +13,12 @@ internal sealed class DnssecResolutionProof
     private readonly DnsRecord[] signatures;
     private readonly DnssecSignatureWindow[] windows;
     private readonly long received;
+    private readonly DnsRecord? synthetic;
     private uint verifiedTtl;
     private long verifiedAt;
 
     private DnssecResolutionProof(DnssecResolutionProofKind kind, AuthenticatedDnskeySet keys, DnsQuestion question,
-        DnsRecord[] records, DnsRecord[] soa, DnsRecord[] nsecs, DnsRecord[] signatures, long received)
+        DnsRecord[] records, DnsRecord[] soa, DnsRecord[] nsecs, DnsRecord[] signatures, long received, DnsRecord? synthetic)
     {
         Kind = kind;
         Keys = keys;
@@ -27,6 +28,7 @@ internal sealed class DnssecResolutionProof
         this.nsecs = nsecs;
         this.signatures = signatures;
         this.received = received;
+        this.synthetic = synthetic;
         windows = signatures.Select(record => Window(record.GetData())).ToArray();
     }
 
@@ -36,12 +38,12 @@ internal sealed class DnssecResolutionProof
 
     internal static bool TryCreate(DnssecResolutionProofKind kind, AuthenticatedDnskeySet keys, DnsQuestion question,
         DnsRecord[] records, DnsRecord[] soa, DnsRecord[] nsecs, DnsRecord[] signatures, long received,
-        [NotNullWhen(true)] out DnssecResolutionProof? proof)
+        [NotNullWhen(true)] out DnssecResolutionProof? proof, DnsRecord? synthetic = null)
     {
         proof = null;
         if (signatures.Length is 0 or > DnssecChainValidator.MaximumSignatures)
             return false;
-        try { proof = new DnssecResolutionProof(kind, keys, question, records, soa, nsecs, signatures, received); return true; }
+        try { proof = new DnssecResolutionProof(kind, keys, question, records, soa, nsecs, signatures, received, synthetic); return true; }
         catch (Exception error) when (error is ArgumentException or FormatException) { return false; }
     }
 
@@ -67,10 +69,11 @@ internal sealed class DnssecResolutionProof
 
     internal bool WindowsContain(uint now) => windows.All(window => window.Contains(now));
     internal uint Remaining(DnssecResolutionClock clock, long now)
-        => Math.Min(clock.Age(verifiedTtl, verifiedAt, now), Kind == DnssecResolutionProofKind.DsAbsence && soa.Length == 1
-            ? clock.Age(soa[0].Ttl, received, now) : uint.MaxValue);
+        => Math.Min(clock.Age(verifiedTtl, verifiedAt, now), Math.Min(synthetic is null ? uint.MaxValue : clock.Age(synthetic.Ttl, received, now),
+            Kind == DnssecResolutionProofKind.DsAbsence && soa.Length == 1 ? clock.Age(soa[0].Ttl, received, now) : uint.MaxValue));
     internal DnsRecord[] Output(DnssecResolutionClock clock, long now)
-        => Age(Kind is DnssecResolutionProofKind.NoData or DnssecResolutionProofKind.NameError ? soa : records, clock, now)
+        => Age(synthetic is not null ? [.. records, synthetic]
+                : Kind is DnssecResolutionProofKind.NoData or DnssecResolutionProofKind.NameError ? soa : records, clock, now)
             .Select(record => record.WithTtl(Math.Min(record.Ttl, Remaining(clock, now)))).ToArray();
 
     private DnsRecord[] Age(DnsRecord[] input, DnssecResolutionClock clock, long now)
