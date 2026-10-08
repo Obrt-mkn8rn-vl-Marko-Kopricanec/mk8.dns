@@ -34,7 +34,7 @@ public static class DnssecRrsetVerifier
                 return false;
             var canonical = DnssecCanonical.GetRrset(items, data.OriginalTtl, data.Labels);
             byte[] signed = [.. data.Header(), .. canonical];
-            var digest = SHA256.HashData(signed);
+            var digest = data.Algorithm == 14 ? SHA384.HashData(signed) : SHA256.HashData(signed);
             if (!verifier.VerifyHash(data.Algorithm, key.AsSpan(4), digest, data.Signature))
                 return false;
             authenticatedTtl = Math.Min(Math.Min(items.Min(record => record.Ttl), signature.Ttl),

@@ -51,8 +51,9 @@ internal static class DnssecValidationInput
     internal static bool MatchesDs(DnsRecord ds, DnsRecord key)
     {
         var data = ds.GetData();
-        if (!ds.Owner.Equals(key.Owner) || ds.Type != 43 || data.Length != 36 || data[2] is not (8 or 13) || data[3] != 2 || !IsUsableKey(key))
+        if (!ds.Owner.Equals(key.Owner) || ds.Type != 43 || data.Length < 4 || data[2] is not (8 or 13 or 14)
+            || !(data[3] == 2 && data.Length == 36 || data[3] == 4 && data.Length == 52) || !IsUsableKey(key))
             return false;
-        return CryptographicOperations.FixedTimeEquals(data, DnssecKeys.CreateDs(key, 0).GetData());
+        return CryptographicOperations.FixedTimeEquals(data, DnssecKeys.CreateDs(key, 0, data[3]).GetData());
     }
 }

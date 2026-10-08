@@ -15,3 +15,6 @@ Mk8.Dns.Infrastructure.Cryptography.RsaSha256DnssecVerifier.VerifyHash(byte algo
 Mk8.Dns.Infrastructure.Cryptography.DnssecSignatureVerifier
 Mk8.Dns.Infrastructure.Cryptography.DnssecSignatureVerifier.DnssecSignatureVerifier() -> void
 Mk8.Dns.Infrastructure.Cryptography.DnssecSignatureVerifier.VerifyHash(byte algorithm, System.ReadOnlySpan<byte> publicKey, System.ReadOnlySpan<byte> digest, System.ReadOnlySpan<byte> signature) -> bool
+Mk8.Dns.Infrastructure.Cryptography.EcdsaP384DnssecVerifier
+Mk8.Dns.Infrastructure.Cryptography.EcdsaP384DnssecVerifier.EcdsaP384DnssecVerifier() -> void
+Mk8.Dns.Infrastructure.Cryptography.EcdsaP384DnssecVerifier.VerifyHash(byte algorithm, System.ReadOnlySpan<byte> publicKey, System.ReadOnlySpan<byte> digest, System.ReadOnlySpan<byte> signature) -> bool

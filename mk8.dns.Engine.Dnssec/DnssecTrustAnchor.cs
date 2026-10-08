@@ -14,10 +14,11 @@ public sealed class DnssecTrustAnchor
         if (record.Type == 48)
         {
             if (!DnssecValidationInput.IsUsableKey(record))
-                throw new ArgumentException("Supply a usable algorithm-8 or algorithm-13 zone DNSKEY anchor.", nameof(record));
+                throw new ArgumentException("Supply a usable algorithm-8, algorithm-13 or algorithm-14 zone DNSKEY anchor.", nameof(record));
         }
-        else if (record.Type != 43 || data.Length != 36 || data[2] is not (8 or 13) || data[3] != 2)
-            throw new ArgumentException("Supply an algorithm-8 or algorithm-13 DNSKEY or SHA-256 DS anchor.", nameof(record));
+        else if (record.Type != 43 || data.Length < 4 || data[2] is not (8 or 13 or 14)
+            || !(data[3] == 2 && data.Length == 36 || data[3] == 4 && data.Length == 52))
+            throw new ArgumentException("Supply an algorithm-8/13/14 DNSKEY or SHA-256/SHA-384 DS anchor.", nameof(record));
         Record = record;
     }
 

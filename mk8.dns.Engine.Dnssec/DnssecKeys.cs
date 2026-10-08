@@ -29,16 +29,20 @@ public static class DnssecKeys
         return (ushort)(accumulator & 0xffff);
     }
 
-    public static DnsRecord CreateDs(DnsRecord dnskey, uint ttl)
+    public static DnsRecord CreateDs(DnsRecord dnskey, uint ttl) => CreateDs(dnskey, ttl, 2);
+
+    public static DnsRecord CreateDs(DnsRecord dnskey, uint ttl, byte digestType)
     {
+        if (digestType is not (2 or 4))
+            throw new ArgumentOutOfRangeException(nameof(digestType), "Supported DS digest types are SHA-256 and SHA-384.");
         var data = ReadValidationKey(dnskey);
         var owner = dnskey.Owner.ToWire();
         byte[] canonical = [.. owner, .. data];
-        var digest = SHA256.HashData(canonical);
-        var value = new byte[36];
+        var digest = digestType == 4 ? SHA384.HashData(canonical) : SHA256.HashData(canonical);
+        var value = new byte[4 + digest.Length];
         BinaryPrimitives.WriteUInt16BigEndian(value, KeyTag(dnskey));
         value[2] = data[3];
-        value[3] = 2;
+        value[3] = digestType;
         digest.CopyTo(value, 4);
         // This is parent-side publication material, never child-apex zone data.
         return new DnsRecord(dnskey.Owner, 43, ttl, value);
@@ -54,7 +58,7 @@ public static class DnssecKeys
         return data;
     }
 
-    // Validation may consume RSA; the signing/serving ReadKey profile remains algorithm13 only.
+    // Validation consumes algorithms 8, 13 and 14; signing/serving ReadKey remains algorithm 13 only.
     internal static byte[] ReadValidationKey(DnsRecord key)
     {
         ArgumentNullException.ThrowIfNull(key);
@@ -63,6 +67,7 @@ public static class DnssecKeys
             && (BinaryPrimitives.ReadUInt16BigEndian(data) & 256) != 0
             && (BinaryPrimitives.ReadUInt16BigEndian(data) & 128) == 0);
         DnssecData.Require(data[3] == 13 && data.Length == 68
+            || data[3] == 14 && data.Length == 100
             || data[3] == 8 && DnssecRsaPublicKey.TryParse(data.AsSpan(4), out _));
         return data;
     }

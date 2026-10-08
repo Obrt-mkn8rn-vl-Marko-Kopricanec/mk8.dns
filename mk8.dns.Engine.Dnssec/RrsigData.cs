@@ -36,7 +36,7 @@ internal sealed class RrsigData
         var offset = 18;
         var signer = DnssecData.ReadName(data, ref offset);
         var size = data.Length - offset;
-        DnssecData.Require(data[2] == 13 && size == 64 || data[2] == 8 && size is >= 64 and <= 512);
+        DnssecData.Require(data[2] == 13 && size == 64 || data[2] == 14 && size == 96 || data[2] == 8 && size is >= 64 and <= 512);
         return new RrsigData
         {
             Type = BinaryPrimitives.ReadUInt16BigEndian(data),
