@@ -30,7 +30,7 @@ public sealed partial class DnssecIterativeResolver
                 }
                 else
                 {
-                    var transition = await FollowAsync(question, context, server, reply, work, cancellationToken).ConfigureAwait(false);
+                    var transition = await FollowAsync(question, context, server, reply, bootstrap, work, cancellationToken).ConfigureAwait(false);
                     if (transition is null) continue;
                     if (transition.Unsigned is not null) return work.Finish(original, 2, context.Keys.Origin, transition.Unsigned);
                     context = transition.Next!;
