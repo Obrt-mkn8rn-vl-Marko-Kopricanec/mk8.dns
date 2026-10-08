@@ -9,7 +9,6 @@ public sealed partial class DnssecIterativeResolver
     {
         var start = work.RoutingProofs.Count;
         var selected = false;
-        HashSet<DnsName> cuts = [];
         Stack<AuthorityFrame> pending = new();
         pending.Push(new AuthorityFrame(bootstrap, start));
         try
@@ -27,7 +26,7 @@ public sealed partial class DnssecIterativeResolver
                 if (reply is null || work.Exhausted || work.Validator.GetRemainingTtl(frame.Context.Keys) == 0) continue;
                 if (reply.Evidence.Authoritative)
                 {
-                    if (CrossesCut(frame.Context.Keys.Origin, question, cuts)) continue;
+                    if (work.CrossesCut(frame.Context.Keys.Origin, question)) continue;
                     var step = Terminal(question, frame.Context, reply, work);
                     if (step is null || routing && !AddressStep(question, step)) continue;
                     selected = true;
@@ -35,9 +34,8 @@ public sealed partial class DnssecIterativeResolver
                 }
                 var routingStart = work.RoutingProofs.Count;
                 var cut = SelectCut(question, frame.Context.Keys.Origin, reply.Evidence);
-                if (cut is null || CrossesCut(frame.Context.Keys.Origin, question, cuts, cut)) continue;
+                if (cut is null || work.CrossesCut(frame.Context.Keys.Origin, question, cut)) continue;
                 var transition = await FollowAsync(question, frame.Context, server, reply, bootstrap, work, token, routing).ConfigureAwait(false);
-                if (transition is not null) cuts.Add(transition.Cut);
                 if (transition?.Unsigned is not null && !routing)
                 {
                     selected = true;
@@ -53,10 +51,6 @@ public sealed partial class DnssecIterativeResolver
     private static bool AddressStep(DnsQuestion question, ResolutionStep step)
         => step.Code == 0 && step.Target is null && step.Proof.Question.Equals(question)
             && step.Proof.Kind is DnssecResolutionProofKind.Exact or DnssecResolutionProofKind.Wildcard;
-
-    private static bool CrossesCut(DnsName current, DnsQuestion question, HashSet<DnsName> cuts, DnsName? next = null)
-        => cuts.Any(cut => !cut.Equals(current) && cut.IsSubdomainOf(current) && question.Name.IsSubdomainOf(cut)
-            && (next is null ? !(question.Type == 43 && question.Name.Equals(cut)) : !next.Equals(cut) && next.IsSubdomainOf(cut)));
 
     private static void DiscardRouting(DnssecResolutionWork work, int start)
         => work.RoutingProofs.RemoveRange(start, work.RoutingProofs.Count - start);

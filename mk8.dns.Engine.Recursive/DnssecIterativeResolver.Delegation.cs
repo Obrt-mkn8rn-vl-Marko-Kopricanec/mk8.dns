@@ -36,16 +36,18 @@ public sealed partial class DnssecIterativeResolver
             if (dsReply is null || !dsReply.Evidence.Authoritative || dsReply.Evidence.ResponseCode != 0) return null;
             var ds = Rrset(dsReply.Evidence.Answers, cut, 43);
             if (ds.Length == 0)
-                return ProvesUnsigned(dsQuestion, context, dsReply, work, retain: !routing) ? new ReferralTransition(null, cut, cut) : null;
+                return ProvesUnsigned(dsQuestion, context, dsReply, work, retain: !routing) ? new ReferralTransition(null, cut) : null;
             if (ds.Length > DnssecChainValidator.MaximumKeys || dsReply.Evidence.Answers.Any(record => record.Owner.Equals(cut)
                 && record.Type is not (43 or 46))) return null;
             var dsSignatures = Signatures(dsReply.Evidence.Answers, ds);
-            if (!work.Validator.TryAuthenticateRrset(context.Keys, dsQuestion, dsReply.Age(ds, clock), dsReply.Age(dsSignatures, clock), out _))
+            if (!DnssecResolutionProof.TryCreate(DnssecResolutionProofKind.Exact, context.Keys, dsQuestion, ds, [], [],
+                dsSignatures, dsReply.Received, out var boundary) || !boundary.Authenticate(work.Validator, clock)
+                || !work.RememberCut(boundary))
                 return null;
             var servers = await FindServersAsync(cut, referral.Evidence, bootstrap, work, cancellationToken).ConfigureAwait(false);
             var child = await AuthenticateChildAsync(context.Keys, cut, servers, dsReply, ds, dsSignatures, work, cancellationToken).ConfigureAwait(false);
             followed = child is not null;
-            return new ReferralTransition(child, null, cut);
+            return new ReferralTransition(child, null);
         }
         finally
         {
@@ -85,7 +87,8 @@ public sealed partial class DnssecIterativeResolver
         if (!DnssecResolutionProof.TryCreate(DnssecResolutionProofKind.Exact, context.Keys, new DnsQuestion(context.Keys.Origin, 6, 1),
             soa, [], [], soaSignatures, reply.Received, out var soaProof) || !soaProof.Authenticate(work.Validator, work.Clock)
             || !DnssecResolutionProof.TryCreate(DnssecResolutionProofKind.DsAbsence, context.Keys, question, [], soa, nsecs,
-                denialSignatures, reply.Received, out var denial) || !denial.Authenticate(work.Validator, work.Clock)) return false;
+                denialSignatures, reply.Received, out var denial) || !denial.Authenticate(work.Validator, work.Clock)
+            || !work.RememberCut(denial, soaProof)) return false;
         if (retain)
         {
             work.Proofs.Add(soaProof);

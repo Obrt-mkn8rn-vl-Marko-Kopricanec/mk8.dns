@@ -75,6 +75,7 @@ public sealed class AuthorityBacktrackingAdmissionTests
     public async Task VerifiedUnsignedMarkerIsTerminalAndNeverQueriesTheUnsignedChild()
     {
         using var fixture = new AuthorityBacktrackingFixture();
+        fixture.Source.UnsignedChild = true;
         fixture.AlternateReply = reply => reply.Question.Type == 43 ? fixture.Source.Unsigned(reply.Question, reply.Server) : reply;
         var result = await fixture.Resolver().ResolveDnssecAsync(AuthorityBacktrackingFixture.Question, CancellationToken.None);
         Assert.Equal(DnssecResolutionOutcome.UnsignedDelegation, result.Outcome);

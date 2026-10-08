@@ -3,7 +3,7 @@ using Mk8.Dns.Engine.Dnssec;
 
 namespace Mk8.Dns.Engine.Recursive;
 
-internal sealed class DnssecResolutionWork : IDnssecSignatureVerifier
+internal sealed partial class DnssecResolutionWork : IDnssecSignatureVerifier
 {
     private readonly IDnssecSignatureVerifier provider;
     private readonly CancellationToken cancellationToken;
@@ -55,7 +55,8 @@ internal sealed class DnssecResolutionWork : IDnssecSignatureVerifier
     internal DnssecResolutionResult Finish(DnsQuestion original, byte code, DnsName origin, DnsName? unsignedDelegation = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var completeProofs = Proofs.Concat(RoutingProofs).ToArray();
+        var cutProofs = CutProofs().ToArray();
+        var completeProofs = Proofs.Concat(RoutingProofs).Concat(cutProofs).Distinct().ToArray();
         if (Proofs.Count == 0 || completeProofs.Any(proof => !proof.Authenticate(Validator, Clock)) || Exhausted)
             return Failure(original);
         var keyStamp = Clock.GetTimestamp();
@@ -68,6 +69,7 @@ internal sealed class DnssecResolutionWork : IDnssecSignatureVerifier
             return Failure(original);
         var ttl = Math.Min(keyTtl, completeProofs.Min(proof => proof.Remaining(Clock, now)));
         var outputTtl = RoutingProofs.Count == 0 ? keyTtl : Math.Min(keyTtl, RoutingProofs.Min(proof => proof.Remaining(Clock, now)));
+        if (cutProofs.Length != 0) outputTtl = Math.Min(outputTtl, cutProofs.Min(proof => proof.Remaining(Clock, now)));
         var answers = unsignedDelegation is null ? Proofs.Where(proof => proof.Kind is DnssecResolutionProofKind.Exact or DnssecResolutionProofKind.Wildcard)
             .SelectMany(proof => proof.Output(Clock, now)).Select(record => record.WithTtl(Math.Min(record.Ttl, outputTtl))).ToArray() : [];
         var authority = unsignedDelegation is null ? Proofs.Where(proof => proof.Kind is DnssecResolutionProofKind.NoData or DnssecResolutionProofKind.NameError)
