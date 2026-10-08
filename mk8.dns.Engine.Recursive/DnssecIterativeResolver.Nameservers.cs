@@ -40,41 +40,7 @@ public sealed partial class DnssecIterativeResolver
         DnssecResolutionWork work, CancellationToken cancellationToken)
     {
         if (!Supported(question)) return null;
-        var context = bootstrap;
-        var routingStart = work.RoutingProofs.Count;
-        var resolved = false;
-        try
-        {
-            while (!work.Exhausted && work.Validator.GetRemainingTtl(context.Keys) != 0)
-            {
-                var progressed = false;
-                foreach (var server in context.Servers)
-                {
-                    var reply = await ReadAsync(question, server, work, cancellationToken).ConfigureAwait(false);
-                    if (work.Exhausted || work.Validator.GetRemainingTtl(context.Keys) == 0) break;
-                    if (reply is null) continue;
-                    if (reply.Evidence.Authoritative)
-                    {
-                        var step = Terminal(question, context, reply, work);
-                        // NS targets must be ordinary address owners, never aliases or unsigned dependencies.
-                        if (step is null || step.Code != 0 || step.Target is not null || !step.Proof.Question.Equals(question)
-                            || step.Proof.Kind is not (DnssecResolutionProofKind.Exact or DnssecResolutionProofKind.Wildcard)) continue;
-                        resolved = true;
-                        return step.Proof;
-                    }
-                    var transition = await FollowAsync(question, context, server, reply, bootstrap, work, cancellationToken, routing: true).ConfigureAwait(false);
-                    if (transition?.Next is null) continue;
-                    context = transition.Next;
-                    progressed = true;
-                    break;
-                }
-                if (!progressed) break;
-            }
-            return null;
-        }
-        finally
-        {
-            if (!resolved) work.RoutingProofs.RemoveRange(routingStart, work.RoutingProofs.Count - routingStart);
-        }
+        var choice = await SearchAsync(question, bootstrap, work, cancellationToken, routing: true).ConfigureAwait(false);
+        return choice?.Step?.Proof;
     }
 }

@@ -36,7 +36,7 @@ public sealed partial class DnssecIterativeResolver
             if (dsReply is null || !dsReply.Evidence.Authoritative || dsReply.Evidence.ResponseCode != 0) return null;
             var ds = Rrset(dsReply.Evidence.Answers, cut, 43);
             if (ds.Length == 0)
-                return ProvesUnsigned(dsQuestion, context, dsReply, work, retain: !routing) ? new ReferralTransition(null, cut) : null;
+                return ProvesUnsigned(dsQuestion, context, dsReply, work, retain: !routing) ? new ReferralTransition(null, cut, cut) : null;
             if (ds.Length > DnssecChainValidator.MaximumKeys || dsReply.Evidence.Answers.Any(record => record.Owner.Equals(cut)
                 && record.Type is not (43 or 46))) return null;
             var dsSignatures = Signatures(dsReply.Evidence.Answers, ds);
@@ -45,7 +45,7 @@ public sealed partial class DnssecIterativeResolver
             var servers = await FindServersAsync(cut, referral.Evidence, bootstrap, work, cancellationToken).ConfigureAwait(false);
             var child = await AuthenticateChildAsync(context.Keys, cut, servers, dsReply, ds, dsSignatures, work, cancellationToken).ConfigureAwait(false);
             followed = child is not null;
-            return child is null ? null : new ReferralTransition(child, null);
+            return new ReferralTransition(child, null, cut);
         }
         finally
         {

@@ -90,5 +90,5 @@ public sealed partial class DnssecIterativeResolver
 
     private sealed record AuthorityContext(AuthenticatedDnskeySet Keys, DnsServerEndpoint[] Servers);
     private sealed record ResolutionStep(DnssecResolutionProof Proof, byte Code, DnsName? Target);
-    private sealed record ReferralTransition(AuthorityContext? Next, DnsName? Unsigned);
+    private sealed record ReferralTransition(AuthorityContext? Next, DnsName? Unsigned, DnsName Cut);
 }

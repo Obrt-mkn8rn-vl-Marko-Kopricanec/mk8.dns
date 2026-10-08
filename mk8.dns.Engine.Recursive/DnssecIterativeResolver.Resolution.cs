@@ -8,37 +8,17 @@ public sealed partial class DnssecIterativeResolver
         DnssecResolutionWork work, CancellationToken cancellationToken)
     {
         var question = original;
-        var context = bootstrap;
         HashSet<DnsName> seen = [question.Name];
-        while (Supported(question) && !work.Exhausted && work.Validator.GetRemainingTtl(context.Keys) != 0)
+        while (Supported(question) && !work.Exhausted)
         {
-            var progressed = false;
-            foreach (var server in context.Servers)
-            {
-                var reply = await ReadAsync(question, server, work, cancellationToken).ConfigureAwait(false);
-                if (work.Exhausted || work.Validator.GetRemainingTtl(context.Keys) == 0) break;
-                if (reply is null) continue;
-                if (reply.Evidence.Authoritative)
-                {
-                    var step = Terminal(question, context, reply, work);
-                    if (step is null) continue;
-                    work.Proofs.Add(step.Proof);
-                    if (step.Target is null) return work.Finish(original, step.Code, context.Keys.Origin);
-                    if (!work.TakeAlias() || !seen.Add(step.Target)) return DnssecResolutionWork.Failure(original);
-                    question = question with { Name = step.Target };
-                    context = bootstrap; // Discard inline target data and restart from the static anchor.
-                }
-                else
-                {
-                    var transition = await FollowAsync(question, context, server, reply, bootstrap, work, cancellationToken).ConfigureAwait(false);
-                    if (transition is null) continue;
-                    if (transition.Unsigned is not null) return work.Finish(original, 2, context.Keys.Origin, transition.Unsigned);
-                    context = transition.Next!;
-                }
-                progressed = true;
-                break;
-            }
-            if (!progressed) break;
+            var choice = await SearchAsync(question, bootstrap, work, cancellationToken).ConfigureAwait(false);
+            if (choice is null) break;
+            if (choice.Unsigned is not null) return work.Finish(original, 2, choice.Origin, choice.Unsigned);
+            var step = choice.Step!;
+            work.Proofs.Add(step.Proof);
+            if (step.Target is null) return work.Finish(original, step.Code, choice.Origin);
+            if (!work.TakeAlias() || !seen.Add(step.Target)) return DnssecResolutionWork.Failure(original);
+            question = question with { Name = step.Target }; // Authenticated aliases restart at the static anchor.
         }
         return DnssecResolutionWork.Failure(original);
     }
