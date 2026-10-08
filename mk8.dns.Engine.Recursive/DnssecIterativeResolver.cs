@@ -17,6 +17,8 @@ public sealed partial class DnssecIterativeResolver
     private readonly DnssecResolutionClock clock;
     internal DnssecResolutionClock Clock => clock;
 
+    internal bool SupportsFailureCaching(DnsQuestion question) => Supported(question);
+
     public DnssecIterativeResolver(IDnssecUpstream upstream, IDnssecSignatureVerifier verifier, DnssecTrustAnchor anchor,
         IEnumerable<DnsServerEndpoint> roots, ushort authorityPort = 53, int maximumExchanges = 64,
         int maximumAliasHops = 16, int maximumVerificationAttempts = 512, TimeProvider? time = null)

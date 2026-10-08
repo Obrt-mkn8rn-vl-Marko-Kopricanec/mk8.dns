@@ -67,3 +67,19 @@ Mk8.Dns.Engine.Recursive.DnsRootRoutingHint.Source.get -> Mk8.Dns.Engine.Recursi
 Mk8.Dns.Engine.Recursive.DnsRootHintSource
 Mk8.Dns.Engine.Recursive.DnsRootHintSource.Additional = 0 -> Mk8.Dns.Engine.Recursive.DnsRootHintSource
 Mk8.Dns.Engine.Recursive.DnsRootHintSource.DirectAddressAnswer = 1 -> Mk8.Dns.Engine.Recursive.DnsRootHintSource
+static Mk8.Dns.Engine.Recursive.CachingDnssecResolver.CreateWithFailureCache(Mk8.Dns.Engine.Recursive.DnssecIterativeResolver! resolver, Mk8.Dns.Engine.Recursive.DnssecFailureCachePolicy! failurePolicy, int maximumEntries = 4096, long maximumPayloadBytes = 16777216, int maximumRequests = 64, uint maximumPositiveTtl = 86400, uint maximumNegativeTtl = 3600) -> Mk8.Dns.Engine.Recursive.CachingDnssecResolver!
+Mk8.Dns.Engine.Recursive.CachingDnssecResolver.FailureStatistics.get -> Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics!
+Mk8.Dns.Engine.Recursive.DnssecFailureCachePolicy
+Mk8.Dns.Engine.Recursive.DnssecFailureCachePolicy.DnssecFailureCachePolicy(int maximumEntries = 1024, long maximumPayloadBytes = 1048576, uint minimumTtl = 5, uint maximumTtl = 300) -> void
+Mk8.Dns.Engine.Recursive.DnssecFailureCachePolicy.MaximumEntries.get -> int
+Mk8.Dns.Engine.Recursive.DnssecFailureCachePolicy.MaximumPayloadBytes.get -> long
+Mk8.Dns.Engine.Recursive.DnssecFailureCachePolicy.MinimumTtl.get -> uint
+Mk8.Dns.Engine.Recursive.DnssecFailureCachePolicy.MaximumTtl.get -> uint
+Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics
+Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics.Entries.get -> int
+Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics.PayloadBytes.get -> long
+Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics.Hits.get -> long
+Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics.Stores.get -> long
+Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics.Evictions.get -> long
+Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics.Expirations.get -> long
+Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics.AdmissionRejections.get -> long
