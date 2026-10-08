@@ -5,7 +5,8 @@ namespace Mk8.Dns.Engine.Recursive;
 public sealed class DnssecResolutionResult
 {
     internal DnssecResolutionResult(DnsQuestion question, DnssecResolutionOutcome outcome, byte responseCode,
-        DnsName? origin, DnsName? unsignedDelegation, uint authenticatedTtl, DnsRecord[] answers, DnsRecord[] authority)
+        DnsName? origin, DnsName? unsignedDelegation, uint authenticatedTtl, DnsRecord[] answers, DnsRecord[] authority,
+        DnssecValidationLease? lease = null)
     {
         Question = question;
         Outcome = outcome;
@@ -15,6 +16,7 @@ public sealed class DnssecResolutionResult
         AuthenticatedTtl = authenticatedTtl;
         Answers = Array.AsReadOnly((DnsRecord[])answers.Clone());
         Authority = Array.AsReadOnly((DnsRecord[])authority.Clone());
+        Lease = lease;
     }
 
     public DnsQuestion Question { get; }
@@ -25,4 +27,5 @@ public sealed class DnssecResolutionResult
     public uint AuthenticatedTtl { get; }
     public IReadOnlyList<DnsRecord> Answers { get; }
     public IReadOnlyList<DnsRecord> Authority { get; }
+    internal DnssecValidationLease? Lease { get; }
 }

@@ -60,7 +60,8 @@ internal sealed class DnssecResolutionWork : IDnssecSignatureVerifier
             return Failure(original);
         var keyStamp = Clock.GetTimestamp();
         var keyTtl = completeProofs.Min(proof => Validator.GetRemainingTtl(proof.Keys));
-        var wall = unchecked((uint)Clock.GetUtcNow().ToUnixTimeSeconds());
+        var wallStamp = Clock.GetUtcNow();
+        var wall = unchecked((uint)wallStamp.ToUnixTimeSeconds());
         var now = Clock.GetTimestamp();
         keyTtl = Clock.Age(keyTtl, keyStamp, now);
         if (keyTtl == 0 || completeProofs.Any(proof => !proof.WindowsContain(wall)))
@@ -74,8 +75,11 @@ internal sealed class DnssecResolutionWork : IDnssecSignatureVerifier
         if (answers.Length + authority.Length > DnsUpstreamEvidence.MaximumRecords
             || answers.Concat(authority).Sum(record => record.GetOwnerWire().Length + 10L + record.GetData().Length) > DnsUpstreamEvidence.MaximumExpandedBytes)
             return Failure(original);
+        // Flat cache receipt: retain no query worker, verifier, DNSKEY set or proof arrays.
+        var validity = Math.Min(keyTtl, completeProofs.Min(proof => proof.WindowLifetime(wall)));
+        var lease = unsignedDelegation is null ? new DnssecValidationLease(Clock, now, wallStamp, keyTtl, validity, ttl) : null;
         return new DnssecResolutionResult(original, unsignedDelegation is null ? DnssecResolutionOutcome.Authenticated
-            : DnssecResolutionOutcome.UnsignedDelegation, code, origin, unsignedDelegation, ttl, answers, authority);
+            : DnssecResolutionOutcome.UnsignedDelegation, code, origin, unsignedDelegation, ttl, answers, authority, lease);
     }
 
     internal static DnssecResolutionResult Failure(DnsQuestion question)

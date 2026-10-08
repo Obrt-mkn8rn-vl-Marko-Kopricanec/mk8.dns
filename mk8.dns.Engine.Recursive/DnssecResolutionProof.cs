@@ -80,6 +80,7 @@ internal sealed class DnssecResolutionProof
     }
 
     internal bool WindowsContain(uint now) => windows.All(window => window.Contains(now));
+    internal uint WindowLifetime(uint now) => windows.Min(window => unchecked(window.Expiration - now));
     internal uint Remaining(DnssecResolutionClock clock, long now)
         => Math.Min(clock.Age(verifiedTtl, verifiedAt, now), Math.Min(synthetic is null ? uint.MaxValue : clock.Age(synthetic.Ttl, received, now),
             Kind == DnssecResolutionProofKind.DsAbsence && soa.Length == 1 ? clock.Age(soa[0].Ttl, received, now) : uint.MaxValue));
