@@ -87,3 +87,20 @@ Mk8.Dns.Engine.Recursive.DnsQnameMinimisationPolicy
 Mk8.Dns.Engine.Recursive.DnsQnameMinimisationPolicy.DnsQnameMinimisationPolicy(int maximumSteps = 32) -> void
 Mk8.Dns.Engine.Recursive.DnsQnameMinimisationPolicy.MaximumSteps.get -> int
 static Mk8.Dns.Engine.Recursive.DnssecIterativeResolver.CreateWithQnameMinimisation(Mk8.Dns.Domain.IDnssecUpstream! upstream, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, Mk8.Dns.Engine.Dnssec.DnssecTrustAnchor! anchor, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! roots, Mk8.Dns.Engine.Recursive.DnsQnameMinimisationPolicy! policy, ushort authorityPort = 53, int maximumExchanges = 64, int maximumAliasHops = 16, int maximumVerificationAttempts = 512, System.TimeProvider? time = null) -> Mk8.Dns.Engine.Recursive.DnssecIterativeResolver!
+Mk8.Dns.Engine.Recursive.DnssecWorkPolicy
+Mk8.Dns.Engine.Recursive.DnssecWorkPolicy.DnssecWorkPolicy(int maximumWorkers = 64, int maximumWaiters = 1024, System.TimeSpan? resolutionTimeout = null) -> void
+Mk8.Dns.Engine.Recursive.DnssecWorkPolicy.MaximumWorkers.get -> int
+Mk8.Dns.Engine.Recursive.DnssecWorkPolicy.MaximumWaiters.get -> int
+Mk8.Dns.Engine.Recursive.DnssecWorkPolicy.ResolutionTimeout.get -> System.TimeSpan
+Mk8.Dns.Engine.Recursive.DnssecWorkStatistics
+Mk8.Dns.Engine.Recursive.DnssecWorkStatistics.Workers.get -> int
+Mk8.Dns.Engine.Recursive.DnssecWorkStatistics.Waiters.get -> int
+Mk8.Dns.Engine.Recursive.DnssecWorkStatistics.Started.get -> long
+Mk8.Dns.Engine.Recursive.DnssecWorkStatistics.Coalesced.get -> long
+Mk8.Dns.Engine.Recursive.DnssecWorkStatistics.AdmissionRejections.get -> long
+Mk8.Dns.Engine.Recursive.CoalescingDnssecResolver
+Mk8.Dns.Engine.Recursive.CoalescingDnssecResolver.CoalescingDnssecResolver(Mk8.Dns.Engine.Recursive.CachingDnssecResolver! source, Mk8.Dns.Engine.Recursive.DnssecWorkPolicy! policy, System.TimeProvider? time = null) -> void
+Mk8.Dns.Engine.Recursive.CoalescingDnssecResolver.Statistics.get -> Mk8.Dns.Engine.Recursive.DnssecWorkStatistics!
+Mk8.Dns.Engine.Recursive.CoalescingDnssecResolver.ResolveDnssecAsync(Mk8.Dns.Domain.DnsQuestion! question, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Engine.Recursive.DnssecResolutionResult!>
+Mk8.Dns.Engine.Recursive.CoalescingDnssecResolver.Clear() -> void
+Mk8.Dns.Engine.Recursive.CoalescingDnssecResolver.DisposeAsync() -> System.Threading.Tasks.ValueTask
