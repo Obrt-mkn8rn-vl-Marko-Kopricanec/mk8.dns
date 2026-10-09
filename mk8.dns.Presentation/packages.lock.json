@@ -198,7 +198,7 @@
         "dependencies": {
           "Grpc.AspNetCore": "[2.84.0, )",
           "Grpc.Net.Client": "[2.84.0, )",
-          "mk8.dns.Contracts": "[0.1.0-alpha.40, )"
+          "mk8.dns.Contracts": "[0.1.0-alpha.41, )"
         }
       },
       "Google.Protobuf": {

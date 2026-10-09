@@ -22,3 +22,11 @@ Mk8.Dns.Application.DAL.FilePublicationJournal.ReadActivationSignatureAsync(stri
 Mk8.Dns.Application.DAL.FilePublicationJournal.RecordActivationAsync(string! id, System.ReadOnlyMemory<byte> signature, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Mk8.Dns.Application.DAL.PostgresControlPlaneStore.InitializeAsync(System.Guid epoch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Mk8.Dns.Application.DAL.PostgresControlPlaneStore.PostgresControlPlaneStore(string! connectionString) -> void
+Mk8.Dns.Application.DAL.FileAnchorCheckpointStore
+const Mk8.Dns.Application.DAL.FileAnchorCheckpointStore.MaximumGenerations = 256 -> int
+static Mk8.Dns.Application.DAL.FileAnchorCheckpointStore.Create(string! directory, System.Guid storageId, Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker! initial, System.ReadOnlySpan<byte> authenticationKey) -> Mk8.Dns.Application.DAL.FileAnchorCheckpointStore!
+static Mk8.Dns.Application.DAL.FileAnchorCheckpointStore.Open(string! directory, System.Guid storageId, Mk8.Dns.Domain.DnsName! expectedOrigin, System.ReadOnlySpan<byte> authenticationKey, long minimumRevision, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, System.TimeProvider? time = null) -> Mk8.Dns.Application.DAL.FileAnchorCheckpointStore!
+Mk8.Dns.Application.DAL.FileAnchorCheckpointStore.Tracker.get -> Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker!
+Mk8.Dns.Application.DAL.FileAnchorCheckpointStore.Revision.get -> long
+Mk8.Dns.Application.DAL.FileAnchorCheckpointStore.Save(long expectedRevision, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> long
+Mk8.Dns.Application.DAL.FileAnchorCheckpointStore.Dispose() -> void
