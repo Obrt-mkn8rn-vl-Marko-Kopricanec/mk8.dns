@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Microsoft.Win32.SafeHandles;
 using Mk8.Dns.Domain;
 using Mk8.Dns.Engine.Dnssec;
 
@@ -22,7 +23,7 @@ public sealed partial class FileAnchorCheckpointStore : IDisposable
     private int closing;
 
     private FileAnchorCheckpointStore(string directory, Guid storageId, DnsName expectedOrigin,
-        ReadOnlySpan<byte> key, bool create, Action<AnchorStoreWriteStage>? hook = null)
+        ReadOnlySpan<byte> key, bool create, Action<AnchorStoreWriteStage>? hook = null, Func<SafeFileHandle, int, int>? nativeLock = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(directory);
         ArgumentNullException.ThrowIfNull(expectedOrigin);
@@ -30,7 +31,7 @@ public sealed partial class FileAnchorCheckpointStore : IDisposable
             throw new ArgumentException("An absolute Linux path, nonempty store identity and 32-byte authentication key are required.", nameof(directory));
         root = Path.GetFullPath(directory); identity = storageId; origin = expectedOrigin;
         authenticationKey = key.ToArray(); afterDurableWrite = hook;
-        try { lease = AcquireLease(create); }
+        try { lease = AcquireLease(create, nativeLock); }
         catch { CryptographicOperations.ZeroMemory(authenticationKey); throw; }
     }
 
@@ -39,10 +40,10 @@ public sealed partial class FileAnchorCheckpointStore : IDisposable
         => CreateCore(directory, storageId, initial, authenticationKey, null);
 
     internal static FileAnchorCheckpointStore CreateCore(string directory, Guid storageId, DnssecTrustAnchorTracker initial,
-        ReadOnlySpan<byte> key, Action<AnchorStoreWriteStage>? hook)
+        ReadOnlySpan<byte> key, Action<AnchorStoreWriteStage>? hook, Func<SafeFileHandle, int, int>? nativeLock = null)
     {
         ArgumentNullException.ThrowIfNull(initial);
-        var store = new FileAnchorCheckpointStore(directory, storageId, initial.Origin, key, create: true, hook);
+        var store = new FileAnchorCheckpointStore(directory, storageId, initial.Origin, key, create: true, hook, nativeLock);
         try
         {
             store.Initialize(initial);

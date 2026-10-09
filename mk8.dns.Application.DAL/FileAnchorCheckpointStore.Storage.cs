@@ -1,4 +1,7 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using Microsoft.Win32.SafeHandles;
 using Mk8.Dns.Engine.Dnssec;
 
 namespace Mk8.Dns.Application.DAL;
@@ -7,8 +10,9 @@ public sealed partial class FileAnchorCheckpointStore
 {
     private const UnixFileMode PrivateDirectory = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
     private const UnixFileMode PrivateFile = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+    private const int ExclusiveNonBlocking = 2 | 4; // Linux LOCK_EX | LOCK_NB.
 
-    private FileStream AcquireLease(bool create)
+    private FileStream AcquireLease(bool create, Func<SafeFileHandle, int, int>? nativeLock)
     {
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException("Linux anchor storage is required.");
         var parent = Path.GetDirectoryName(root) ?? throw new IOException("A stable parent is required.");
@@ -31,8 +35,22 @@ public sealed partial class FileAnchorCheckpointStore
             Share = FileShare.None,
         };
         if (create) options.UnixCreateMode = PrivateFile;
-        return new FileStream(path, options);
+        var stream = new FileStream(path, options);
+        try
+        {
+            // FileShare.None is best-effort on Unix. Require an actual flock on this owned handle.
+            var result = nativeLock is null ? Flock(stream.SafeFileHandle, ExclusiveNonBlocking)
+                : nativeLock(stream.SafeFileHandle, ExclusiveNonBlocking);
+            if (result != 0)
+                throw new IOException("Unable to acquire the exclusive anchor storage lease.", new Win32Exception(Marshal.GetLastPInvokeError()));
+            return stream;
+        }
+        catch { stream.Dispose(); throw; }
     }
+
+    [LibraryImport("libc", EntryPoint = "flock", SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
+    private static partial int Flock(SafeFileHandle descriptor, int operation);
 
     private void Initialize(DnssecTrustAnchorTracker initial)
     {
