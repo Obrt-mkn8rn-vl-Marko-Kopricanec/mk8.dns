@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace Mk8.Dns.IntegrationTests;
 
@@ -7,9 +8,19 @@ internal sealed class HostProcess : IAsyncDisposable
     private readonly Process process;
     private readonly Task<string> output;
     private readonly Task<string> errors;
+    private readonly string? diagnosticPrefix;
+    private readonly DateTimeOffset startedAt = DateTimeOffset.UtcNow;
+    private bool diagnosticsSaved;
 
     internal HostProcess(string host, string[] arguments, int injectedPort)
     {
+        var diagnostics = Environment.GetEnvironmentVariable("MK8_DNS_TEST_HOST_LOGS");
+        if (!string.IsNullOrEmpty(diagnostics))
+        {
+            if (!Path.IsPathFullyQualified(diagnostics) || !Directory.Exists(diagnostics))
+                throw new ArgumentException("The test host diagnostic directory must already exist at an absolute path.", nameof(host));
+            diagnosticPrefix = Path.Combine(diagnostics, host + "-" + Guid.NewGuid().ToString("N"));
+        }
         var start = new ProcessStartInfo("dotnet")
         {
             UseShellExecute = false,
@@ -49,6 +60,20 @@ internal sealed class HostProcess : IAsyncDisposable
             process.Kill(entireProcessTree: true);
         await process.WaitForExitAsync(cancellationToken).ConfigureAwait(true);
         _ = await ReadLogsAsync(cancellationToken).ConfigureAwait(true);
+        if (diagnosticPrefix is not null && !diagnosticsSaved)
+        {
+            await File.WriteAllTextAsync(diagnosticPrefix + ".stdout.log", await output.WaitAsync(cancellationToken).ConfigureAwait(true), cancellationToken).ConfigureAwait(true);
+            await File.WriteAllTextAsync(diagnosticPrefix + ".stderr.log", await errors.WaitAsync(cancellationToken).ConfigureAwait(true), cancellationToken).ConfigureAwait(true);
+            await File.WriteAllTextAsync(diagnosticPrefix + ".json", JsonSerializer.Serialize(new
+            {
+                Pid = process.Id,
+                process.ExitCode,
+                StartedUtc = startedAt,
+                CompletedUtc = DateTimeOffset.UtcNow,
+                Scope = "Owned integration-test child host; output captured at exit, no startup latency guarantee.",
+            }), cancellationToken).ConfigureAwait(true);
+            diagnosticsSaved = true;
+        }
     }
 
     internal async Task<string> ReadLogsAsync(CancellationToken cancellationToken)

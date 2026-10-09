@@ -16,6 +16,7 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
                 """;
     private readonly NpgsqlDataSource source;
     private readonly NpgsqlConnection lease;
+    private readonly Func<ValueTask>? afterLeaseRelease;
     private readonly Guid writerId;
     private readonly Lock lifetimeLock = new();
     private readonly CancellationTokenSource admissionClosed = new();
@@ -24,15 +25,22 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
     private int operations;
     private bool closing;
     private bool initialized;
+    private bool writerLeaseHeld;
     private int initializationStarted;
 
     public PostgresControlPlaneStore(string connectionString)
+        : this(connectionString, null)
+    {
+    }
+
+    internal PostgresControlPlaneStore(string connectionString, Func<ValueTask>? afterLeaseRelease)
     {
         ArgumentException.ThrowIfNullOrEmpty(connectionString);
         var configured = new NpgsqlConnectionStringBuilder(connectionString);
         if (configured.Host is null || !Path.IsPathFullyQualified(configured.Host) || configured.Host.Contains(',', StringComparison.Ordinal))
             throw new ArgumentException("This controller profile requires one local PostgreSQL Unix socket directory.", nameof(connectionString));
         writerId = Guid.NewGuid();
+        this.afterLeaseRelease = afterLeaseRelease;
         var settings = new NpgsqlConnectionStringBuilder(connectionString) { Pooling = false };
         source = NpgsqlDataSource.Create(connectionString);
         try
@@ -59,6 +67,7 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
         {
             if (await ownership.ExecuteScalarAsync(admission.Token).ConfigureAwait(false) is not true)
                 throw new InvalidOperationException("Another controller owns this database's writer lease.");
+            writerLeaseHeld = true;
         }
         await InitializeAsync(lease, epoch, writerId, admission.Token).ConfigureAwait(false);
         lock (lifetimeLock)
@@ -185,11 +194,7 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
         }
         try
         {
-            await admissionClosed.CancelAsync().ConfigureAwait(false);
-            await drained.Task.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-            await lease.DisposeAsync().ConfigureAwait(false);
-            await source.DisposeAsync().ConfigureAwait(false);
-            admissionClosed.Dispose();
+            await CloseAsync().ConfigureAwait(false);
             terminal.SetResult();
         }
         catch (Exception exception)
@@ -197,6 +202,61 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
             terminal.SetException(exception);
             throw;
         }
+    }
+
+    private async ValueTask CloseAsync()
+    {
+        try
+        {
+            try
+            {
+                await admissionClosed.CancelAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                await drained.Task.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            await ReleaseWriterLeaseAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            try
+            {
+                await lease.DisposeAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                try
+                {
+                    await source.DisposeAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    admissionClosed.Dispose();
+                }
+            }
+        }
+    }
+
+    private async ValueTask ReleaseWriterLeaseAsync()
+    {
+        if (!writerLeaseHeld || lease.State != System.Data.ConnectionState.Open)
+            return;
+        using var release = Command(lease, null, SqlQuery.ReleaseLease);
+        try
+        {
+            if (await release.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false) is not true)
+                throw new InvalidOperationException("Controller writer lease release was not acknowledged.");
+        }
+        catch (NpgsqlException) when (lease.State is System.Data.ConnectionState.Broken or System.Data.ConnectionState.Closed)
+        {
+            // A driver-confirmed lost session cannot acknowledge an unlock. This is
+            // lost-session cleanup, not confirmed release of a live session.
+            return;
+        }
+        writerLeaseHeld = false;
+        if (afterLeaseRelease is not null)
+            await afterLeaseRelease().ConfigureAwait(false);
     }
 
     private Registration Register(bool initializing = false)
@@ -221,7 +281,7 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
         }
     }
 
-    private enum SqlQuery { AcquireLease, ReadDurability, AcquireTransaction, CreateSchema, BootstrapMetadata, ReadMetadata, FenceWriter, ReadWriter, ReadPending, ReadOperation, ReadGeneration, HasPending, ReadZone, ReadOwnership, UpsertZone, AppendOperation, MarkActivated }
+    private enum SqlQuery { AcquireLease, ReleaseLease, ReadDurability, AcquireTransaction, CreateSchema, BootstrapMetadata, ReadMetadata, FenceWriter, ReadWriter, ReadPending, ReadOperation, ReadGeneration, HasPending, ReadZone, ReadOwnership, UpsertZone, AppendOperation, MarkActivated }
 
     private static NpgsqlCommand Command(NpgsqlConnection connection, NpgsqlTransaction? transaction, SqlQuery query, params object[] parameters)
     {
@@ -243,6 +303,9 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
         {
             case SqlQuery.AcquireLease:
                 command.CommandText = "SELECT pg_try_advisory_lock(5565946963831500800)";
+                break;
+            case SqlQuery.ReleaseLease:
+                command.CommandText = "SELECT pg_advisory_unlock(5565946963831500800)";
                 break;
             case SqlQuery.ReadDurability:
                 command.CommandText = "SELECT current_setting('fsync'),current_setting('full_page_writes'),current_setting('synchronous_commit')";
