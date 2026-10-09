@@ -10,6 +10,7 @@ internal sealed partial class DnssecResolutionWork : IDnssecSignatureVerifier
     private int exchanges;
     private int aliases;
     private int verificationAttempts;
+    private int minimisationSteps;
     private int recordsLeft = 8192;
     private long bytesLeft = 8_388_608;
     private readonly HashSet<DnsName> activeDelegations = [];
@@ -30,6 +31,9 @@ internal sealed partial class DnssecResolutionWork : IDnssecSignatureVerifier
     internal DnssecChainValidator Validator { get; }
     internal List<DnssecResolutionProof> Proofs { get; } = [];
     internal List<DnssecResolutionProof> RoutingProofs { get; } = [];
+    internal List<DnssecResolutionProof> DiscoveryProofs { get; } = [];
+    internal void SetMinimisationLimit(int steps) => minimisationSteps = steps;
+    internal bool TakeMinimisationStep() => Check(--minimisationSteps >= 0);
     internal bool EnterDelegation(DnsName cut) => activeDelegations.Count < 8 && activeDelegations.Add(cut);
     internal void ExitDelegation(DnsName cut) => activeDelegations.Remove(cut);
     internal bool Exhausted { get; private set; }
@@ -56,7 +60,7 @@ internal sealed partial class DnssecResolutionWork : IDnssecSignatureVerifier
     {
         cancellationToken.ThrowIfCancellationRequested();
         var cutProofs = CutProofs().ToArray();
-        var completeProofs = Proofs.Concat(RoutingProofs).Concat(cutProofs).Distinct().ToArray();
+        var completeProofs = Proofs.Concat(RoutingProofs).Concat(cutProofs).Concat(DiscoveryProofs).Distinct().ToArray();
         if (Proofs.Count == 0 || completeProofs.Any(proof => !proof.Authenticate(Validator, Clock)) || Exhausted)
             return Failure(original);
         var keyStamp = Clock.GetTimestamp();
@@ -70,6 +74,7 @@ internal sealed partial class DnssecResolutionWork : IDnssecSignatureVerifier
         var ttl = Math.Min(keyTtl, completeProofs.Min(proof => proof.Remaining(Clock, now)));
         var outputTtl = RoutingProofs.Count == 0 ? keyTtl : Math.Min(keyTtl, RoutingProofs.Min(proof => proof.Remaining(Clock, now)));
         if (cutProofs.Length != 0) outputTtl = Math.Min(outputTtl, cutProofs.Min(proof => proof.Remaining(Clock, now)));
+        if (DiscoveryProofs.Count != 0) outputTtl = Math.Min(outputTtl, DiscoveryProofs.Min(proof => proof.Remaining(Clock, now)));
         var answers = unsignedDelegation is null ? Proofs.Where(proof => proof.Kind is DnssecResolutionProofKind.Exact or DnssecResolutionProofKind.Wildcard)
             .SelectMany(proof => proof.Output(Clock, now)).Select(record => record.WithTtl(Math.Min(record.Ttl, outputTtl))).ToArray() : [];
         var authority = unsignedDelegation is null ? Proofs.Where(proof => proof.Kind is DnssecResolutionProofKind.NoData or DnssecResolutionProofKind.NameError)

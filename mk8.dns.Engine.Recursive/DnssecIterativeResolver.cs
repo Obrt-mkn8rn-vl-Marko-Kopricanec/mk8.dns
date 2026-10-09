@@ -15,6 +15,7 @@ public sealed partial class DnssecIterativeResolver
     private readonly int maximumAliasHops;
     private readonly int maximumVerificationAttempts;
     private readonly DnssecResolutionClock clock;
+    private readonly DnsQnameMinimisationPolicy? minimisation;
     internal DnssecResolutionClock Clock => clock;
 
     internal bool SupportsFailureCaching(DnsQuestion question) => Supported(question);
@@ -43,6 +44,22 @@ public sealed partial class DnssecIterativeResolver
         clock = new DnssecResolutionClock(time ?? TimeProvider.System);
     }
 
+    public static DnssecIterativeResolver CreateWithQnameMinimisation(IDnssecUpstream upstream, IDnssecSignatureVerifier verifier,
+        DnssecTrustAnchor anchor, IEnumerable<DnsServerEndpoint> roots, DnsQnameMinimisationPolicy policy,
+        ushort authorityPort = 53, int maximumExchanges = 64, int maximumAliasHops = 16,
+        int maximumVerificationAttempts = 512, TimeProvider? time = null)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        return new DnssecIterativeResolver(upstream, verifier, anchor, roots, policy, authorityPort,
+            maximumExchanges, maximumAliasHops, maximumVerificationAttempts, time);
+    }
+
+    private DnssecIterativeResolver(IDnssecUpstream upstream, IDnssecSignatureVerifier verifier, DnssecTrustAnchor anchor,
+        IEnumerable<DnsServerEndpoint> roots, DnsQnameMinimisationPolicy policy, ushort authorityPort,
+        int maximumExchanges, int maximumAliasHops, int maximumVerificationAttempts, TimeProvider? time)
+        : this(upstream, verifier, anchor, roots, authorityPort, maximumExchanges, maximumAliasHops, maximumVerificationAttempts, time)
+        => minimisation = policy;
+
     public async ValueTask<DnssecResolutionResult> ResolveDnssecAsync(DnsQuestion question, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(question);
@@ -50,6 +67,7 @@ public sealed partial class DnssecIterativeResolver
         cancellationToken.ThrowIfCancellationRequested();
         if (!Supported(question)) return DnssecResolutionWork.Failure(question);
         var work = new DnssecResolutionWork(verifier, clock, maximumExchanges, maximumAliasHops, maximumVerificationAttempts, cancellationToken);
+        work.SetMinimisationLimit(minimisation?.MaximumSteps ?? 0);
         var bootstrap = await BootstrapAsync(work, cancellationToken).ConfigureAwait(false);
         return bootstrap is null ? DnssecResolutionWork.Failure(question)
             : await ResolveQuestionAsync(question, bootstrap, work, cancellationToken).ConfigureAwait(false);

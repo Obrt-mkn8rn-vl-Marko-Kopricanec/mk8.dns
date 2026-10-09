@@ -83,3 +83,7 @@ Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics.Stores.get -> long
 Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics.Evictions.get -> long
 Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics.Expirations.get -> long
 Mk8.Dns.Engine.Recursive.DnssecFailureCacheStatistics.AdmissionRejections.get -> long
+Mk8.Dns.Engine.Recursive.DnsQnameMinimisationPolicy
+Mk8.Dns.Engine.Recursive.DnsQnameMinimisationPolicy.DnsQnameMinimisationPolicy(int maximumSteps = 32) -> void
+Mk8.Dns.Engine.Recursive.DnsQnameMinimisationPolicy.MaximumSteps.get -> int
+static Mk8.Dns.Engine.Recursive.DnssecIterativeResolver.CreateWithQnameMinimisation(Mk8.Dns.Domain.IDnssecUpstream! upstream, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, Mk8.Dns.Engine.Dnssec.DnssecTrustAnchor! anchor, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! roots, Mk8.Dns.Engine.Recursive.DnsQnameMinimisationPolicy! policy, ushort authorityPort = 53, int maximumExchanges = 64, int maximumAliasHops = 16, int maximumVerificationAttempts = 512, System.TimeProvider? time = null) -> Mk8.Dns.Engine.Recursive.DnssecIterativeResolver!
