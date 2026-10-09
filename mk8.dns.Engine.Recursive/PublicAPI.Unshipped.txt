@@ -104,3 +104,16 @@ Mk8.Dns.Engine.Recursive.CoalescingDnssecResolver.Statistics.get -> Mk8.Dns.Engi
 Mk8.Dns.Engine.Recursive.CoalescingDnssecResolver.ResolveDnssecAsync(Mk8.Dns.Domain.DnsQuestion! question, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Engine.Recursive.DnssecResolutionResult!>
 Mk8.Dns.Engine.Recursive.CoalescingDnssecResolver.Clear() -> void
 Mk8.Dns.Engine.Recursive.CoalescingDnssecResolver.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshOutcome
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshOutcome.Applied = 0 -> Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshOutcome
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshOutcome.Refused = 1 -> Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshOutcome
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshOutcome.Busy = 2 -> Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshOutcome
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshSnapshot
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshSnapshot.Origin.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshSnapshot.Revision.get -> long
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshSnapshot.Anchors.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Engine.Dnssec.DnssecTrustAnchor!>!
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher.DnssecAnchorRefresher(Mk8.Dns.Domain.DnsName! origin, Mk8.Dns.Engine.Dnssec.IDnssecAnchorCheckpointStore! store, Mk8.Dns.Domain.IDnssecUpstream! upstream, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, Mk8.Dns.Domain.DnsServerEndpoint! server, System.TimeProvider? time = null) -> void
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher.Current.get -> Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshSnapshot!
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher.RefreshAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshOutcome>
+Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher.DisposeAsync() -> System.Threading.Tasks.ValueTask

@@ -18,11 +18,18 @@ public sealed partial class FileAnchorCheckpointStore
             if (string.Equals(name, ".writer.lock", StringComparison.Ordinal)) continue;
             if (string.Equals(name, "active.bin", StringComparison.Ordinal)) { pointer = true; continue; }
             if (name.EndsWith(".tmp", StringComparison.Ordinal) && Guid.TryParseExact(name.AsSpan(0, name.Length - 4), "N", out var temporary)
-                && temporary != Guid.Empty && string.Equals(name, temporary.ToString("N") + ".tmp", StringComparison.Ordinal)) continue;
+                && temporary != Guid.Empty && string.Equals(name, temporary.ToString("N") + ".tmp", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             if (name.Length != 23 || !name.EndsWith(".anchor", StringComparison.Ordinal)
                 || !long.TryParse(name.AsSpan(0, 16), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var number)
                 || number is < 1 or > MaximumGenerations || !string.Equals(path, GenerationPath(number), StringComparison.Ordinal))
+            {
                 throw new InvalidDataException("Unknown anchor storage entry.");
+            }
+
             generations.Add(number);
         }
         NativeStoragePath.RequireDirectory(root);
@@ -65,13 +72,14 @@ public sealed partial class FileAnchorCheckpointStore
         return new State(pointer.Revision, previous, checkpoint);
     }
 
-    private void VerifyCurrentState()
+    private State VerifyCurrentState()
     {
         try
         {
             var state = ReadState(allowInitial: false);
             if (state.Revision != revision || !CryptographicOperations.FixedTimeEquals(state.Digest, digest))
                 throw new InvalidDataException("Anchor acknowledgement disagrees with storage.");
+            return state;
         }
         catch { faulted = true; throw; }
     }

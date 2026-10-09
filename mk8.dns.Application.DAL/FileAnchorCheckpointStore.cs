@@ -5,7 +5,7 @@ using Mk8.Dns.Engine.Dnssec;
 
 namespace Mk8.Dns.Application.DAL;
 
-public sealed partial class FileAnchorCheckpointStore : IDisposable
+public sealed partial class FileAnchorCheckpointStore : IDisposable, IDnssecAnchorCheckpointStore
 {
     public const int MaximumGenerations = 256;
     private readonly string root;
@@ -37,7 +37,7 @@ public sealed partial class FileAnchorCheckpointStore : IDisposable
 
     public static FileAnchorCheckpointStore Create(string directory, Guid storageId, DnssecTrustAnchorTracker initial,
         ReadOnlySpan<byte> authenticationKey)
-        => CreateCore(directory, storageId, initial, authenticationKey, null);
+        => CreateCore(directory, storageId, initial, authenticationKey, hook: null);
 
     internal static FileAnchorCheckpointStore CreateCore(string directory, Guid storageId, DnssecTrustAnchorTracker initial,
         ReadOnlySpan<byte> key, Action<AnchorStoreWriteStage>? hook, Func<SafeFileHandle, int, int>? nativeLock = null)

@@ -102,3 +102,12 @@ Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker.GetTrustAnchors() -> System.Colle
 const Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker.MaximumCheckpointBytes = 1048576 -> int
 Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker.CreateCheckpoint() -> byte[]!
 static Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker.RestoreCheckpoint(Mk8.Dns.Domain.DnsName! expectedOrigin, System.ReadOnlySpan<byte> trustedCheckpoint, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, System.TimeProvider? time = null) -> Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker!
+Mk8.Dns.Engine.Dnssec.IDnssecAnchorCheckpointStore
+Mk8.Dns.Engine.Dnssec.IDnssecAnchorCheckpointStore.ReadCommitted() -> Mk8.Dns.Engine.Dnssec.DnssecStoredAnchorCheckpoint!
+Mk8.Dns.Engine.Dnssec.IDnssecAnchorCheckpointStore.Commit(long expectedRevision, Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker! candidate, System.Threading.CancellationToken cancellationToken) -> long
+Mk8.Dns.Engine.Dnssec.DnssecStoredAnchorCheckpoint
+Mk8.Dns.Engine.Dnssec.DnssecStoredAnchorCheckpoint.DnssecStoredAnchorCheckpoint(Mk8.Dns.Domain.DnsName! origin, long revision, System.ReadOnlySpan<byte> checkpoint) -> void
+Mk8.Dns.Engine.Dnssec.DnssecStoredAnchorCheckpoint.Origin.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Engine.Dnssec.DnssecStoredAnchorCheckpoint.Revision.get -> long
+Mk8.Dns.Engine.Dnssec.DnssecStoredAnchorCheckpoint.GetCheckpoint() -> byte[]!
+Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker.CreateStagedTracker() -> Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker!
