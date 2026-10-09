@@ -6,7 +6,7 @@ namespace Mk8.Dns.Engine.Dnssec;
 
 // Supplied-observation, in-memory foundation. The caller owns authenticated
 // transport selection, fresh acquisition, clocks, refresh and durable recovery.
-public sealed class DnssecTrustAnchorTracker
+public sealed partial class DnssecTrustAnchorTracker
 {
     public const int MaximumTrackedKeys = 64;
     private static readonly TimeSpan MinimumAddHoldDown = TimeSpan.FromDays(30);
@@ -193,7 +193,8 @@ public sealed class DnssecTrustAnchorTracker
     {
         foreach (var pair in entries.ToArray())
             if (pair.Value.State == DnssecAnchorState.AddPending && pair.Value.Sponsors.All(id =>
-                    entries[id].RevokedAt is { } revoked && Remaining(pair.Value, revoked) != TimeSpan.Zero))
+                    pair.Value.EarlyRevocations.Contains(id)
+                    || entries[id].RevokedAt is { } revoked && Remaining(pair.Value, revoked) != TimeSpan.Zero))
                 entries.Remove(pair.Key);
     }
 
@@ -227,6 +228,7 @@ public sealed class DnssecTrustAnchorTracker
         internal long Seconds { get; init; }
         internal TimeSpan HoldDown { get; init; }
         internal string[] Sponsors { get; init; } = [];
+        internal HashSet<string> EarlyRevocations { get; init; } = new(StringComparer.Ordinal);
         internal Stamp? RevokedAt { get; set; }
     }
 
