@@ -146,3 +146,21 @@ Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.PayloadBytes.get -> long
 Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.FailureEntries.get -> int
 Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.AdmissionRejections.get -> long
 Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.SourceRequests.get -> int
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingPolicy
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingPolicy.DnssecAnchorPollingPolicy(System.TimeSpan refreshInterval, System.TimeSpan retryInterval, int maximumAttempts = 16) -> void
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingPolicy.RefreshInterval.get -> System.TimeSpan
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingPolicy.RetryInterval.get -> System.TimeSpan
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingPolicy.MaximumAttempts.get -> int
+Mk8.Dns.Engine.Recursive.DnssecAnchorPoller
+Mk8.Dns.Engine.Recursive.DnssecAnchorPoller.DnssecAnchorPoller(Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher! refresher, Mk8.Dns.Engine.Recursive.DnssecAnchorPollingPolicy! policy, System.TimeProvider! time) -> void
+Mk8.Dns.Engine.Recursive.DnssecAnchorPoller.Completion.get -> System.Threading.Tasks.Task!
+Mk8.Dns.Engine.Recursive.DnssecAnchorPoller.Statistics.get -> Mk8.Dns.Engine.Recursive.DnssecAnchorPollingStatistics!
+Mk8.Dns.Engine.Recursive.DnssecAnchorPoller.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingStatistics
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingStatistics.Attempts.get -> int
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingStatistics.Applied.get -> int
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingStatistics.Refused.get -> int
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingStatistics.Busy.get -> int
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingStatistics.Waiting.get -> bool
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingStatistics.Closing.get -> bool
+Mk8.Dns.Engine.Recursive.DnssecAnchorPollingStatistics.Completed.get -> bool
