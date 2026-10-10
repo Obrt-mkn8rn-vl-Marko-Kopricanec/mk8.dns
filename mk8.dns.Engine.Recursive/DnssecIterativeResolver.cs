@@ -30,9 +30,11 @@ public sealed partial class DnssecIterativeResolver
         ArgumentNullException.ThrowIfNull(roots);
         if (authorityPort == 0 || maximumExchanges is < 1 or > 256 || maximumAliasHops is < 1 or > 32
             || maximumVerificationAttempts is < 1 or > 4096)
+        {
             throw new ArgumentOutOfRangeException(nameof(maximumExchanges), "Invalid validating iteration budgets.");
-        this.roots = roots.Take(17).ToArray();
-        if (this.roots.Length is < 1 or > 16 || this.roots.Any(server => server is null) || this.roots.Distinct().Count() != this.roots.Length)
+        }
+        this.roots = [.. roots.Take(17)];
+        if (this.roots.Length is < 1 or > 16 || this.roots.Any(server => server is null) || this.roots.Distinct().Take(this.roots.Length + 1).Count() != this.roots.Length)
             throw new ArgumentException("Supply one to sixteen distinct bootstrap endpoints.", nameof(roots));
         this.upstream = upstream;
         this.verifier = verifier;
@@ -66,7 +68,10 @@ public sealed partial class DnssecIterativeResolver
         if (question.Name is null) throw new ArgumentException("A validating question needs a name.", nameof(question));
         cancellationToken.ThrowIfCancellationRequested();
         if (!Supported(question)) return DnssecResolutionWork.Failure(question);
-        var work = new DnssecResolutionWork(verifier, clock, maximumExchanges, maximumAliasHops, maximumVerificationAttempts, cancellationToken);
+        var work = new DnssecResolutionWork(verifier, clock, maximumExchanges, maximumAliasHops, maximumVerificationAttempts, cancellationToken)
+        {
+            CaptureClientProof = captureClientProof,
+        };
         work.SetMinimisationLimit(minimisation?.MaximumSteps ?? 0);
         var bootstrap = await BootstrapAsync(work, cancellationToken).ConfigureAwait(false);
         return bootstrap is null ? DnssecResolutionWork.Failure(question)
@@ -87,8 +92,10 @@ public sealed partial class DnssecIterativeResolver
             var reply = await upstream.ExchangeDnssecAsync(question, server, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (reply is null || !work.TakeEvidence(reply) || !reply.Question.Equals(question) || !reply.Server.Equals(server)
-                || reply.ResponseCode is not (0 or 3 or 6) || reply.HasEdns && reply.EdnsVersion != 0)
+                || reply.ResponseCode is not (0 or 3 or 6) || (reply.HasEdns && reply.EdnsVersion != 0))
+            {
                 return null;
+            }
             return new DnssecReceivedEvidence(reply, received);
         }
         catch (Exception error) when (error is IOException or TimeoutException or FormatException)
@@ -99,13 +106,13 @@ public sealed partial class DnssecIterativeResolver
     }
 
     private static DnsRecord[] Rrset(IEnumerable<DnsRecord> records, DnsName owner, ushort type)
-        => records.Where(record => record.Owner.Equals(owner) && record.Type == type).ToArray();
+        => [.. records.Where(record => record.Owner.Equals(owner) && record.Type == type)];
 
     private static DnsRecord[] Signatures(IEnumerable<DnsRecord> records, params DnsRecord[][] rrsets)
     {
         var wanted = rrsets.SelectMany(set => set).Select(record => (record.Owner, record.Type)).ToHashSet();
-        return records.Where(record => record.Type == 46 && record.GetData().Length >= 2
-            && wanted.Contains((record.Owner, BinaryPrimitives.ReadUInt16BigEndian(record.GetData())))).ToArray();
+        return [.. records.Where(record => record.Type == 46 && record.GetData().Length >= 2
+            && wanted.Contains((record.Owner, BinaryPrimitives.ReadUInt16BigEndian(record.GetData()))))];
     }
 
     private sealed record AuthorityContext(AuthenticatedDnskeySet Keys, DnsServerEndpoint[] Servers);

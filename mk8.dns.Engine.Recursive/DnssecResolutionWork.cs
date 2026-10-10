@@ -32,6 +32,7 @@ internal sealed partial class DnssecResolutionWork : IDnssecSignatureVerifier
     internal List<DnssecResolutionProof> Proofs { get; } = [];
     internal List<DnssecResolutionProof> RoutingProofs { get; } = [];
     internal List<DnssecResolutionProof> DiscoveryProofs { get; } = [];
+    internal bool CaptureClientProof { get; set; }
     internal void SetMinimisationLimit(int steps) => minimisationSteps = steps;
     internal bool TakeMinimisationStep() => Check(--minimisationSteps >= 0);
     internal bool EnterDelegation(DnsName cut) => activeDelegations.Count < 8 && activeDelegations.Add(cut);
@@ -75,22 +76,29 @@ internal sealed partial class DnssecResolutionWork : IDnssecSignatureVerifier
         var outputTtl = RoutingProofs.Count == 0 ? keyTtl : Math.Min(keyTtl, RoutingProofs.Min(proof => proof.Remaining(Clock, now)));
         if (cutProofs.Length != 0) outputTtl = Math.Min(outputTtl, cutProofs.Min(proof => proof.Remaining(Clock, now)));
         if (DiscoveryProofs.Count != 0) outputTtl = Math.Min(outputTtl, DiscoveryProofs.Min(proof => proof.Remaining(Clock, now)));
+        if (CaptureClientProof) outputTtl = Math.Min(outputTtl, ttl);
         var answers = unsignedDelegation is null ? Proofs.Where(proof => proof.Kind is DnssecResolutionProofKind.Exact or DnssecResolutionProofKind.Wildcard)
             .SelectMany(proof => proof.Output(Clock, now)).Select(record => record.WithTtl(Math.Min(record.Ttl, outputTtl))).ToArray() : [];
         var authority = unsignedDelegation is null ? Proofs.Where(proof => proof.Kind is DnssecResolutionProofKind.NoData or DnssecResolutionProofKind.NameError)
             .SelectMany(proof => proof.Output(Clock, now)).Select(record => record.WithTtl(Math.Min(record.Ttl, outputTtl))).ToArray() : [];
-        if (answers.Length + authority.Length > DnsUpstreamEvidence.MaximumRecords
-            || answers.Concat(authority).Sum(record => record.GetOwnerWire().Length + 10L + record.GetData().Length) > DnsUpstreamEvidence.MaximumExpandedBytes)
+        var clientProof = CaptureClientProof && unsignedDelegation is null
+            ? new DnssecResponseProof([.. Proofs.SelectMany(proof => proof.ClientAnswerSignatures(Clock, now, ttl))],
+                [.. Proofs.SelectMany(proof => proof.ClientAuthority(Clock, now, ttl))]) : null;
+        var completeOutput = answers.Concat(authority).Concat(clientProof?.AnswerSignatures ?? []).Concat(clientProof?.Authority ?? []).ToArray();
+        if (completeOutput.Length > DnsUpstreamEvidence.MaximumRecords
+            || completeOutput.Sum(record => record.GetOwnerWire().Length + 10L + record.GetData().Length) > DnsUpstreamEvidence.MaximumExpandedBytes)
+        {
             return Failure(original);
-        // Flat cache receipt: retain no query worker, verifier, DNSKEY set or proof arrays.
+        }
+        // The lease stays flat; optional client material retains records, not work/key/validator graphs.
         var validity = Math.Min(keyTtl, completeProofs.Min(proof => proof.WindowLifetime(wall)));
         var lease = unsignedDelegation is null ? new DnssecValidationLease(Clock, now, wallStamp, keyTtl, validity, ttl) : null;
         return new DnssecResolutionResult(original, unsignedDelegation is null ? DnssecResolutionOutcome.Authenticated
-            : DnssecResolutionOutcome.UnsignedDelegation, code, origin, unsignedDelegation, ttl, answers, authority, lease);
+            : DnssecResolutionOutcome.UnsignedDelegation, code, origin, unsignedDelegation, ttl, answers: answers, authority: authority, lease: lease, clientProof: clientProof);
     }
 
     internal static DnssecResolutionResult Failure(DnsQuestion question)
-        => new(question, DnssecResolutionOutcome.Failure, 2, null, null, 0, [], []);
+        => new(question, DnssecResolutionOutcome.Failure, 2, origin: null, unsignedDelegation: null, 0, [], []);
 
     private bool Check(bool condition) { Exhausted |= !condition; return !Exhausted; }
 }

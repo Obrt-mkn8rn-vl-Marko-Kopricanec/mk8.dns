@@ -5,7 +5,7 @@ using Mk8.Dns.Engine.Dnssec;
 
 namespace Mk8.Dns.Engine.Recursive;
 
-internal sealed class DnssecResolutionProof
+internal sealed partial class DnssecResolutionProof
 {
     private readonly DnsRecord[] records;
     private readonly DnsRecord[] soa;
@@ -25,13 +25,13 @@ internal sealed class DnssecResolutionProof
         Keys = keys;
         Question = question;
         this.records = records;
-        this.soa = soa.Select(record => record.WithTtl(Math.Min(record.Ttl, record.GetSoaMinimum()))).ToArray();
+        this.soa = [.. soa.Select(record => record.WithTtl(Math.Min(record.Ttl, record.GetSoaMinimum())))];
         this.nsecs = nsecs;
         nsec3 = nsecs.Length != 0 && nsecs[0].Type == 50;
         this.signatures = signatures;
         this.received = received;
         this.synthetic = synthetic;
-        windows = signatures.Select(record => Window(record.GetData())).ToArray();
+        windows = [.. signatures.Select(record => Window(record.GetData()))];
     }
 
     internal DnssecResolutionProofKind Kind { get; }
@@ -46,7 +46,9 @@ internal sealed class DnssecResolutionProof
         if (signatures.Length is 0 or > DnssecChainValidator.MaximumSignatures
             || nsecs.Length > DnssecChainValidator.MaximumNsec3Records
             || nsecs.Any(record => record.Type is not (47 or 50) || record.Type != nsecs[0].Type))
+        {
             return false;
+        }
         try { proof = new DnssecResolutionProof(kind, keys, question, records, soa, nsecs, signatures, received, synthetic); return true; }
         catch (Exception error) when (error is ArgumentException or FormatException) { return false; }
     }
@@ -85,12 +87,12 @@ internal sealed class DnssecResolutionProof
         => Math.Min(clock.Age(verifiedTtl, verifiedAt, now), Math.Min(synthetic is null ? uint.MaxValue : clock.Age(synthetic.Ttl, received, now),
             Kind == DnssecResolutionProofKind.DsAbsence && soa.Length == 1 ? clock.Age(soa[0].Ttl, received, now) : uint.MaxValue));
     internal DnsRecord[] Output(DnssecResolutionClock clock, long now)
-        => Age(synthetic is not null ? [.. records, synthetic]
+        => [.. Age(synthetic is not null ? [.. records, synthetic]
                 : Kind is DnssecResolutionProofKind.NoData or DnssecResolutionProofKind.NameError ? soa : records, clock, now)
-            .Select(record => record.WithTtl(Math.Min(record.Ttl, Remaining(clock, now)))).ToArray();
+            .Select(record => record.WithTtl(Math.Min(record.Ttl, Remaining(clock, now))))];
 
     private DnsRecord[] Age(DnsRecord[] input, DnssecResolutionClock clock, long now)
-        => input.Select(record => record.WithTtl(clock.Age(record.Ttl, received, now))).ToArray();
+        => [.. input.Select(record => record.WithTtl(clock.Age(record.Ttl, received, now)))];
 
     private static DnssecSignatureWindow Window(byte[] data)
     {
