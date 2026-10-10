@@ -5,7 +5,7 @@ namespace Mk8.Dns.Application.DAL;
 public sealed partial class FileAnchorCheckpointStore
 {
     private sealed record Entries(bool Pointer, SortedSet<long> Generations);
-    private sealed record State(long Revision, byte[] Digest, byte[] Checkpoint);
+    private sealed record State(long Revision, byte[] Digest, byte[] Checkpoint, long First = 1, byte[]? Previous = null, int Retired = 0);
 
     private Entries InspectEntries()
     {
@@ -38,6 +38,7 @@ public sealed partial class FileAnchorCheckpointStore
 
     private State ReadState(bool allowInitial)
     {
+        if (retentionEnabled) return ReadRetainedState(allowInitial);
         var entries = InspectEntries();
         if (lease.Length is < 55 or > 309)
             throw new InvalidDataException("Anchor initialization marker is missing or malformed.");
@@ -77,8 +78,12 @@ public sealed partial class FileAnchorCheckpointStore
         try
         {
             var state = ReadState(allowInitial: false);
-            if (state.Revision != revision || !CryptographicOperations.FixedTimeEquals(state.Digest, digest))
+            if (state.Revision != revision || !CryptographicOperations.FixedTimeEquals(state.Digest, digest)
+                || (retentionEnabled && (state.First != firstRetainedRevision
+                    || state.Previous is null || !CryptographicOperations.FixedTimeEquals(state.Previous, firstPreviousDigest))))
+            {
                 throw new InvalidDataException("Anchor acknowledgement disagrees with storage.");
+            }
             return state;
         }
         catch { faulted = true; throw; }

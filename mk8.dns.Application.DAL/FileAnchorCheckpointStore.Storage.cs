@@ -54,6 +54,7 @@ public sealed partial class FileAnchorCheckpointStore
 
     private void Initialize(DnssecTrustAnchorTracker initial)
     {
+        if (retentionEnabled) { InitializeRetention(initial); return; }
         var entries = InspectEntries();
         if (lease.Length != 0 || entries.Generations.Count != 0 || entries.Pointer)
             throw new InvalidDataException("Previously initialized anchor storage cannot be bootstrapped.");
@@ -66,6 +67,7 @@ public sealed partial class FileAnchorCheckpointStore
 
     private void Commit(byte[] checkpoint)
     {
+        if (retentionEnabled) { CommitRetained(checkpoint); return; }
         var next = revision + 1;
         var generation = AnchorStoreEnvelope.Encode("M8S1", identity, origin, next, digest, checkpoint, authenticationKey);
         var nextDigest = SHA256.HashData(generation);

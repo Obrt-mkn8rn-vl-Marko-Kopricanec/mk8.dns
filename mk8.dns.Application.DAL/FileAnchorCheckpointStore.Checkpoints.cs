@@ -23,8 +23,8 @@ public sealed partial class FileAnchorCheckpointStore
             RequireHealthy(); cancellationToken.ThrowIfCancellationRequested();
             if (!candidate.Origin.Equals(origin)) throw new ArgumentException("Anchor checkpoint origin changed.", nameof(candidate));
             if (expectedRevision != revision) throw new InvalidOperationException("Anchor revision changed.");
-            if (revision >= MaximumGenerations) throw new IOException("Anchor retention capacity requires explicit maintenance.");
-            VerifyCurrentState();
+            if (RetentionCapacityExhausted()) throw new IOException("Anchor retention capacity requires explicit maintenance.");
+            VerifyWritableState();
             var checkpoint = candidate.CreateCheckpoint();
             cancellationToken.ThrowIfCancellationRequested();
             Commit(checkpoint);

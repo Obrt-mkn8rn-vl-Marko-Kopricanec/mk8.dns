@@ -23,14 +23,15 @@ public sealed partial class FileAnchorCheckpointStore : IDisposable, IDnssecAnch
     private int closing;
 
     private FileAnchorCheckpointStore(string directory, Guid storageId, DnsName expectedOrigin,
-        ReadOnlySpan<byte> key, bool create, Action<AnchorStoreWriteStage>? hook = null, Func<SafeFileHandle, int, int>? nativeLock = null)
+        ReadOnlySpan<byte> key, bool create, Action<AnchorStoreWriteStage>? hook = null, Func<SafeFileHandle, int, int>? nativeLock = null,
+        bool retention = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(directory);
         ArgumentNullException.ThrowIfNull(expectedOrigin);
         if (!OperatingSystem.IsLinux() || !Path.IsPathFullyQualified(directory) || storageId == Guid.Empty || key.Length != 32)
             throw new ArgumentException("An absolute Linux path, nonempty store identity and 32-byte authentication key are required.", nameof(directory));
         root = Path.GetFullPath(directory); identity = storageId; origin = expectedOrigin;
-        authenticationKey = key.ToArray(); afterDurableWrite = hook;
+        authenticationKey = key.ToArray(); afterDurableWrite = hook; retentionEnabled = retention;
         try { lease = AcquireLease(create, nativeLock); }
         catch { CryptographicOperations.ZeroMemory(authenticationKey); throw; }
     }
@@ -89,9 +90,9 @@ public sealed partial class FileAnchorCheckpointStore : IDisposable, IDnssecAnch
             RequireHealthy(); cancellationToken.ThrowIfCancellationRequested();
             if (expectedRevision != revision)
                 throw new InvalidOperationException("Anchor revision changed.");
-            if (revision >= MaximumGenerations)
+            if (RetentionCapacityExhausted())
                 throw new IOException("Anchor retention capacity requires explicit maintenance.");
-            VerifyCurrentState();
+            VerifyWritableState();
             var checkpoint = tracker!.CreateCheckpoint();
             cancellationToken.ThrowIfCancellationRequested();
             Commit(checkpoint);
