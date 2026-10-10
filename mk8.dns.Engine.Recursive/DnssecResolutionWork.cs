@@ -83,7 +83,8 @@ internal sealed partial class DnssecResolutionWork : IDnssecSignatureVerifier
             .SelectMany(proof => proof.Output(Clock, now)).Select(record => record.WithTtl(Math.Min(record.Ttl, outputTtl))).ToArray() : [];
         var clientProof = CaptureClientProof && unsignedDelegation is null
             ? new DnssecResponseProof([.. Proofs.SelectMany(proof => proof.ClientAnswerSignatures(Clock, now, ttl))],
-                [.. Proofs.SelectMany(proof => proof.ClientAuthority(Clock, now, ttl))]) : null;
+                [.. Proofs.SelectMany(proof => proof.ClientAuthority(Clock, now, ttl))],
+                new DnssecClientMaterialReceipt(Clock, now, wallStamp)) : null;
         var completeOutput = answers.Concat(authority).Concat(clientProof?.AnswerSignatures ?? []).Concat(clientProof?.Authority ?? []).ToArray();
         if (completeOutput.Length > DnsUpstreamEvidence.MaximumRecords
             || completeOutput.Sum(record => record.GetOwnerWire().Length + 10L + record.GetData().Length) > DnsUpstreamEvidence.MaximumExpandedBytes)

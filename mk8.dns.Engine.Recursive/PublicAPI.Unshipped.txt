@@ -182,3 +182,13 @@ Mk8.Dns.Engine.Recursive.DnssecResponseProof.AnswerSignatures.get -> System.Coll
 Mk8.Dns.Engine.Recursive.DnssecResponseProof.Authority.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
 Mk8.Dns.Engine.Recursive.DnssecResolutionResult.ClientProof.get -> Mk8.Dns.Engine.Recursive.DnssecResponseProof?
 static Mk8.Dns.Engine.Recursive.DnssecIterativeResolver.CreateWithClientProof(Mk8.Dns.Domain.IDnssecUpstream! upstream, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, Mk8.Dns.Engine.Dnssec.DnssecTrustAnchor! anchor, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! roots, ushort authorityPort = 53, int maximumExchanges = 64, int maximumAliasHops = 16, int maximumVerificationAttempts = 512, System.TimeProvider? time = null, Mk8.Dns.Engine.Recursive.DnsQnameMinimisationPolicy? minimisation = null) -> Mk8.Dns.Engine.Recursive.DnssecIterativeResolver!
+Mk8.Dns.Engine.Recursive.DnssecClientResponseProjection
+static Mk8.Dns.Engine.Recursive.DnssecClientResponseProjection.TryPrepare(Mk8.Dns.Engine.Recursive.DnssecResolutionResult! result, Mk8.Dns.Domain.DnsQuestion! expected, bool dnssecOk, out Mk8.Dns.Engine.Recursive.DnssecClientResponseSnapshot? snapshot) -> bool
+Mk8.Dns.Engine.Recursive.DnssecClientResponseSnapshot
+Mk8.Dns.Engine.Recursive.DnssecClientResponseSnapshot.Question.get -> Mk8.Dns.Domain.DnsQuestion!
+Mk8.Dns.Engine.Recursive.DnssecClientResponseSnapshot.ResponseCode.get -> byte
+Mk8.Dns.Engine.Recursive.DnssecClientResponseSnapshot.Origin.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Engine.Recursive.DnssecClientResponseSnapshot.DnssecOk.get -> bool
+Mk8.Dns.Engine.Recursive.DnssecClientResponseSnapshot.RemainingTtl.get -> uint
+Mk8.Dns.Engine.Recursive.DnssecClientResponseSnapshot.Answers.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
+Mk8.Dns.Engine.Recursive.DnssecClientResponseSnapshot.Authority.get -> System.Collections.Generic.IReadOnlyList<Mk8.Dns.Domain.DnsRecord!>!
