@@ -6,6 +6,7 @@ public sealed partial class CachingDnssecResolver
 {
     private DnssecResolutionResult Prepare(DnssecResolutionResult result)
     {
+        if (retainClientProof) return PrepareClientProof(result);
         var negative = result.Authority.Count != 0 || result.ResponseCode == 3;
         var limit = negative ? maximumNegativeTtl : maximumPositiveTtl;
         var lifetime = Math.Min(limit, result.Lease!.Remaining());
@@ -14,6 +15,7 @@ public sealed partial class CachingDnssecResolver
 
     private DnssecResolutionResult? Read(DnsQuestion question)
     {
+        if (retainClientProof) return ReadClientProof(question);
         if (!entries.TryGetValue(question, out var node)) return null;
         var entry = node.Value;
         var elapsed = Elapsed(entry.Received);
@@ -30,6 +32,11 @@ public sealed partial class CachingDnssecResolver
     private void Store(DnssecResolutionResult result)
     {
         if (result.ResponseCode is not (0 or 3)) return;
+        if (retainClientProof && result.AuthenticatedTtl != 0
+            && !DnssecClientResponseProjection.TryPrepare(result, result.Question, dnssecOk: true, out _))
+        {
+            return;
+        }
         var identity = (result.Question.Name, result.Question.Class);
         var state = names[identity];
         var absence = result.ResponseCode == 3 && result.Answers.Count == 0;
@@ -41,7 +48,8 @@ public sealed partial class CachingDnssecResolver
         }
         var bytes = 64L + result.Question.Name.ToWire().Length + 4L
             + (result.Origin?.ToWire().Length ?? 0)
-            + result.Answers.Concat(result.Authority).Sum(record => record.GetOwnerWire().Length + 10L + record.GetData().Length);
+            + result.Answers.Concat(result.Authority).Sum(record => record.GetOwnerWire().Length + 10L + record.GetData().Length)
+            + ClientProofBytes(result);
         if (result.AuthenticatedTtl == 0 || bytes > maximumPayloadBytes || bytes > DnsUpstreamEvidence.MaximumExpandedBytes)
             return;
         var stamp = resolver.Clock.GetTimestamp();
@@ -73,10 +81,10 @@ public sealed partial class CachingDnssecResolver
     private static DnsRecord[] Normalize(IReadOnlyList<DnsRecord> records, uint lifetime)
     {
         var ttl = records.GroupBy(record => (record.Owner, record.Type)).ToDictionary(group => group.Key, group => group.Min(record => record.Ttl));
-        return records.Select(record => record.WithTtl(Math.Min(lifetime, ttl[(record.Owner, record.Type)]))).ToArray();
+        return [.. records.Select(record => record.WithTtl(Math.Min(lifetime, ttl[(record.Owner, record.Type)])))];
     }
     private static DnsRecord[] Age(IReadOnlyList<DnsRecord> records, double elapsed, uint lifetime)
-        => records.Select(record => record.WithTtl(Math.Min(lifetime, elapsed >= record.Ttl ? 0 : record.Ttl - (uint)elapsed))).ToArray();
+        => [.. records.Select(record => record.WithTtl(Math.Min(lifetime, elapsed >= record.Ttl ? 0 : record.Ttl - (uint)elapsed)))];
 
     private static DnssecResolutionResult Copy(DnssecResolutionResult result, uint lifetime, DnsRecord[] answers, DnsRecord[] authority)
         => new(result.Question, result.Outcome, result.ResponseCode, result.Origin, result.UnsignedDelegation, lifetime, answers, authority, result.Lease);
