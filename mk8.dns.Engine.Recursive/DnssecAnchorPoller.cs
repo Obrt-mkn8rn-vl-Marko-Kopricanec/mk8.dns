@@ -12,6 +12,7 @@ public sealed partial class DnssecAnchorPoller : IAsyncDisposable
     private readonly CancellationTokenSource cancellation;
     private readonly CancellationToken token;
     private readonly Task completion;
+    private readonly AdaptiveSchedule? adaptive;
     private Task? cancellationTask;
     private TaskCompletionSource<bool>? pending;
     private Task? shutdown;
@@ -61,7 +62,11 @@ public sealed partial class DnssecAnchorPoller : IAsyncDisposable
     private async Task RunAsync()
     {
         await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
-        try { await PollAsync().ConfigureAwait(false); }
+        try
+        {
+            if (adaptive is null) await PollAsync().ConfigureAwait(false);
+            else await PollAdaptiveAsync(adaptive).ConfigureAwait(false);
+        }
         catch (Exception sourceError)
         {
             try { await FinishAsync().ConfigureAwait(false); }

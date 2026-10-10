@@ -24,6 +24,12 @@ internal sealed class AnchorPollingFixture : IAsyncDisposable
         pollers.Add(poller); return poller;
     }
     internal void ExpectFault(DnssecAnchorPoller poller) => expectedFaults.Add(poller);
+    internal DnssecAnchorPoller CreateAdaptive(int maximumAttempts = 3, double refreshHours = 2, double retryHours = 1)
+    {
+        var poller = DnssecAnchorPoller.CreateWithAuthenticatedTiming(Refresher,
+            new DnssecAnchorPollingPolicy(TimeSpan.FromHours(refreshHours), TimeSpan.FromHours(retryHours), maximumAttempts), Clock);
+        pollers.Add(poller); return poller;
+    }
     public async ValueTask DisposeAsync()
     {
         Clock.DisposalReleased.TrySetResult();
@@ -33,6 +39,7 @@ internal sealed class AnchorPollingFixture : IAsyncDisposable
             {
                 try { await poller.DisposeAsync().AsTask().WaitAsync(Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
                 catch (IOException) when (expectedFaults.Contains(poller)) { /* Separately asserted controlled fault. */ }
+                catch (InvalidDataException) when (expectedFaults.Contains(poller)) { /* Separately asserted ambiguous acknowledgement. */ }
                 catch (AggregateException) when (expectedFaults.Contains(poller)) { /* Separately asserted controlled fault. */ }
                 catch (OperationCanceledException) when (expectedFaults.Contains(poller)) { /* Separately asserted controlled fault. */ }
                 catch (InvalidOperationException) when (expectedFaults.Contains(poller)) { /* Separately asserted controlled fault. */ }
