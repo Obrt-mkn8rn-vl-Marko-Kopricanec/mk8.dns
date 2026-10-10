@@ -59,13 +59,21 @@ public sealed partial class DnssecTrustAnchorTracker
             var stamp = ReadClock();
             if (!DnssecValidationInput.TryRrset(dnskeys, Origin, 48, MaximumTrackedKeys, out var records)
                 || !DnssecValidationInput.TrySignatures(signatures, out var sigs))
+            {
                 return false;
+            }
+
             var identities = new HashSet<string>(StringComparer.Ordinal);
             foreach (var record in records)
+            {
                 if ((DnssecAnchorProof.TryKey(record, revoked: false, out var identity)
                     || DnssecAnchorProof.TryKey(record, revoked: true, out identity))
                     && !identities.Add(DnssecAnchorProof.Identity(identity)))
+                {
                     return false;
+                }
+            }
+
             observation = new DnssecAnchorObservation(this, checked(++nextSequence), stamp.Timestamp, stamp.Seconds, records, sigs);
             pendingObservation = observation;
             return true;
@@ -79,7 +87,10 @@ public sealed partial class DnssecTrustAnchorTracker
         {
             if (!ReferenceEquals(observation.Creator, this) || !ReferenceEquals(pendingObservation, observation)
                 || observation.Sequence <= consumedSequence)
+            {
                 return false;
+            }
+
             consumedSequence = observation.Sequence;
             pendingObservation = null;
             applying = true;
@@ -97,7 +108,9 @@ public sealed partial class DnssecTrustAnchorTracker
         foreach (var record in observation.Records)
         {
             if (DnssecAnchorProof.TryKey(record, revoked: false, out var identity))
+            {
                 candidates.TryAdd(DnssecAnchorProof.Identity(identity), record);
+            }
             else if (DnssecAnchorProof.TryKey(record, revoked: true, out identity))
             {
                 var id = DnssecAnchorProof.Identity(identity);
@@ -106,26 +119,40 @@ public sealed partial class DnssecTrustAnchorTracker
             }
         }
         foreach (var pair in entries)
+        {
             if (pair.Value.State is DnssecAnchorState.Valid or DnssecAnchorState.Missing)
                 Verify(observation, pair.Value.Key, pair.Key, sponsors, ref attempts);
+        }
+
         if (attempts > DnssecChainValidator.MaximumVerificationAttempts)
             return false;
         var final = ReadClock();
         // Revocation is independent of another anchor's authentication. Only
         // live self-proofs mutate trust; failed provider work mutates nothing.
         foreach (var pair in revocations)
+        {
             if (Fresh(pair.Value, observation, final))
             {
                 entries[pair.Key].State = DnssecAnchorState.Revoked;
                 entries[pair.Key].RevokedAt = new Stamp(observation.Timestamp, observation.Seconds);
             }
+        }
+
         foreach (var id in sponsors.Keys.ToArray())
+        {
             if (entries[id].State == DnssecAnchorState.Revoked || !Fresh(sponsors[id], observation, final))
                 sponsors.Remove(id);
+        }
+
         ResetUnsupportedPending();
         if (sponsors.Count == 0)
-            return revocations.Any(pair => entries[pair.Key].State == DnssecAnchorState.Revoked);
+        {
+            var applied = revocations.Any(pair => entries[pair.Key].State == DnssecAnchorState.Revoked);
+            if (applied) RecordTiming(observation, sponsors, revocations, final);
+            return applied;
+        }
         Update(candidates, sponsors, observation);
+        RecordTiming(observation, sponsors, revocations, final);
         return true;
     }
     public IReadOnlyList<DnssecAnchorStatus> GetStatus()
@@ -141,20 +168,24 @@ public sealed partial class DnssecTrustAnchorTracker
     public IReadOnlyList<DnssecTrustAnchor> GetTrustAnchors()
     {
         lock (gate)
+        {
             return Array.AsReadOnly(entries.Values.Where(entry => entry.State is DnssecAnchorState.Valid or DnssecAnchorState.Missing)
                 .Select(entry => new DnssecTrustAnchor(entry.Key)).ToArray());
+        }
     }
 
     private void Verify(DnssecAnchorObservation observation, DnsRecord key, string identity,
         Dictionary<string, DnssecAnchorProof.Verified> proofs, ref int attempts)
     {
         foreach (var signature in observation.Signatures)
+        {
             if (DnssecAnchorProof.TryVerify(observation.Records, signature, key, unchecked((uint)observation.Seconds),
                 verifier, ref attempts, out var proof))
             {
                 proofs.Add(identity, proof!);
                 return;
             }
+        }
     }
 
     private void Update(Dictionary<string, DnsRecord> candidates, Dictionary<string, DnssecAnchorProof.Verified> sponsors,
@@ -170,9 +201,14 @@ public sealed partial class DnssecTrustAnchorTracker
                 if (entry.State == DnssecAnchorState.AddPending) entries.Remove(pair.Key);
                 else entry.State = DnssecAnchorState.Missing;
             }
-            else if (entry.State == DnssecAnchorState.Missing) entry.State = DnssecAnchorState.Valid;
-            else if (entry.State == DnssecAnchorState.AddPending && Remaining(entry, new Stamp(observation.Timestamp, observation.Seconds)) == TimeSpan.Zero)
+            else if (entry.State == DnssecAnchorState.Missing)
+            {
                 entry.State = DnssecAnchorState.Valid;
+            }
+            else if (entry.State == DnssecAnchorState.AddPending && Remaining(entry, new Stamp(observation.Timestamp, observation.Seconds)) == TimeSpan.Zero)
+            {
+                entry.State = DnssecAnchorState.Valid;
+            }
         }
         var originalTtl = sponsors.Values.Max(proof => proof.OriginalTtl);
         foreach (var pair in candidates)
@@ -192,10 +228,14 @@ public sealed partial class DnssecTrustAnchorTracker
     private void ResetUnsupportedPending()
     {
         foreach (var pair in entries.ToArray())
+        {
             if (pair.Value.State == DnssecAnchorState.AddPending && pair.Value.Sponsors.All(id =>
                     pair.Value.EarlyRevocations.Contains(id)
-                    || entries[id].RevokedAt is { } revoked && Remaining(pair.Value, revoked) != TimeSpan.Zero))
+                    || (entries[id].RevokedAt is { } revoked && Remaining(pair.Value, revoked) != TimeSpan.Zero)))
+            {
                 entries.Remove(pair.Key);
+            }
+        }
     }
 
     private bool Fresh(DnssecAnchorProof.Verified proof, DnssecAnchorObservation observation, Stamp final)

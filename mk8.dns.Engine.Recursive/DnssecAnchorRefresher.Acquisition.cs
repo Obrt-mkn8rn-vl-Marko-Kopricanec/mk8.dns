@@ -36,11 +36,13 @@ public sealed partial class DnssecAnchorRefresher
             DnsRecord Age(DnsRecord record) => record.WithTtl(elapsed >= record.Ttl ? 0 : record.Ttl - (uint)elapsed);
             var keys = reply.Answers.Where(record => record.Type == 48).Select(Age).ToArray();
             var signatures = reply.Answers.Where(record => record.Type == 46).Select(Age).ToArray();
-            if (!next.TryCapture(keys, signatures, out var observation) || !next.TryApply(observation))
+            if (!next.TryCapture(keys, signatures, out var observation) || !next.TryApplyWithTiming(observation, out var timing))
                 return DnssecAnchorRefreshOutcome.Refused;
             token.ThrowIfCancellationRequested();
             lock (gate) { if (closing) return DnssecAnchorRefreshOutcome.Refused; }
-            return CommitAndAdopt(next, token);
+            // Signature interval is measured at validated capture. Charging all
+            // original acquisition time additionally makes this conservative.
+            return CommitAndAdopt(next, new TimingReceipt(timing, received, wall), token);
         }
         finally
         {
@@ -52,7 +54,7 @@ public sealed partial class DnssecAnchorRefresher
         }
     }
 
-    private DnssecAnchorRefreshOutcome CommitAndAdopt(DnssecTrustAnchorTracker candidate, CancellationToken token)
+    private DnssecAnchorRefreshOutcome CommitAndAdopt(DnssecTrustAnchorTracker candidate, TimingReceipt timing, CancellationToken token)
     {
         try
         {
@@ -63,6 +65,7 @@ public sealed partial class DnssecAnchorRefresher
             {
                 tracker = candidate;
                 current = snapshot;
+                timingReceipt = timing;
             }
             return DnssecAnchorRefreshOutcome.Applied;
         }

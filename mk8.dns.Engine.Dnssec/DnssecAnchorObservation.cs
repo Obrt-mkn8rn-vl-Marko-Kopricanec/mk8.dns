@@ -23,5 +23,6 @@ public sealed class DnssecAnchorObservation
     internal long Seconds { get; }
     internal DnsRecord[] Records { get; private set; }
     internal DnsRecord[] Signatures { get; private set; }
+    internal DnssecAnchorProofTiming? Timing { get; set; }
     internal void Release() { Records = []; Signatures = []; }
 }

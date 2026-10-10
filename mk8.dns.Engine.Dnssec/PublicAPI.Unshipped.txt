@@ -111,3 +111,11 @@ Mk8.Dns.Engine.Dnssec.DnssecStoredAnchorCheckpoint.Origin.get -> Mk8.Dns.Domain.
 Mk8.Dns.Engine.Dnssec.DnssecStoredAnchorCheckpoint.Revision.get -> long
 Mk8.Dns.Engine.Dnssec.DnssecStoredAnchorCheckpoint.GetCheckpoint() -> byte[]!
 Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker.CreateStagedTracker() -> Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker!
+Mk8.Dns.Engine.Dnssec.DnssecAnchorProofTiming
+Mk8.Dns.Engine.Dnssec.DnssecAnchorProofTiming.Origin.get -> Mk8.Dns.Domain.DnsName!
+Mk8.Dns.Engine.Dnssec.DnssecAnchorProofTiming.CapturedUtc.get -> System.DateTimeOffset
+Mk8.Dns.Engine.Dnssec.DnssecAnchorProofTiming.OriginalTtl.get -> uint
+Mk8.Dns.Engine.Dnssec.DnssecAnchorProofTiming.SignatureExpirationInterval.get -> System.TimeSpan
+Mk8.Dns.Engine.Dnssec.DnssecAnchorProofTiming.QueryInterval.get -> System.TimeSpan
+Mk8.Dns.Engine.Dnssec.DnssecAnchorProofTiming.RetryInterval.get -> System.TimeSpan
+Mk8.Dns.Engine.Dnssec.DnssecTrustAnchorTracker.TryApplyWithTiming(Mk8.Dns.Engine.Dnssec.DnssecAnchorObservation! observation, out Mk8.Dns.Engine.Dnssec.DnssecAnchorProofTiming? timing) -> bool
