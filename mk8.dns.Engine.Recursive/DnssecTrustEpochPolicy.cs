@@ -33,4 +33,11 @@ public sealed class DnssecTrustEpochPolicy
     public int MaximumVerificationAttempts { get; }
     public DnssecFailureCachePolicy? FailureCache { get; }
     public DnsQnameMinimisationPolicy? Minimisation { get; }
+
+    internal bool CaptureClientProof { get; private init; }
+
+    internal DnssecTrustEpochPolicy WithClientProof()
+        => new(MaximumActiveRequests, MaximumEntries, MaximumPayloadBytes, MaximumPositiveTtl, MaximumNegativeTtl,
+            MaximumExchanges, MaximumAliasHops, MaximumVerificationAttempts, FailureCache, Minimisation)
+        { CaptureClientProof = true };
 }

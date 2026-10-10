@@ -39,6 +39,8 @@ public sealed partial class DnssecTrustEpochResolver
     private async ValueTask<DnssecResolutionResult> DeliverAsync(DeliveryRequest request, DnssecResolutionResult result,
         long received, CancellationToken token)
     {
+        if (policy.CaptureClientProof)
+            return await DeliverClientProofAsync(request, result, received, token).ConfigureAwait(false);
         while (true)
         {
             Task? cleanup;

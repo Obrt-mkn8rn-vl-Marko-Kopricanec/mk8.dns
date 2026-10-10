@@ -67,6 +67,8 @@ public sealed partial class CoalescingDnssecResolver
         if (result.Lease?.IsValid() != true) return DnssecResolutionWork.Failure(result.Question);
         var now = clock.GetTimestamp();
         var ttl = Math.Min(result.Lease.Remaining(), clock.Age(result.AuthenticatedTtl, delivery.Received, now));
+        if (source.RetainsClientProof)
+            return CachingDnssecResolver.PrepareClientProofDelivery(result, ttl) ?? DnssecResolutionWork.Failure(result.Question);
         DnsRecord[] Age(IReadOnlyList<DnsRecord> records) => [.. records.Select(record => record.WithTtl(Math.Min(ttl, clock.Age(record.Ttl, delivery.Received, now))))];
         return new DnssecResolutionResult(result.Question, result.Outcome, result.ResponseCode, result.Origin,
             result.UnsignedDelegation, ttl, Age(result.Answers), Age(result.Authority), result.Lease);

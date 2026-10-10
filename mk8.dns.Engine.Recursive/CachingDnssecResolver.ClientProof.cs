@@ -6,6 +6,11 @@ public sealed partial class CachingDnssecResolver
 {
     private readonly bool retainClientProof;
 
+    internal bool RetainsClientProof => retainClientProof;
+
+    internal static DnssecResolutionResult? PrepareClientProofDelivery(DnssecResolutionResult result, uint limit)
+        => result.AuthenticatedTtl == 0 ? result : CaptureClientProof(result, limit);
+
     // The source and its coherent clock remain caller-owned. This does not attach a failure cache.
     public static CachingDnssecResolver CreateWithClientProofCache(DnssecIterativeResolver resolver,
         int maximumEntries = 4096, long maximumPayloadBytes = 16777216, int maximumRequests = 64,

@@ -115,7 +115,10 @@ public sealed partial class DnssecTrustEpochResolver : IAsyncDisposable
         private Task? shutdown;
         internal Profile(DnssecIterativeResolver resolver, DnssecTrustEpochPolicy policy)
         {
-            Cache = policy.FailureCache is null
+            Cache = policy.CaptureClientProof
+                ? CachingDnssecResolver.CreateWithClientProofCache(resolver, policy.MaximumEntries, policy.MaximumPayloadBytes,
+                    policy.MaximumActiveRequests, policy.MaximumPositiveTtl, policy.MaximumNegativeTtl)
+                : policy.FailureCache is null
                 ? new CachingDnssecResolver(resolver, policy.MaximumEntries, policy.MaximumPayloadBytes,
                     policy.MaximumActiveRequests, policy.MaximumPositiveTtl, policy.MaximumNegativeTtl)
                 : CachingDnssecResolver.CreateWithFailureCache(resolver, policy.FailureCache, policy.MaximumEntries,

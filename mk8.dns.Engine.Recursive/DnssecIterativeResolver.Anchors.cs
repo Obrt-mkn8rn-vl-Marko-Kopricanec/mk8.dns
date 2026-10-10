@@ -20,5 +20,6 @@ public sealed partial class DnssecIterativeResolver
     {
         committedAnchors = [.. anchors];
         minimisation = policy.Minimisation;
+        captureClientProof = policy.CaptureClientProof;
     }
 }
