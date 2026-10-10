@@ -15,10 +15,10 @@ public sealed partial class DnssecIterativeResolver
             if (reply?.Evidence.Authoritative != true || reply.Evidence.ResponseCode != 0) continue;
             var records = Rrset(reply.Evidence.Answers, anchor.Origin, 48);
             var signatures = Signatures(reply.Evidence.Answers, records);
-            var agedRecords = reply.Age(records, clock);
-            var agedSignatures = reply.Age(signatures, clock);
             foreach (var pin in committedAnchors ?? [anchor])
             {
+                var agedRecords = reply.Age(records, clock);
+                var agedSignatures = reply.Age(signatures, clock);
                 if (work.Validator.TryAuthenticateAnchor(pin, agedRecords, agedSignatures, out var keys))
                     return new AuthorityContext(keys, roots);
                 if (work.Exhausted) break;
