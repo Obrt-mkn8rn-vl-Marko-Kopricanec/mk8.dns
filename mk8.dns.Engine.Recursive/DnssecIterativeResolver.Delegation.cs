@@ -12,11 +12,17 @@ public sealed partial class DnssecIterativeResolver
         {
             var reply = await ReadAsync(question, server, work, cancellationToken).ConfigureAwait(false);
             if (work.Exhausted) break;
-            if (reply is null || !reply.Evidence.Authoritative || reply.Evidence.ResponseCode != 0) continue;
+            if (reply?.Evidence.Authoritative != true || reply.Evidence.ResponseCode != 0) continue;
             var records = Rrset(reply.Evidence.Answers, anchor.Origin, 48);
             var signatures = Signatures(reply.Evidence.Answers, records);
-            if (work.Validator.TryAuthenticateAnchor(anchor, reply.Age(records, clock), reply.Age(signatures, clock), out var keys))
-                return new AuthorityContext(keys, roots);
+            var agedRecords = reply.Age(records, clock);
+            var agedSignatures = reply.Age(signatures, clock);
+            foreach (var pin in committedAnchors ?? [anchor])
+            {
+                if (work.Validator.TryAuthenticateAnchor(pin, agedRecords, agedSignatures, out var keys))
+                    return new AuthorityContext(keys, roots);
+                if (work.Exhausted) break;
+            }
         }
         return null;
     }
@@ -33,21 +39,28 @@ public sealed partial class DnssecIterativeResolver
         {
             var dsQuestion = new DnsQuestion(cut, 43, 1);
             var dsReply = await ReadAsync(dsQuestion, parent, work, cancellationToken).ConfigureAwait(false);
-            if (dsReply is null || !dsReply.Evidence.Authoritative || dsReply.Evidence.ResponseCode != 0) return null;
+            if (dsReply?.Evidence.Authoritative != true || dsReply.Evidence.ResponseCode != 0) return null;
             var ds = Rrset(dsReply.Evidence.Answers, cut, 43);
             if (ds.Length == 0)
-                return ProvesUnsigned(dsQuestion, context, dsReply, work, retain: !routing) ? new ReferralTransition(null, cut) : null;
+                return ProvesUnsigned(dsQuestion, context, dsReply, work, retain: !routing) ? new ReferralTransition(Next: null, cut) : null;
             if (ds.Length > DnssecChainValidator.MaximumKeys || dsReply.Evidence.Answers.Any(record => record.Owner.Equals(cut)
-                && record.Type is not (43 or 46))) return null;
+                && record.Type is not (43 or 46)))
+            {
+                return null;
+            }
+
             var dsSignatures = Signatures(dsReply.Evidence.Answers, ds);
             if (!DnssecResolutionProof.TryCreate(DnssecResolutionProofKind.Exact, context.Keys, dsQuestion, ds, [], [],
                 dsSignatures, dsReply.Received, out var boundary) || !boundary.Authenticate(work.Validator, clock)
                 || !work.RememberCut(boundary))
+            {
                 return null;
+            }
+
             var servers = await FindServersAsync(cut, referral.Evidence, bootstrap, work, cancellationToken).ConfigureAwait(false);
             var child = await AuthenticateChildAsync(context.Keys, cut, servers, dsReply, ds, dsSignatures, work, cancellationToken).ConfigureAwait(false);
             followed = child is not null;
-            return new ReferralTransition(child, null);
+            return new ReferralTransition(child, Unsigned: null);
         }
         finally
         {
@@ -65,12 +78,14 @@ public sealed partial class DnssecIterativeResolver
         {
             var reply = await ReadAsync(question, server, work, cancellationToken).ConfigureAwait(false);
             if (work.Exhausted) break;
-            if (reply is null || !reply.Evidence.Authoritative || reply.Evidence.ResponseCode != 0) continue;
+            if (reply?.Evidence.Authoritative != true || reply.Evidence.ResponseCode != 0) continue;
             var keys = Rrset(reply.Evidence.Answers, cut, 48);
             var signatures = Signatures(reply.Evidence.Answers, keys);
             if (work.Validator.TryAuthenticateChild(parent, cut, dsReply.Age(ds, clock), dsReply.Age(dsSignatures, clock),
                 reply.Age(keys, clock), reply.Age(signatures, clock), out var authenticated))
+            {
                 return new AuthorityContext(authenticated, servers);
+            }
         }
         return null;
     }
@@ -88,7 +103,11 @@ public sealed partial class DnssecIterativeResolver
             soa, [], [], soaSignatures, reply.Received, out var soaProof) || !soaProof.Authenticate(work.Validator, work.Clock)
             || !DnssecResolutionProof.TryCreate(DnssecResolutionProofKind.DsAbsence, context.Keys, question, [], soa, nsecs,
                 denialSignatures, reply.Received, out var denial) || !denial.Authenticate(work.Validator, work.Clock)
-            || !work.RememberCut(denial, soaProof)) return false;
+            || !work.RememberCut(denial, soaProof))
+        {
+            return false;
+        }
+
         if (retain)
         {
             work.Proofs.Add(soaProof);
@@ -101,7 +120,7 @@ public sealed partial class DnssecIterativeResolver
     {
         if (reply.ResponseCode != 0 || reply.Answers.Count != 0) return null;
         var names = reply.Authority.Where(record => record.Type == 2).ToArray();
-        if (names.Length is < 1 or > 16 || names.Select(record => record.Owner).Distinct().Count() != 1) return null;
+        if (names.Length is < 1 or > 16 || names.Select(record => record.Owner).Distinct().Take(2).Count() != 1) return null;
         var next = names[0].Owner;
         return !next.Equals(current) && next.IsSubdomainOf(current) && question.Name.IsSubdomainOf(next)
             && !(question.Type == 43 && question.Name.Equals(next)) ? next : null;
@@ -118,6 +137,6 @@ public sealed partial class DnssecIterativeResolver
             catch (ArgumentException) { continue; }
             if (addresses.Count == 16) break;
         }
-        return addresses.Distinct().ToArray();
+        return [.. addresses.Distinct()];
     }
 }

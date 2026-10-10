@@ -19,6 +19,7 @@ public sealed partial class DnssecAnchorRefresher : IAsyncDisposable
     private bool active;
     private bool closing;
     private bool faulted;
+    internal DnssecResolutionClock Clock => clock;
 
     public DnssecAnchorRefresher(DnsName origin, IDnssecAnchorCheckpointStore store, IDnssecUpstream upstream,
         IDnssecSignatureVerifier verifier, DnsServerEndpoint server, TimeProvider? time = null)

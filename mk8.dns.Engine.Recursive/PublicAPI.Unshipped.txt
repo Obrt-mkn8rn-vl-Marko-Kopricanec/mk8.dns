@@ -117,3 +117,32 @@ Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher.DnssecAnchorRefresher(Mk8.Dns.Dom
 Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher.Current.get -> Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshSnapshot!
 Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher.RefreshAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshOutcome>
 Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy.DnssecTrustEpochPolicy(int maximumActiveRequests = 64, int maximumEntries = 4096, long maximumPayloadBytes = 16777216, uint maximumPositiveTtl = 86400, uint maximumNegativeTtl = 3600, int maximumExchanges = 64, int maximumAliasHops = 16, int maximumVerificationAttempts = 512, Mk8.Dns.Engine.Recursive.DnssecFailureCachePolicy? failureCache = null, Mk8.Dns.Engine.Recursive.DnsQnameMinimisationPolicy? minimisation = null) -> void
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy.MaximumActiveRequests.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy.MaximumEntries.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy.MaximumPayloadBytes.get -> long
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy.MaximumPositiveTtl.get -> uint
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy.MaximumNegativeTtl.get -> uint
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy.MaximumExchanges.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy.MaximumAliasHops.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy.MaximumVerificationAttempts.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy.FailureCache.get -> Mk8.Dns.Engine.Recursive.DnssecFailureCachePolicy?
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy.Minimisation.get -> Mk8.Dns.Engine.Recursive.DnsQnameMinimisationPolicy?
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver.DnssecTrustEpochResolver(Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher! refresher, Mk8.Dns.Domain.IDnssecUpstream! upstream, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! roots, Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy! policy, ushort authorityPort = 53) -> void
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver.Statistics.get -> Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics!
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver.ResolveDnssecAsync(Mk8.Dns.Domain.DnsQuestion! question, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Engine.Recursive.DnssecResolutionResult!>
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver.Clear() -> void
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.Revision.get -> long
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.Anchors.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.ActiveRequests.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.OwnedProfiles.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.RetiredProfiles.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.Entries.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.PayloadBytes.get -> long
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.FailureEntries.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.AdmissionRejections.get -> long
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochStatistics.SourceRequests.get -> int
