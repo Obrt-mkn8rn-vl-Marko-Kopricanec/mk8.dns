@@ -44,6 +44,7 @@ public sealed partial class DnssecTrustEpochResolver
         var resolver = DnssecIterativeResolver.CreateForAnchors(upstream, verifier, snapshot.Anchors,
             roots, authorityPort, policy, refresher.Clock);
         current = new Profile(resolver, policy);
+        if (sharedWork is not null) current.EnableCoalescing(sharedWork);
         owned.Add(current);
     }
 

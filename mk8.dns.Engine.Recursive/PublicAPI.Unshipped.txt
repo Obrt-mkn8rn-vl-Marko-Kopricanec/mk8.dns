@@ -174,3 +174,6 @@ Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshTiming.RemainingRetryInterval.get ->
 Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher.CurrentTiming.get -> Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshTiming?
 Mk8.Dns.Engine.Recursive.DnssecAnchorRefreshTiming.ReceivedUtc.get -> System.DateTimeOffset
 static Mk8.Dns.Engine.Recursive.DnssecAnchorPoller.CreateWithAuthenticatedTiming(Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher! refresher, Mk8.Dns.Engine.Recursive.DnssecAnchorPollingPolicy! bootstrapPolicy, System.TimeProvider! time) -> Mk8.Dns.Engine.Recursive.DnssecAnchorPoller!
+static Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver.CreateWithCoalescing(Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher! refresher, Mk8.Dns.Domain.IDnssecUpstream! upstream, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! roots, Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy! policy, Mk8.Dns.Engine.Recursive.DnssecWorkPolicy! workPolicy, System.TimeProvider! time, ushort authorityPort = 53) -> Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver!
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver.ActiveWorkers.get -> int
+Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver.CurrentWorkStatistics.get -> Mk8.Dns.Engine.Recursive.DnssecWorkStatistics?

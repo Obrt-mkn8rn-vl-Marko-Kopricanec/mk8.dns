@@ -14,7 +14,7 @@ public sealed partial class CoalescingDnssecResolver
             var delivery = await execution.ConfigureAwait(false);
             lock (gate)
             {
-                if (closing || flight.Abandoned || flight.Token.IsCancellationRequested) flight.Completion.TrySetCanceled(new CancellationToken(true));
+                if (closing || flight.Abandoned || flight.Token.IsCancellationRequested) flight.Completion.TrySetCanceled(new CancellationToken(canceled: true));
                 else flight.Completion.TrySetResult(delivery);
             }
         }
@@ -22,18 +22,18 @@ public sealed partial class CoalescingDnssecResolver
         {
             lock (gate)
             {
-                if (closing || flight.Abandoned || flight.Token.IsCancellationRequested) flight.Completion.TrySetCanceled(new CancellationToken(true));
+                if (closing || flight.Abandoned || flight.Token.IsCancellationRequested) flight.Completion.TrySetCanceled(new CancellationToken(canceled: true));
                 else flight.Completion.TrySetException(error);
             }
         }
-        finally { lock (gate) { workers.Remove(flight); RemovePending(flight); } }
+        finally { lock (gate) { workers.Remove(flight); RemovePending(flight); sharedBudget?.Release(); } }
         if (flight.Completion.Task.IsFaulted) _ = flight.Completion.Task.Exception;
     }
 
     private async Task<DnssecWorkFlight.Delivery> ExecuteAsync(DnssecWorkFlight flight)
     {
         DnssecWorkFlight.Delivery delivery;
-        Exception? cleanupError = null;
+        Exception? cleanupError;
         try
         {
             flight.Token.ThrowIfCancellationRequested();
@@ -64,10 +64,10 @@ public sealed partial class CoalescingDnssecResolver
     {
         var result = delivery.Result;
         if (result.Outcome != DnssecResolutionOutcome.Authenticated) return result;
-        if (result.Lease is null || !result.Lease.IsValid()) return DnssecResolutionWork.Failure(result.Question);
+        if (result.Lease?.IsValid() != true) return DnssecResolutionWork.Failure(result.Question);
         var now = clock.GetTimestamp();
         var ttl = Math.Min(result.Lease.Remaining(), clock.Age(result.AuthenticatedTtl, delivery.Received, now));
-        DnsRecord[] Age(IReadOnlyList<DnsRecord> records) => records.Select(record => record.WithTtl(Math.Min(ttl, clock.Age(record.Ttl, delivery.Received, now)))).ToArray();
+        DnsRecord[] Age(IReadOnlyList<DnsRecord> records) => [.. records.Select(record => record.WithTtl(Math.Min(ttl, clock.Age(record.Ttl, delivery.Received, now))))];
         return new DnssecResolutionResult(result.Question, result.Outcome, result.ResponseCode, result.Origin,
             result.UnsignedDelegation, ttl, Age(result.Answers), Age(result.Authority), result.Lease);
     }

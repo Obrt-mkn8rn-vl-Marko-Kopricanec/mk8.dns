@@ -88,7 +88,7 @@ public sealed partial class DnssecTrustEpochResolver : IAsyncDisposable
 
     public void Clear()
     {
-        lock (gate) { RequireUsable(); Synchronise(); current?.Cache.Clear(); }
+        lock (gate) { RequireUsable(); Synchronise(); current?.Clear(); }
     }
 
     public ValueTask DisposeAsync()
@@ -111,6 +111,8 @@ public sealed partial class DnssecTrustEpochResolver : IAsyncDisposable
 
     private sealed class Profile : IAsyncDisposable
     {
+        private readonly Lock closingGate = new();
+        private Task? shutdown;
         internal Profile(DnssecIterativeResolver resolver, DnssecTrustEpochPolicy policy)
         {
             Cache = policy.FailureCache is null
@@ -120,9 +122,32 @@ public sealed partial class DnssecTrustEpochResolver : IAsyncDisposable
                     policy.MaximumPayloadBytes, policy.MaximumActiveRequests, policy.MaximumPositiveTtl, policy.MaximumNegativeTtl);
         }
         internal CachingDnssecResolver Cache { get; }
+        internal CoalescingDnssecResolver? Work { get; private set; }
         internal int Active { get; set; }
         internal bool Retired { get; set; }
         internal Task? Cleanup { get; set; }
-        public ValueTask DisposeAsync() => Cache.DisposeAsync();
+        internal void EnableCoalescing(SharedWork settings)
+            => Work = new CoalescingDnssecResolver(Cache, settings.Policy, settings.Time, settings.Budget);
+        internal ValueTask<DnssecResolutionResult> ResolveAsync(DnsQuestion question, CancellationToken token)
+            => Work is null ? Cache.ResolveDnssecAsync(question, token) : Work.ResolveDnssecAsync(question, token);
+        internal void Clear()
+        {
+            if (Work is null) Cache.Clear();
+            else Work.Clear();
+        }
+        public ValueTask DisposeAsync()
+        {
+            if (Work is null) return Cache.DisposeAsync();
+            lock (closingGate)
+            {
+                if (shutdown is null)
+                {
+                    var work = Work.DisposeAsync().AsTask();
+                    var cache = Cache.DisposeAsync().AsTask();
+                    shutdown = Task.WhenAll(work, cache);
+                }
+                return new ValueTask(shutdown);
+            }
+        }
     }
 }

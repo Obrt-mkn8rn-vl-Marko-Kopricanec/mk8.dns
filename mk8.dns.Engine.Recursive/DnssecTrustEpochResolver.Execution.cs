@@ -20,9 +20,10 @@ public sealed partial class DnssecTrustEpochResolver
             }
             var received = refresher.Clock.GetTimestamp();
             ValueTask<DnssecResolutionResult> pending;
-            try { pending = profile.Cache.ResolveDnssecAsync(question, token); }
-            catch (ObjectDisposedException error) when (string.Equals(error.ObjectName, typeof(CachingDnssecResolver).FullName,
-                StringComparison.Ordinal) && IsRetired(profile))
+            try { pending = profile.ResolveAsync(question, token); }
+            catch (ObjectDisposedException error) when ((string.Equals(error.ObjectName, typeof(CachingDnssecResolver).FullName,
+                StringComparison.Ordinal) || string.Equals(error.ObjectName, typeof(CoalescingDnssecResolver).FullName,
+                StringComparison.Ordinal)) && IsRetired(profile))
             {
                 // Only synchronous cache admission: provider faults are captured
                 // by its async execution and are awaited outside this catch.

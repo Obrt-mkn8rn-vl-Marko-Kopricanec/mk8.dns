@@ -43,14 +43,19 @@ public sealed partial class CoalescingDnssecResolver : IAsyncDisposable
         {
             ObjectDisposedException.ThrowIf(closing, this);
             if (pending.TryGetValue(question, out var canceled) && canceled.Token.IsCancellationRequested) RemovePending(canceled);
-            if (waiters == policy.MaximumWaiters || !pending.ContainsKey(question) && workers.Count == policy.MaximumWorkers)
+            if (waiters == policy.MaximumWaiters || (!pending.ContainsKey(question) && workers.Count == policy.MaximumWorkers))
             {
                 admissionRejections++; return ValueTask.FromResult(DnssecResolutionWork.Failure(question));
             }
             if (pending.TryGetValue(question, out var shared)) { flight = shared; coalesced++; }
             else
             {
-                flight = new DnssecWorkFlight(question, time, policy.ResolutionTimeout);
+                var created = CreateFlight(question);
+                if (created is null)
+                {
+                    admissionRejections++; return ValueTask.FromResult(DnssecResolutionWork.Failure(question));
+                }
+                flight = created;
                 pending.Add(question, flight); workers.Add(flight); started++;
                 flight.Worker = RunAsync(flight);
             }
@@ -75,7 +80,7 @@ public sealed partial class CoalescingDnssecResolver : IAsyncDisposable
         lock (gate)
         {
             if (closing) return new ValueTask(disposed.Task);
-            closing = true; pending.Clear(); active = workers.ToArray();
+            closing = true; pending.Clear(); active = [.. workers];
             foreach (var flight in active) flight.Abandoned = true;
             if (waiters == 0) waitersDrained.TrySetResult();
         }
