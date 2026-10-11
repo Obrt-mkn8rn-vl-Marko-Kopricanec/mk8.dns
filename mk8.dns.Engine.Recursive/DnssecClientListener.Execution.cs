@@ -57,17 +57,37 @@ public sealed partial class DnssecClientListener
 
     private async Task ServeBoundAsync(Socket udp, TcpListener tcp, CancellationToken token)
     {
-        var tasks = Enumerable.Range(0, udpWorkers).Select(_ => ServeUdpAsync(udp, token)).Append(AcceptTcpAsync(tcp, token)).ToArray();
+        var tasks = Enumerable.Range(0, udpWorkers)
+            .Select(_ => ObserveChildAsync(ServeUdpAsync(udp, token), token))
+            .Append(ObserveChildAsync(AcceptTcpAsync(tcp, token), token)).ToArray();
         var all = Task.WhenAll(tasks);
         await Task.WhenAny(tasks).ConfigureAwait(false);
         RequestStop();
         ThrowFailure(await CaptureAsync(all, expectedCancellation: true, token).ConfigureAwait(false));
     }
 
+    // Observe each child before its completion can initiate sibling teardown.
+    // A fault marker retains unsolicited cancellation across every later drain,
+    // even though those drains now see the requested listener token.
+    private static async Task ObserveChildAsync(Task child, CancellationToken token)
+    {
+        var outcome = await CaptureAsync(child, expectedCancellation: true, token)
+            .WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        if (outcome is OperationCanceledException canceled)
+        {
+            throw new AggregateException("Child cancellation was not an observed listener stop.", canceled);
+        }
+        ThrowFailure(outcome);
+    }
+
     private static async Task<Exception?> CaptureAsync(Task task, bool expectedCancellation, CancellationToken token)
     {
         try { await task.WaitAsync(CancellationToken.None).ConfigureAwait(false); return null; }
-        catch (OperationCanceledException) when (expectedCancellation && token.IsCancellationRequested && !task.IsFaulted) { return null; }
+        catch (OperationCanceledException canceled) when (expectedCancellation && token.IsCancellationRequested
+            && canceled.CancellationToken == token && !task.IsFaulted)
+        {
+            return null;
+        }
         catch (Exception error) when (task.IsFaulted || task.IsCanceled)
         {
             if (task.Exception is { InnerExceptions.Count: 1 } single) return single.InnerExceptions[0];
