@@ -20,12 +20,17 @@ public sealed partial class DnssecClientRequestProcessor
             if ((query.Flags & ~0x0130) != 0)
                 return Deliver(Error(query, tcp, DnssecClientReplyOutcome.Malformed, 1));
             if (query.Question is not { Class: 1 } question || query.EdnsVersion != 0 || query.GetCookieWire() is not null
-                || (query.Flags & 0x0010) != 0 || question.Type is 0 or 41 or 46 or >= 249 and <= 255
+                || ((query.Flags & 0x0010) != 0 && (checkingDisabledSource is null || query.DnssecOk))
+                || question.Type is 0 or 41 or 46 or >= 249 and <= 255
                 || question.Name.ToWire() is [1, 42, ..])
             {
                 return Deliver(Error(query, tcp, DnssecClientReplyOutcome.Unsupported, 4));
             }
-            if ((query.Flags & 0x0100) == 0 || !source.TryBeginClientQuery(question, out var revision))
+            if ((query.Flags & 0x0100) == 0)
+                return Deliver(Error(query, tcp, DnssecClientReplyOutcome.Refused, 5));
+            if ((query.Flags & 0x0010) != 0 && checkingDisabledSource is { } uncheckedSource && checkingDisabledClock is { } uncheckedClock)
+                return await ExecuteCheckingDisabledAsync(query, question, tcp, uncheckedSource, uncheckedClock, token).ConfigureAwait(false);
+            if (!source.TryBeginClientQuery(question, out var revision))
                 return Deliver(Error(query, tcp, DnssecClientReplyOutcome.Refused, 5));
             var result = await source.ResolveDnssecAsync(question, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();

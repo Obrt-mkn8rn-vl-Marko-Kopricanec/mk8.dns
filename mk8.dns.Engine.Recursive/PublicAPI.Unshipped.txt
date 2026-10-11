@@ -242,3 +242,5 @@ Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionResult
 Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionResult.Outcome.get -> Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome
 Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionResult.MessagesRead.get -> int
 Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionResult.RepliesWritten.get -> int
+Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome.CheckingDisabled = 8 -> Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome
+static Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.CreateWithCheckingDisabledSource(Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver! source, Mk8.Dns.Engine.Recursive.NonValidatingIterativeResolver! checkingDisabledSource, Mk8.Dns.Engine.Recursive.DnssecClientAccessPolicy! policy, System.TimeProvider! time, bool completeTcpAnswers = false, int maximumRequests = 64) -> Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor!

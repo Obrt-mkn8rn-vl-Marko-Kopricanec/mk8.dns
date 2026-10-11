@@ -11,4 +11,5 @@ public enum DnssecClientReplyOutcome
     Denied = 5,
     Overloaded = 6,
     Closed = 7,
+    CheckingDisabled = 8,
 }
