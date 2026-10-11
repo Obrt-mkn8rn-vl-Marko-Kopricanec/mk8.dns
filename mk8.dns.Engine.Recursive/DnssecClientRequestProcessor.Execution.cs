@@ -29,8 +29,11 @@ public sealed partial class DnssecClientRequestProcessor
                 return Deliver(Error(query, tcp, DnssecClientReplyOutcome.Refused, 5));
             var result = await source.ResolveDnssecAsync(question, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            if (!source.TryEncodeClientReply(query, result, revision, tcp, policy.AuthenticatedDataAllowed, out var encoded))
+            if (!source.TryEncodeClientReply(query, result, revision, tcp, policy.AuthenticatedDataAllowed, out var encoded)
+                || (requireCompleteTcp && tcp && !DnssecClientTcpMessageCodec.IsComplete(encoded)))
+            {
                 return Deliver(Error(query, tcp, DnssecClientReplyOutcome.Failure, 2));
+            }
             token.ThrowIfCancellationRequested();
             return Deliver(new DnssecClientReply(DnssecClientReplyOutcome.Encoded, encoded, revision));
         }

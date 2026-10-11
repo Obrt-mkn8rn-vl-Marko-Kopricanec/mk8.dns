@@ -225,3 +225,6 @@ Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.DnssecClientRequestProcess
 Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.ActiveRequests.get -> int
 Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.ProcessAsync(System.ReadOnlyMemory<byte> request, System.ReadOnlyMemory<byte> peerAddress, bool tcp, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Engine.Recursive.DnssecClientReply!>
 Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Engine.Recursive.DnssecClientTcpMessageCodec
+static Mk8.Dns.Engine.Recursive.DnssecClientTcpMessageCodec.TryEncode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Engine.Recursive.DnssecResolutionResult! result, bool recursionAvailable, bool authenticatedDataAllowed, out byte[]! message) -> bool
+static Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.CreateWithCompleteTcpAnswers(Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver! source, Mk8.Dns.Engine.Recursive.DnssecClientAccessPolicy! policy, int maximumRequests = 64) -> Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor!
