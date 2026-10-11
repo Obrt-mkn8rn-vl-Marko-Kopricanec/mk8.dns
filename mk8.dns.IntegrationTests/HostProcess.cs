@@ -31,8 +31,8 @@ internal sealed class HostProcess : IAsyncDisposable
         start.ArgumentList.Add(RepositoryPaths.HostAssembly(host));
         foreach (var argument in arguments)
             start.ArgumentList.Add(argument);
-        start.Environment["ASPNETCORE_URLS"] = FormattableString.Invariant($"http://0.0.0.0:{injectedPort}");
-        start.Environment["Kestrel__Endpoints__Injected__Url"] = FormattableString.Invariant($"http://0.0.0.0:{injectedPort}");
+        start.Environment["ASPNETCORE_URLS"] = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"http://0.0.0.0:{injectedPort}");
+        start.Environment["Kestrel__Endpoints__Injected__Url"] = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"http://0.0.0.0:{injectedPort}");
         process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start the host process.");
         output = process.StandardOutput.ReadToEndAsync();
         errors = process.StandardError.ReadToEndAsync();
@@ -40,6 +40,9 @@ internal sealed class HostProcess : IAsyncDisposable
 
     internal bool HasExited => process.HasExited;
     internal int ExitCode => process.ExitCode;
+
+    internal Task WaitForExitAsync(CancellationToken cancellationToken)
+        => process.WaitForExitAsync(cancellationToken);
 
     internal async Task StopAsync(CancellationToken cancellationToken)
     {
