@@ -251,3 +251,11 @@ Mk8.Dns.Engine.Recursive.DnssecClientListener.ActiveTcpConnections.get -> int
 Mk8.Dns.Engine.Recursive.DnssecClientListener.RunAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Mk8.Dns.Engine.Recursive.DnssecClientListener.WaitForBoundAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Net.IPEndPoint!>!
 Mk8.Dns.Engine.Recursive.DnssecClientListener.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Engine.Recursive.DnssecClientHost
+Mk8.Dns.Engine.Recursive.DnssecClientHost.ActiveRequests.get -> int
+Mk8.Dns.Engine.Recursive.DnssecClientHost.ActiveWorkers.get -> int
+Mk8.Dns.Engine.Recursive.DnssecClientHost.ActiveTcpConnections.get -> int
+Mk8.Dns.Engine.Recursive.DnssecClientHost.RunAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Mk8.Dns.Engine.Recursive.DnssecClientHost.WaitForBoundAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Net.IPEndPoint!>!
+Mk8.Dns.Engine.Recursive.DnssecClientHost.DisposeAsync() -> System.Threading.Tasks.ValueTask
+static Mk8.Dns.Engine.Recursive.DnssecClientHost.CreateAsync(Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher! refresher, Mk8.Dns.Domain.IDnssecUpstream! upstream, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! roots, Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy! epochPolicy, Mk8.Dns.Engine.Recursive.DnssecClientAccessPolicy! access, System.Net.IPEndPoint! endpoint, Mk8.Dns.Engine.Recursive.DnssecWorkPolicy! workPolicy, System.TimeProvider! time, ushort authorityPort = 53, int maximumRequests = 64, int udpWorkers = 4, int maximumTcpConnections = 16, int maximumTcpMessages = 16) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Engine.Recursive.DnssecClientHost!>
