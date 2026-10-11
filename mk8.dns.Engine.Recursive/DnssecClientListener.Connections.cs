@@ -44,9 +44,8 @@ public sealed partial class DnssecClientListener
     private async Task ServeConnectionAsync(Socket socket, SemaphoreSlim admission, CancellationToken token)
     {
         await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
-        var serving = ServeAndClosePeerAsync(socket, token);
+        var serving = ObserveChildAsync(ServeAndClosePeerAsync(socket, token), token);
         try { await serving.ConfigureAwait(false); }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception) when (serving.IsFaulted || serving.IsCanceled) { RequestStop(); throw; }
         finally { Interlocked.Decrement(ref activeTcp); admission.Release(); }
     }
