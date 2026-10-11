@@ -11,6 +11,14 @@ using Mk8.Dns.Infrastructure.Cryptography;
 using Mk8.Dns.Transport;
 using Mk8.Dns.Wire;
 
+if (args.Length != 0 && string.Equals(args[0], "--recursive-config", StringComparison.Ordinal))
+{
+    if (args.Length != 2)
+        throw new ArgumentException("Recursive startup requires exactly one private configuration path.", nameof(args));
+    await RecursiveStartup.RunAsync(args[1]).ConfigureAwait(false);
+    return;
+}
+
 var settings = ApplicationSettings.Parse(args);
 var limits = settings.UdpResponseLimits;
 var limiter = string.Equals(settings.Role, "authoritative-replica", StringComparison.Ordinal)
@@ -50,7 +58,7 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Limits.Http2.MaxStreamsPerConnection = 16;
     options.ListenUnixSocket(socket.Path, endpoint => endpoint.Protocols = HttpProtocols.Http2);
 });
-IApplicationStatusSource statusSource = authority is null ? new ApplicationStatusSource(snapshots, settings.NodeId, settings.Role) : authority;
+IApplicationStatusSource statusSource = authority ?? (IApplicationStatusSource)new ApplicationStatusSource(snapshots, settings.NodeId, settings.Role);
 builder.Services.AddApplicationProbe(statusSource);
 if (authority is not null)
     builder.Services.AddAuthoritativeQuery(authority);
@@ -106,8 +114,8 @@ await using (application.ConfigureAwait(false))
         await publishing.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         if (limiter is not null)
         {
-            var statistics = limiter.Statistics;
-            UdpBudgetLogs.Totals(application.Logger, statistics.Admitted, statistics.Dropped, statistics.TrackedPrefixes);
+            var (admitted, dropped, trackedPrefixes) = limiter.Statistics;
+            UdpBudgetLogs.Totals(application.Logger, admitted, dropped, trackedPrefixes);
         }
     }
 }
