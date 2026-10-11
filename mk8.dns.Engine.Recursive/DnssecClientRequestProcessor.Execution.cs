@@ -20,7 +20,7 @@ public sealed partial class DnssecClientRequestProcessor
             if ((query.Flags & ~0x0130) != 0)
                 return Deliver(Error(query, tcp, DnssecClientReplyOutcome.Malformed, 1));
             if (query.Question is not { Class: 1 } question || query.EdnsVersion != 0 || query.GetCookieWire() is not null
-                || ((query.Flags & 0x0010) != 0 && (checkingDisabledSource is null || query.DnssecOk))
+                || ((query.Flags & 0x0010) != 0 && (checkingDisabledSource is null || (query.DnssecOk && !checkingDisabledSource.CapturesDnssecMaterial)))
                 || question.Type is 0 or 41 or 46 or >= 249 and <= 255
                 || question.Name.ToWire() is [1, 42, ..])
             {

@@ -5,7 +5,7 @@ public sealed partial class DnssecClientRequestProcessor
     private readonly NonValidatingIterativeResolver? checkingDisabledSource;
     private readonly DnssecResolutionClock? checkingDisabledClock;
 
-    // Explicit ordinary CD1/DO0 path. This source has no authentication authority,
+    // Explicit unchecked path: DO1 additionally requires the source material factory. It has no authentication authority,
     // proof cache or validation epoch. The caller owns both resolvers and clock.
     public static DnssecClientRequestProcessor CreateWithCheckingDisabledSource(DnssecTrustEpochResolver source,
         NonValidatingIterativeResolver checkingDisabledSource, DnssecClientAccessPolicy policy, TimeProvider time,

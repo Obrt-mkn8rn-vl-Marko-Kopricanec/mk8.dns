@@ -2,7 +2,7 @@ using Mk8.Dns.Domain;
 
 namespace Mk8.Dns.Engine.Recursive;
 
-public sealed class NonValidatingIterativeResolver : IDnsResolver
+public sealed partial class NonValidatingIterativeResolver : IDnsResolver
 {
     private static readonly DnsName Root = DnsName.Parse(".");
     private readonly IDnsUpstream upstream;
@@ -20,8 +20,8 @@ public sealed class NonValidatingIterativeResolver : IDnsResolver
         ArgumentNullException.ThrowIfNull(roots);
         if (authorityPort == 0 || maximumExchanges is < 1 or > 256 || maximumAliasHops is < 1 or > 32 || maximumDependencyDepth is < 1 or > 16)
             throw new ArgumentOutOfRangeException(nameof(maximumExchanges), "Invalid iterative resource limits.");
-        this.roots = roots.Take(17).ToArray();
-        if (this.roots.Length is < 1 or > 16 || this.roots.Any(server => server is null) || this.roots.Distinct().Count() != this.roots.Length)
+        this.roots = [.. roots.Take(17)];
+        if (this.roots.Length is < 1 or > 16 || this.roots.Any(server => server is null) || this.roots.Distinct().Take(this.roots.Length + 1).Count() != this.roots.Length)
             throw new ArgumentException("Supply one to sixteen distinct bootstrap servers.", nameof(roots));
         this.upstream = upstream;
         this.authorityPort = authorityPort;
@@ -40,7 +40,12 @@ public sealed class NonValidatingIterativeResolver : IDnsResolver
         if (question.Class != 1 || question.Type is 0 or 41 or (>= 249 and <= 255))
             return Empty(5);
         var work = new Work(maximumExchanges, maximumAliasHops);
-        return await ResolveCoreAsync(question, work, 0, cancellationToken).ConfigureAwait(false);
+        var (timestamp, wall) = captureDnssecMaterial ? (time.GetTimestamp(), time.GetUtcNow()) : default;
+        var answer = await ResolveCoreAsync(question, work, 0, cancellationToken).ConfigureAwait(false);
+        if (!captureDnssecMaterial)
+            return answer;
+        cancellationToken.ThrowIfCancellationRequested();
+        return AgeMaterialResolution(answer, timestamp, wall);
     }
 
     private async ValueTask<DnsAnswer> ResolveCoreAsync(DnsQuestion original, Work work, int depth, CancellationToken cancellationToken)
@@ -63,6 +68,7 @@ public sealed class NonValidatingIterativeResolver : IDnsResolver
         var servers = roots;
         HashSet<DnsName> aliases = [question.Name];
         List<(DnsRecord Record, long Received)> chain = [];
+        List<(DnsRecord Record, long Received)> materialAuthority = [];
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -77,14 +83,14 @@ public sealed class NonValidatingIterativeResolver : IDnsResolver
                 var received = time.GetTimestamp();
                 if (reply.Authoritative)
                 {
-                    var step = AnalyzeAuthoritative(question, cut, reply);
+                    var step = AnalyzeStep(question, cut, reply);
                     if (step is null)
                         continue;
                     if (step.Target is null)
-                        return new DnsAnswer(step.Answer.ResponseCode, false, AgeChain(chain).Concat(step.Answer.Answers), step.Answer.Authority, []);
+                        return FinishAnswer(chain, materialAuthority, step.Answer);
                     if (!work.TakeAlias() || !aliases.Add(step.Target))
                         return Empty(2);
-                    chain.AddRange(step.Answer.Answers.Select(record => (record, received)));
+                    AppendStep(chain, materialAuthority, step, received);
                     question = question with { Name = step.Target };
                     // Never trust inline target data from a previous authority, even in the same packet.
                     cut = Root;
@@ -144,7 +150,7 @@ public sealed class NonValidatingIterativeResolver : IDnsResolver
             return null;
         var atName = reply.Answers.Where(record => record.Owner.Equals(question.Name)).ToArray();
         var cnames = atName.Where(record => record.Type == 5).ToArray();
-        if (cnames.Length != 0 && (cnames.Select(record => record.GetTarget()).Distinct().Count() != 1 || atName.Any(record => record.Type is not (5 or 46))))
+        if (cnames.Length != 0 && (cnames.Select(record => record.GetTarget()).Distinct().Take(2).Count() != 1 || atName.Any(record => record.Type is not (5 or 46))))
             return null;
         // A DNAME does not alias its owner. Prefer the closest strict ancestor.
         var dnames = reply.Answers.Where(record => record.Type == 39 && !record.Owner.Equals(question.Name)
@@ -153,35 +159,35 @@ public sealed class NonValidatingIterativeResolver : IDnsResolver
         {
             var owner = dnames.MaxBy(record => record.Owner.LabelCount)!.Owner;
             var values = dnames.Where(record => record.Owner.Equals(owner)).ToArray();
-            if (values.Select(record => record.GetTarget()).Distinct().Count() != 1)
+            if (values.Select(record => record.GetTarget()).Distinct().Take(2).Count() != 1)
                 return null;
             var dname = values[0].WithTtl(values.Min(record => record.Ttl));
             var name = question.Name.ToWire();
             var prefix = name.Length - owner.ToWire().Length;
             var target = dname.GetTarget().ToWire();
             if (prefix + target.Length > 255)
-                return reply.ResponseCode is 0 or 6 ? new Step(new DnsAnswer(6, false, [dname], [], []), null) : null;
+                return reply.ResponseCode is 0 or 6 ? new Step(new DnsAnswer(6, authoritative: false, [dname], [], []), Target: null) : null;
             if (reply.ResponseCode == 6)
                 return null;
             var synthesized = DnsName.FromWire([.. name.AsSpan(0, prefix), .. target]);
             if (cnames.Any(record => !record.GetTarget().Equals(synthesized)) || atName.Any(record => record.Type is not (5 or 46)))
                 return null;
-            return new Step(new DnsAnswer(0, false, [dname, new DnsRecord(question.Name, 5, dname.Ttl, synthesized.ToWire())], [], []), question.Type == 5 ? null : synthesized);
+            return new Step(new DnsAnswer(0, authoritative: false, [dname, new DnsRecord(question.Name, 5, dname.Ttl, synthesized.ToWire())], [], []), question.Type == 5 ? null : synthesized);
         }
         if (reply.ResponseCode == 6)
             return null;
         if (cnames.Length != 0 && question.Type != 5)
         {
             var cname = cnames[0].WithTtl(cnames.Min(record => record.Ttl));
-            return new Step(new DnsAnswer(0, false, [cname], [], []), cname.GetTarget());
+            return new Step(new DnsAnswer(0, authoritative: false, [cname], [], []), cname.GetTarget());
         }
         var result = atName.Where(record => record.Type == question.Type).ToArray();
         if (result.Length != 0)
-            return reply.ResponseCode == 0 ? new Step(new DnsAnswer(0, false, NormalizeTtl(result), [], []), null) : null;
+            return reply.ResponseCode == 0 ? new Step(new DnsAnswer(0, authoritative: false, NormalizeTtl(result), [], []), Target: null) : null;
         var soa = reply.Authority.Where(record => record.Type == 6 && record.Owner.Equals(cut)).ToArray();
         if (soa.Length != 1 || reply.Answers.Count != 0)
             return null;
-        return new Step(new DnsAnswer(reply.ResponseCode, false, [], [soa[0].WithTtl(Math.Min(soa[0].Ttl, soa[0].GetSoaMinimum()))], []), null);
+        return new Step(new DnsAnswer(reply.ResponseCode, authoritative: false, [], [soa[0].WithTtl(Math.Min(soa[0].Ttl, soa[0].GetSoaMinimum()))], []), Target: null);
     }
 
     private static (DnsName Cut, DnsName[] Names)? SelectDelegation(DnsQuestion question, DnsName cut, DnsAnswer reply)
@@ -189,12 +195,14 @@ public sealed class NonValidatingIterativeResolver : IDnsResolver
         if (reply.ResponseCode != 0 || reply.Answers.Count != 0)
             return null;
         var records = reply.Authority.Where(record => record.Type == 2).ToArray();
-        if (records.Length is < 1 or > 16 || records.Select(record => record.Owner).Distinct().Count() != 1)
+        if (records.Length is < 1 or > 16 || records.Select(record => record.Owner).Distinct().Take(2).Count() != 1)
             return null;
         var next = records[0].Owner;
         if (next.Equals(cut) || !next.IsSubdomainOf(cut) || !question.Name.IsSubdomainOf(next)
-            || question.Type == 43 && question.Name.Equals(next))
+            || (question.Type == 43 && question.Name.Equals(next)))
+        {
             return null;
+        }
         return (next, records.Select(record => record.GetTarget()).Distinct().ToArray());
     }
 
@@ -206,18 +214,22 @@ public sealed class NonValidatingIterativeResolver : IDnsResolver
         {
             // Only exact NS-target addresses inside the delegated child are usable glue.
             if (name.IsSubdomainOf(cut))
+            {
                 AddAddresses(result, glue.Where(record => record.Owner.Equals(name) && record.Type is 1 or 28));
+            }
             else
+            {
                 foreach (var type in new ushort[] { 1, 28 })
                 {
                     var resolved = await ResolveCoreAsync(new DnsQuestion(name, type, 1), work, depth + 1, cancellationToken).ConfigureAwait(false);
                     if (resolved.ResponseCode == 0 && resolved.Answers.All(record => record.Type != 5 && record.Type != 39))
                         AddAddresses(result, resolved.Answers.Where(record => record.Owner.Equals(name) && record.Type == type));
                 }
+            }
             if (result.Count >= 16)
                 break;
         }
-        return result.Distinct().Take(16).ToArray();
+        return [.. result.Distinct().Take(16)];
     }
 
     private void AddAddresses(List<DnsServerEndpoint> result, IEnumerable<DnsRecord> records)
@@ -254,7 +266,7 @@ public sealed class NonValidatingIterativeResolver : IDnsResolver
         });
     }
 
-    private static DnsAnswer Empty(byte code) => new(code, false, [], [], []);
+    private static DnsAnswer Empty(byte code) => new(code, authoritative: false, [], [], []);
     private sealed record Step(DnsAnswer Answer, DnsName? Target);
     private sealed class Work(int exchanges, int aliases)
     {

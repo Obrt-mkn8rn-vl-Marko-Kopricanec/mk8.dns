@@ -23,7 +23,8 @@ public sealed partial class DnssecClientRequestProcessor
         }
         var elapsed = Elapsed(clock, received);
         var selected = new DnsAnswer(answer.ResponseCode, authoritative: false,
-            AgeUnchecked(answer.Answers, elapsed), AgeUnchecked(answer.Authority, elapsed), AgeUnchecked(answer.Additional, elapsed));
+            AgeUnchecked(SelectUnchecked(answer.Answers, query), elapsed), AgeUnchecked(SelectUnchecked(answer.Authority, query), elapsed),
+            AgeUnchecked(SelectUnchecked(answer.Additional, query), elapsed));
         var message = DnsMessageCodec.EncodeResponse(query, selected, tcp);
         var flags = BinaryPrimitives.ReadUInt16BigEndian(message.AsSpan(2));
         BinaryPrimitives.WriteUInt16BigEndian(message.AsSpan(2), (ushort)((flags | 0x0080) & ~0x0020));
@@ -39,4 +40,7 @@ public sealed partial class DnssecClientRequestProcessor
 
     private static DnsRecord[] AgeUnchecked(IReadOnlyList<DnsRecord> records, double elapsed)
         => [.. records.Select(record => record.WithTtl(elapsed >= record.Ttl ? 0 : record.Ttl - (uint)elapsed))];
+
+    private static DnsRecord[] SelectUnchecked(IReadOnlyList<DnsRecord> records, DnsQuery query)
+        => [.. records.Where(record => query.DnssecOk || record.Type == query.Question?.Type || record.Type is not (43 or 46 or 47 or 48 or 50 or 51))];
 }
