@@ -228,3 +228,17 @@ Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.DisposeAsync() -> System.T
 Mk8.Dns.Engine.Recursive.DnssecClientTcpMessageCodec
 static Mk8.Dns.Engine.Recursive.DnssecClientTcpMessageCodec.TryEncode(Mk8.Dns.Domain.DnsQuery! query, Mk8.Dns.Engine.Recursive.DnssecResolutionResult! result, bool recursionAvailable, bool authenticatedDataAllowed, out byte[]! message) -> bool
 static Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.CreateWithCompleteTcpAnswers(Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver! source, Mk8.Dns.Engine.Recursive.DnssecClientAccessPolicy! policy, int maximumRequests = 64) -> Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor!
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSession
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSession.DnssecClientTcpSession(Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor! processor, System.IO.Stream! stream, System.ReadOnlyMemory<byte> peerAddress, int maximumMessages = 16) -> void
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSession.RunAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionResult!>
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSession.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome.EndOfStream = 0 -> Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome.MessageLimit = 1 -> Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome.Denied = 2 -> Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome.Stopped = 3 -> Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome.Dropped = 4 -> Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionResult
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionResult.Outcome.get -> Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionResult.MessagesRead.get -> int
+Mk8.Dns.Engine.Recursive.DnssecClientTcpSessionResult.RepliesWritten.get -> int
