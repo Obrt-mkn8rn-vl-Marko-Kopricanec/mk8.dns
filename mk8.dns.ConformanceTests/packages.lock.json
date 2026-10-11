@@ -118,13 +118,13 @@
       "mk8.dns.engine.dnssec": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[0.1.0-alpha.56, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.57, )"
         }
       },
       "mk8.dns.infrastructure.cryptography": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[0.1.0-alpha.56, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.57, )"
         }
       }
     }

@@ -197,3 +197,31 @@ static Mk8.Dns.Engine.Recursive.DnssecClientMessageCodec.TryEncode(Mk8.Dns.Domai
 static Mk8.Dns.Engine.Recursive.CachingDnssecResolver.CreateWithClientProofCache(Mk8.Dns.Engine.Recursive.DnssecIterativeResolver! resolver, int maximumEntries = 4096, long maximumPayloadBytes = 16777216, int maximumRequests = 64, uint maximumPositiveTtl = 86400, uint maximumNegativeTtl = 3600) -> Mk8.Dns.Engine.Recursive.CachingDnssecResolver!
 static Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver.CreateWithClientProof(Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher! refresher, Mk8.Dns.Domain.IDnssecUpstream! upstream, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! roots, Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy! policy, ushort authorityPort = 53) -> Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver!
 static Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver.CreateWithClientProofAndCoalescing(Mk8.Dns.Engine.Recursive.DnssecAnchorRefresher! refresher, Mk8.Dns.Domain.IDnssecUpstream! upstream, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, System.Collections.Generic.IEnumerable<Mk8.Dns.Domain.DnsServerEndpoint!>! roots, Mk8.Dns.Engine.Recursive.DnssecTrustEpochPolicy! policy, Mk8.Dns.Engine.Recursive.DnssecWorkPolicy! workPolicy, System.TimeProvider! time, ushort authorityPort = 53) -> Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver!
+Mk8.Dns.Engine.Recursive.DnssecClientNetwork
+Mk8.Dns.Engine.Recursive.DnssecClientNetwork.DnssecClientNetwork(System.ReadOnlySpan<byte> address, int prefixLength) -> void
+Mk8.Dns.Engine.Recursive.DnssecClientNetwork.PrefixLength.get -> int
+Mk8.Dns.Engine.Recursive.DnssecClientNetwork.GetAddress() -> byte[]!
+Mk8.Dns.Engine.Recursive.DnssecClientNetwork.Contains(System.ReadOnlySpan<byte> peer) -> bool
+Mk8.Dns.Engine.Recursive.DnssecClientAccessPolicy
+Mk8.Dns.Engine.Recursive.DnssecClientAccessPolicy.DnssecClientAccessPolicy(System.Collections.Generic.IEnumerable<Mk8.Dns.Engine.Recursive.DnssecClientNetwork!>! networks, bool authenticatedDataAllowed = false) -> void
+Mk8.Dns.Engine.Recursive.DnssecClientAccessPolicy.AuthenticatedDataAllowed.get -> bool
+Mk8.Dns.Engine.Recursive.DnssecClientAccessPolicy.NetworkCount.get -> int
+Mk8.Dns.Engine.Recursive.DnssecClientAccessPolicy.Allows(System.ReadOnlySpan<byte> peer) -> bool
+Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome.Encoded = 0 -> Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome.Failure = 1 -> Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome.Refused = 2 -> Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome.Unsupported = 3 -> Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome.Malformed = 4 -> Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome.Denied = 5 -> Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome.Overloaded = 6 -> Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome.Closed = 7 -> Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientReply
+Mk8.Dns.Engine.Recursive.DnssecClientReply.Outcome.get -> Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome
+Mk8.Dns.Engine.Recursive.DnssecClientReply.Revision.get -> long?
+Mk8.Dns.Engine.Recursive.DnssecClientReply.GetMessage() -> byte[]!
+Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor
+Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.DnssecClientRequestProcessor(Mk8.Dns.Engine.Recursive.DnssecTrustEpochResolver! source, Mk8.Dns.Engine.Recursive.DnssecClientAccessPolicy! policy, int maximumRequests = 64) -> void
+Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.ActiveRequests.get -> int
+Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.ProcessAsync(System.ReadOnlyMemory<byte> request, System.ReadOnlyMemory<byte> peerAddress, bool tcp, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Mk8.Dns.Engine.Recursive.DnssecClientReply!>
+Mk8.Dns.Engine.Recursive.DnssecClientRequestProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
