@@ -7,7 +7,7 @@ namespace Mk8.Dns.Engine.Recursive;
 // Owns the explicitly constructed listener, processor and proof-aware epoch.
 // Refresher/store, upstream, verifier and both clocks remain caller-owned.
 // This composition does not provision anchors, schedule refreshes or install a host.
-public sealed class DnssecClientHost : IAsyncDisposable
+public sealed partial class DnssecClientHost : IAsyncDisposable
 {
     private readonly Lock gate = new();
     private DnssecTrustEpochResolver? epoch;
