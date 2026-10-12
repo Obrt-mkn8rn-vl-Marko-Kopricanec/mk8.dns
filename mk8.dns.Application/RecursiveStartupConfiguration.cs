@@ -8,20 +8,24 @@ using Mk8.Dns.Engine.Recursive;
 namespace Mk8.Dns.Application;
 
 // No deployment defaults. Parsing and all policy validation precede key/store I/O.
-internal sealed record RecursiveStartupConfiguration(string StoreDirectory, string KeyFile, Guid StoreIdentity,
+internal sealed partial record RecursiveStartupConfiguration(string StoreDirectory, string KeyFile, Guid StoreIdentity,
     DnsName Origin, long MinimumRevision, bool Retention, IPEndPoint Binding, DnsServerEndpoint[] Roots,
     DnsServerEndpoint RefreshServer, DnssecClientAccessPolicy Access, DnssecClientNetwork[] Egress,
     ushort AuthorityPort, DnssecWorkPolicy Work, int MaximumRequests, int UdpWorkers,
-    int MaximumTcpConnections, int MaximumTcpMessages, TimeSpan UpstreamTimeout)
+    int MaximumTcpConnections, int MaximumTcpMessages, TimeSpan UpstreamTimeout, DnssecAnchorPollingPolicy? RefreshPolicy)
 {
-    internal static RecursiveStartupConfiguration Load(string path)
+    internal static RecursiveStartupConfiguration Load(string path) => Load(path, authenticatedRefresh: false);
+
+    internal static RecursiveStartupConfiguration Load(string path, bool authenticatedRefresh)
     {
         using var document = JsonDocument.Parse(PrivateFile.Read(path, 65536), new JsonDocumentOptions { MaxDepth = 8 });
         var values = document.RootElement;
-        RequireFields(values, ["storeDirectory", "keyFile", "storeIdentity", "origin", "minimumRevision", "retention",
+        string[] fields = ["storeDirectory", "keyFile", "storeIdentity", "origin", "minimumRevision", "retention",
             "listen", "roots", "refreshServer", "clientNetworks", "allowAuthenticatedData", "egressNetworks", "authorityPort",
             "maximumRequests", "udpWorkers", "maximumTcpConnections", "maximumTcpMessages", "maximumWorkers",
-            "maximumWaiters", "resolutionTimeoutMilliseconds", "upstreamTimeoutMilliseconds"]);
+            "maximumWaiters", "resolutionTimeoutMilliseconds", "upstreamTimeoutMilliseconds"];
+        RequireFields(values, authenticatedRefresh ? [.. fields, "refreshPolicy"] : fields);
+        var refreshPolicy = authenticatedRefresh ? Refresh(values.GetProperty("refreshPolicy")) : null;
         var roots = values.GetProperty("roots").EnumerateArray().Select(Endpoint).Take(17).ToArray();
         if (roots.Length is < 1 or > 16 || roots.Distinct().Take(roots.Length + 1).Count() != roots.Length)
             throw new InvalidDataException("One to sixteen distinct root endpoints are required.");
@@ -48,7 +52,7 @@ internal sealed record RecursiveStartupConfiguration(string StoreDirectory, stri
                 TimeSpan.FromMilliseconds(Number(values, "resolutionTimeoutMilliseconds", 50, 120000))),
             (int)Number(values, "maximumRequests", 1, 256), (int)Number(values, "udpWorkers", 1, 16),
             (int)Number(values, "maximumTcpConnections", 1, 64), (int)Number(values, "maximumTcpMessages", 1, 256),
-            TimeSpan.FromMilliseconds(Number(values, "upstreamTimeoutMilliseconds", 50, 10000)));
+            TimeSpan.FromMilliseconds(Number(values, "upstreamTimeoutMilliseconds", 50, 10000)), refreshPolicy);
     }
 
     internal static bool Permits(DnsServerEndpoint endpoint, DnssecClientNetwork[] networks, ushort port)

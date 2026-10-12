@@ -11,11 +11,14 @@ using Mk8.Dns.Infrastructure.Cryptography;
 using Mk8.Dns.Transport;
 using Mk8.Dns.Wire;
 
-if (args.Length != 0 && string.Equals(args[0], "--recursive-config", StringComparison.Ordinal))
+if (args.Length != 0 && (string.Equals(args[0], "--recursive-config", StringComparison.Ordinal)
+    || string.Equals(args[0], "--recursive-refresh-config", StringComparison.Ordinal)))
 {
     if (args.Length != 2)
         throw new ArgumentException("Recursive startup requires exactly one private configuration path.", nameof(args));
-    await RecursiveStartup.RunAsync(args[1]).ConfigureAwait(false);
+    if (string.Equals(args[0], "--recursive-refresh-config", StringComparison.Ordinal))
+        await RecursiveStartup.RunWithRefreshAsync(args[1]).ConfigureAwait(false);
+    else await RecursiveStartup.RunAsync(args[1]).ConfigureAwait(false);
     return;
 }
 

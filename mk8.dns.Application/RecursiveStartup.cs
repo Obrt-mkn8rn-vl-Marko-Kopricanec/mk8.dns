@@ -10,9 +10,13 @@ namespace Mk8.Dns.Application;
 
 internal static class RecursiveStartup
 {
-    internal static async Task RunAsync(string configurationPath)
+    internal static Task RunAsync(string configurationPath) => RunCoreAsync(configurationPath, authenticatedRefresh: false);
+
+    internal static Task RunWithRefreshAsync(string configurationPath) => RunCoreAsync(configurationPath, authenticatedRefresh: true);
+
+    private static async Task RunCoreAsync(string configurationPath, bool authenticatedRefresh)
     {
-        var settings = RecursiveStartupConfiguration.Load(configurationPath);
+        var settings = RecursiveStartupConfiguration.Load(configurationPath, authenticatedRefresh);
         var verifier = new DnssecSignatureVerifier();
         var time = TimeProvider.System;
         var key = PrivateFile.Read(settings.KeyFile, 32);
@@ -29,6 +33,7 @@ internal static class RecursiveStartup
         }
         finally { CryptographicOperations.ZeroMemory(key); }
         using var storeLifetime = store;
+        settings.RequireRefreshCapacity(store);
         var upstream = new DnssecUpstreamClient(endpoint => RecursiveStartupConfiguration.Permits(endpoint, settings.Egress, settings.AuthorityPort),
             settings.UpstreamTimeout, time);
         var refresher = new DnssecAnchorRefresher(settings.Origin, store, upstream, verifier, settings.RefreshServer, time);
@@ -39,7 +44,10 @@ internal static class RecursiveStartup
             settings.Work, time, settings.AuthorityPort, settings.MaximumRequests, settings.UdpWorkers,
             settings.MaximumTcpConnections, settings.MaximumTcpMessages).ConfigureAwait(false);
         // Signals only request stop. Retain and join actual CancelAsync dispatch before CTS disposal.
-        var initiating = await CaptureAsync(RunHostAsync(host, shutdown.Token)).ConfigureAwait(false);
+        var running = settings.RefreshPolicy is { } policy
+            ? RecursiveRefreshExecution.RunAsync(host, refresher, policy, time, shutdown.Token)
+            : RunHostAsync(host, shutdown.Token);
+        var initiating = await CaptureAsync(running).ConfigureAwait(false);
         var cleanup = await CaptureAsync(CloseHostAsync(host)).ConfigureAwait(false);
         var dispatch = await CaptureAsync(JoinShutdownAsync(shutdown)).ConfigureAwait(false);
         var failures = new[] { initiating, cleanup, dispatch }.OfType<Exception>().ToArray();
