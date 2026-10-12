@@ -29,12 +29,50 @@ canonical networks. Empty client networks deny everyone.
 Startup validates configuration before reading the key or acquiring a journal
 lease. It opens existing storage only: no initialization, anchor selection,
 independent floor writer, automatic retention, legacy migration or provisioning.
-The one owned refresher supplies its acknowledged checkpoint; this mode does not
-schedule refreshes. All proof and coalescing clocks use `TimeProvider.System`.
+The one owned refresher supplies its acknowledged checkpoint; `--recursive-config`
+does not schedule refreshes. All proof and coalescing clocks use `TimeProvider.System`.
 The concrete verifier supports algorithms 8, 13 and 14 under inherited contracts.
 The client listener retains its accepted finite authenticated-query profile;
 unchecked CD bypass and full security-state/general RFC interoperability remain
 outside this startup mode.
+
+## Explicit finite authenticated refresh
+
+`--recursive-refresh-config <absolute-private-file>` is a separate opt-in mode.
+It requires all fields above plus a closed `refreshPolicy` object with three
+required integer fields: `refreshIntervalSeconds` (3600–1296000),
+`retryIntervalSeconds` (3600–86400, no greater than the refresh interval), and
+`maximumAttempts` (1–256). Unknown, duplicate, missing or out-of-range fields
+refuse startup. The original mode continues to reject `refreshPolicy`.
+
+After opening the existing journal, this mode conservatively checks logical
+generation headroom for every configured attempt to commit. The
+legacy 256-total-generation cap and the retention format's 256-live-generation
+cap remain. Revision overflow also refuses. The check does not certify physical
+capacity or pending retention cleanup, reserve against an independent writer,
+prove external floor custody, prune generations or perform retention cleanup.
+Exclusive logical ownership and an independently
+trusted floor remain caller obligations.
+
+The executable owns one finite authenticated-timing poller over the same
+refresher used by serving. With no retained acknowledged timing, the explicit
+bootstrap policy governs; later acknowledged timing drives the existing adaptive
+schedule. The initial interval and independent one-hour spacing remain; there is
+no immediate refresh, shortened clock interval or catch-up burst. Refused and
+busy attempts count toward the finite cap. Recovered journals invent no timing
+receipt. This is finite scheduling, not indefinite RFC5011 service or a refresh
+availability SLA.
+
+Completion of the poller's attempt cap ends serving as well. Listener completion,
+signal stop, refresh failure or timer failure begins closure of both host and
+poller before awaiting either. Actual admitted listener/processor/epoch work and
+poller acquisition/commit/timer/cancellation callbacks are joined before the
+startup owner closes the refresher and journal. Initiating and cleanup failures
+remain non-successful; later teardown cannot turn an unsolicited cancellation
+into successful completion. An acknowledged commit remains acknowledged even
+if shutdown starts during its return. A borrowed provider ignoring cancellation
+can keep this scope and the journal lease alive indefinitely. This mode does not
+add provisioning, a floor writer, automatic retention or a perpetual service.
 
 SIGTERM or SIGINT requests cancellation. Shutdown joins the listener, processor
 and detached epoch work before closing the refresher and journal lease. Actual
