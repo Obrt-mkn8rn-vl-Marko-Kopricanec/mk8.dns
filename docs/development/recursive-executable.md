@@ -93,3 +93,11 @@ This source mode does not authorize installation or operation. Public addresses,
 secondary authority, provisioning, custodian, certificate and topology decisions
 remain unconfirmed. Monday 12 October 2026 at noon Europe/Zagreb (10:00 UTC) is a
 deadline and earliest gated window, never a readiness or operational waiver.
+
+Explicit checking-disabled startup uses exactly `--recursive-checking-disabled-config <private-config-path>` and the same required base fields plus a required boolean `checkingDisabledDnssecMaterial`. Existing startup modes reject this field. This mode is separate from finite refresh startup; it does not schedule refreshes.
+
+`false` admits CD1/DO0 with ordinary unvalidated acquisition and refuses CD1/DO1 before upstream work. `true` additionally admits selected unvalidated DNSSEC material for CD1/DO1. Both use the configured roots, authority port, egress predicate and timeout. Their name scope is independent of the validating anchor; CD0 still uses the authenticated acknowledged-epoch path. Unvalidated replies have AD/AA clear, no validation revision/receipt/lease, and no authenticated cache or failure-storage effect. This is not full security-state or general RFC compliance. The same complete-TCP refusal and caller delivery freshness/access/transport obligations apply.
+
+The host owns native admission, processor calls and validating epoch drains. It borrows the ordinary resolver; actual unchecked provider work is joined through the admitted processor call before host closure completes. Ignored provider/clock/I/O cancellation may stall closure indefinitely. No upstream, verifier, refresher, store or clock is disposed by this host, and no key/floor provisioning or retention maintenance is implied.
+
+The unchecked resolver retains its existing finite exchange/alias/dependency limits (64/16/8). `maximumWorkers` and `maximumWaiters` govern the validating coalescer; unchecked work instead remains under shared `maximumRequests` admission and actual call settlement. These counts are software admission limits, not measured CPU, memory, latency or capacity bounds.

@@ -12,11 +12,17 @@ internal sealed partial record RecursiveStartupConfiguration(string StoreDirecto
     DnsName Origin, long MinimumRevision, bool Retention, IPEndPoint Binding, DnsServerEndpoint[] Roots,
     DnsServerEndpoint RefreshServer, DnssecClientAccessPolicy Access, DnssecClientNetwork[] Egress,
     ushort AuthorityPort, DnssecWorkPolicy Work, int MaximumRequests, int UdpWorkers,
-    int MaximumTcpConnections, int MaximumTcpMessages, TimeSpan UpstreamTimeout, DnssecAnchorPollingPolicy? RefreshPolicy)
+    int MaximumTcpConnections, int MaximumTcpMessages, TimeSpan UpstreamTimeout, DnssecAnchorPollingPolicy? RefreshPolicy, bool? CheckingDisabledDnssecMaterial)
 {
     internal static RecursiveStartupConfiguration Load(string path) => Load(path, authenticatedRefresh: false);
 
     internal static RecursiveStartupConfiguration Load(string path, bool authenticatedRefresh)
+        => LoadCore(path, authenticatedRefresh, checkingDisabled: false);
+
+    internal static RecursiveStartupConfiguration LoadCheckingDisabled(string path)
+        => LoadCore(path, authenticatedRefresh: false, checkingDisabled: true);
+
+    private static RecursiveStartupConfiguration LoadCore(string path, bool authenticatedRefresh, bool checkingDisabled)
     {
         using var document = JsonDocument.Parse(PrivateFile.Read(path, 65536), new JsonDocumentOptions { MaxDepth = 8 });
         var values = document.RootElement;
@@ -24,7 +30,9 @@ internal sealed partial record RecursiveStartupConfiguration(string StoreDirecto
             "listen", "roots", "refreshServer", "clientNetworks", "allowAuthenticatedData", "egressNetworks", "authorityPort",
             "maximumRequests", "udpWorkers", "maximumTcpConnections", "maximumTcpMessages", "maximumWorkers",
             "maximumWaiters", "resolutionTimeoutMilliseconds", "upstreamTimeoutMilliseconds"];
-        RequireFields(values, authenticatedRefresh ? [.. fields, "refreshPolicy"] : fields);
+        RequireFields(values, authenticatedRefresh ? [.. fields, "refreshPolicy"]
+            : checkingDisabled ? [.. fields, "checkingDisabledDnssecMaterial"] : fields);
+        bool? uncheckedMaterial = checkingDisabled ? values.GetProperty("checkingDisabledDnssecMaterial").GetBoolean() : null;
         var refreshPolicy = authenticatedRefresh ? Refresh(values.GetProperty("refreshPolicy")) : null;
         var roots = values.GetProperty("roots").EnumerateArray().Select(Endpoint).Take(17).ToArray();
         if (roots.Length is < 1 or > 16 || roots.Distinct().Take(roots.Length + 1).Count() != roots.Length)
@@ -52,7 +60,7 @@ internal sealed partial record RecursiveStartupConfiguration(string StoreDirecto
                 TimeSpan.FromMilliseconds(Number(values, "resolutionTimeoutMilliseconds", 50, 120000))),
             (int)Number(values, "maximumRequests", 1, 256), (int)Number(values, "udpWorkers", 1, 16),
             (int)Number(values, "maximumTcpConnections", 1, 64), (int)Number(values, "maximumTcpMessages", 1, 256),
-            TimeSpan.FromMilliseconds(Number(values, "upstreamTimeoutMilliseconds", 50, 10000)), refreshPolicy);
+            TimeSpan.FromMilliseconds(Number(values, "upstreamTimeoutMilliseconds", 50, 10000)), refreshPolicy, uncheckedMaterial);
     }
 
     internal static bool Permits(DnsServerEndpoint endpoint, DnssecClientNetwork[] networks, ushort port)

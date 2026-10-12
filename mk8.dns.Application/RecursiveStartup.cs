@@ -10,13 +10,17 @@ namespace Mk8.Dns.Application;
 
 internal static class RecursiveStartup
 {
-    internal static Task RunAsync(string configurationPath) => RunCoreAsync(configurationPath, authenticatedRefresh: false);
+    internal static Task RunAsync(string configurationPath) => RunCoreAsync(configurationPath, authenticatedRefresh: false, checkingDisabled: false);
 
-    internal static Task RunWithRefreshAsync(string configurationPath) => RunCoreAsync(configurationPath, authenticatedRefresh: true);
+    internal static Task RunWithRefreshAsync(string configurationPath) => RunCoreAsync(configurationPath, authenticatedRefresh: true, checkingDisabled: false);
 
-    private static async Task RunCoreAsync(string configurationPath, bool authenticatedRefresh)
+    internal static Task RunWithCheckingDisabledAsync(string configurationPath)
+        => RunCoreAsync(configurationPath, authenticatedRefresh: false, checkingDisabled: true);
+
+    private static async Task RunCoreAsync(string configurationPath, bool authenticatedRefresh, bool checkingDisabled)
     {
-        var settings = RecursiveStartupConfiguration.Load(configurationPath, authenticatedRefresh);
+        var settings = checkingDisabled ? RecursiveStartupConfiguration.LoadCheckingDisabled(configurationPath)
+            : RecursiveStartupConfiguration.Load(configurationPath, authenticatedRefresh);
         var verifier = new DnssecSignatureVerifier();
         var time = TimeProvider.System;
         var key = PrivateFile.Read(settings.KeyFile, 32);
@@ -39,10 +43,7 @@ internal static class RecursiveStartup
         var refresher = new DnssecAnchorRefresher(settings.Origin, store, upstream, verifier, settings.RefreshServer, time);
         await using var refreshLifetime = refresher.ConfigureAwait(false);
         using var shutdown = new RecursiveShutdown();
-        var host = await DnssecClientHost.CreateAsync(refresher, upstream, verifier, settings.Roots,
-            new DnssecTrustEpochPolicy(maximumActiveRequests: settings.MaximumRequests), settings.Access, settings.Binding,
-            settings.Work, time, settings.AuthorityPort, settings.MaximumRequests, settings.UdpWorkers,
-            settings.MaximumTcpConnections, settings.MaximumTcpMessages).ConfigureAwait(false);
+        var host = await CreateHostAsync(settings, refresher, upstream, verifier, time).ConfigureAwait(false);
         // Signals only request stop. Retain and join actual CancelAsync dispatch before CTS disposal.
         var running = settings.RefreshPolicy is { } policy
             ? RecursiveRefreshExecution.RunAsync(host, refresher, policy, time, shutdown.Token)
@@ -53,6 +54,28 @@ internal static class RecursiveStartup
         var failures = new[] { initiating, cleanup, dispatch }.OfType<Exception>().ToArray();
         if (failures.Length == 1) ExceptionDispatchInfo.Capture(failures[0]).Throw();
         if (failures.Length > 1) throw new AggregateException(failures);
+    }
+
+    private static ValueTask<DnssecClientHost> CreateHostAsync(RecursiveStartupConfiguration settings,
+        DnssecAnchorRefresher refresher, DnssecUpstreamClient upstream, DnssecSignatureVerifier verifier, TimeProvider time)
+    {
+        var epochPolicy = new DnssecTrustEpochPolicy(maximumActiveRequests: settings.MaximumRequests);
+        if (settings.CheckingDisabledDnssecMaterial is not { } material)
+        {
+            return DnssecClientHost.CreateAsync(refresher, upstream, verifier, settings.Roots, epochPolicy,
+                settings.Access, settings.Binding, settings.Work, time, settings.AuthorityPort, settings.MaximumRequests,
+                settings.UdpWorkers, settings.MaximumTcpConnections, settings.MaximumTcpMessages);
+        }
+        // The same explicit egress predicate applies to every ordinary or DNSSEC
+        // exchange. This path supplies no anchors, validation or proof-cache state.
+        var ordinary = material
+            ? NonValidatingIterativeResolver.CreateWithDnssecMaterial(upstream, settings.Roots, settings.AuthorityPort, time: time)
+            : new NonValidatingIterativeResolver(new DnsUpstreamClient(
+                endpoint => RecursiveStartupConfiguration.Permits(endpoint, settings.Egress, settings.AuthorityPort),
+                settings.UpstreamTimeout), settings.Roots, settings.AuthorityPort, time: time);
+        return DnssecClientHost.CreateWithCheckingDisabledSourceAsync(refresher, upstream, verifier, settings.Roots,
+            ordinary, epochPolicy, settings.Access, settings.Binding, settings.Work, time, settings.AuthorityPort,
+            settings.MaximumRequests, settings.UdpWorkers, settings.MaximumTcpConnections, settings.MaximumTcpMessages);
     }
 
     private static async Task RunHostAsync(DnssecClientHost host, CancellationToken token)
