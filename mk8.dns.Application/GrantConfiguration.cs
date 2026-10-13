@@ -11,5 +11,4 @@ using Mk8.Dns.Transport;
 
 namespace Mk8.Dns.Application;
 
-internal sealed record GrantConfiguration(Guid TenantId, Guid ZoneId, string Origin, string Actor, DateTimeOffset Expires, byte[] CredentialHash,
-    string Profile = "zone", string[]? Actions = null, RecordScopeConfiguration[]? RecordScopes = null);
+internal sealed record GrantConfiguration([property: JsonRequired] Guid TenantId, [property: JsonRequired] Guid ZoneId, [property: JsonRequired] string Origin, [property: JsonRequired] string Actor, [property: JsonRequired] DateTimeOffset Expires, [property: JsonRequired] byte[] CredentialHash, [property: JsonRequired] string Profile = "zone", [property: JsonRequired] string[]? Actions = null, [property: JsonRequired] RecordScopeConfiguration[]? RecordScopes = null);

@@ -8,11 +8,11 @@ namespace Mk8.Dns.Application;
 
 internal static class TsigKeys
 {
-    internal static TsigService Load(ApplicationSettings settings)
+    internal static TsigService Load(ApplicationSettings settings, DnsServiceSecrets secrets)
     {
-        if (settings.TsigKeyFile is null)
+        if (settings.TsigSecret is null)
             return new TsigService([], TimeProvider.System);
-        var bytes = PrivateFile.Read(settings.TsigKeyFile, 32_768);
+        var bytes = secrets.Bytes(settings.TsigSecret, 32_768);
         List<TsigKey> keys = [];
         try
         {

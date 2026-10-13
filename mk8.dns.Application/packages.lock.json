@@ -59,31 +59,39 @@
           "Grpc.Core.Api": "2.84.0"
         }
       },
+      "System.IO.FileSystem.AccessControl": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "SxHB3nuNrpptVk+vZ/F+7OHEpoHUIKKMl02bUmYHQr1r+glbZQxs7pRtsf4ENO29TVm2TH3AEeep2fJcy92oYw=="
+      },
       "mk8.dns.application.abstractions": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Contracts": "[0.1.0-alpha.68, )",
-          "mk8.dns.Domain": "[0.1.0-alpha.68, )"
+          "mk8.dns.Contracts": "[0.1.0-alpha.69, )",
+          "mk8.dns.Domain": "[0.1.0-alpha.69, )"
         }
       },
       "mk8.dns.application.bll": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Application.Abstractions": "[0.1.0-alpha.68, )",
-          "mk8.dns.Contracts": "[0.1.0-alpha.68, )",
-          "mk8.dns.Engine.Authoritative": "[0.1.0-alpha.68, )"
+          "mk8.dns.Application.Abstractions": "[0.1.0-alpha.69, )",
+          "mk8.dns.Contracts": "[0.1.0-alpha.69, )",
+          "mk8.dns.Engine.Authoritative": "[0.1.0-alpha.69, )"
         }
       },
       "mk8.dns.application.dal": {
         "type": "Project",
         "dependencies": {
           "Npgsql": "[10.0.3, )",
-          "mk8.dns.Application.Abstractions": "[0.1.0-alpha.68, )",
-          "mk8.dns.Engine.Dnssec": "[0.1.0-alpha.68, )"
+          "mk8.dns.Application.Abstractions": "[0.1.0-alpha.69, )",
+          "mk8.dns.Engine.Dnssec": "[0.1.0-alpha.69, )"
         }
       },
       "mk8.dns.configuration": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Supprocom.Secrets": "[0.1.4, )"
+        }
       },
       "mk8.dns.contracts": {
         "type": "Project",
@@ -98,36 +106,36 @@
       "mk8.dns.engine.authoritative": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[0.1.0-alpha.68, )",
-          "mk8.dns.Engine.Dnssec": "[0.1.0-alpha.68, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.69, )",
+          "mk8.dns.Engine.Dnssec": "[0.1.0-alpha.69, )"
         }
       },
       "mk8.dns.engine.dnssec": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[0.1.0-alpha.68, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.69, )"
         }
       },
       "mk8.dns.engine.recursive": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[0.1.0-alpha.68, )",
-          "mk8.dns.Engine.Dnssec": "[0.1.0-alpha.68, )",
-          "mk8.dns.Wire": "[0.1.0-alpha.68, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.69, )",
+          "mk8.dns.Engine.Dnssec": "[0.1.0-alpha.69, )",
+          "mk8.dns.Wire": "[0.1.0-alpha.69, )"
         }
       },
       "mk8.dns.infrastructure": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Application.Abstractions": "[0.1.0-alpha.68, )",
-          "mk8.dns.Engine.Dnssec": "[0.1.0-alpha.68, )",
-          "mk8.dns.Wire": "[0.1.0-alpha.68, )"
+          "mk8.dns.Application.Abstractions": "[0.1.0-alpha.69, )",
+          "mk8.dns.Engine.Dnssec": "[0.1.0-alpha.69, )",
+          "mk8.dns.Wire": "[0.1.0-alpha.69, )"
         }
       },
       "mk8.dns.infrastructure.cryptography": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[0.1.0-alpha.68, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.69, )"
         }
       },
       "mk8.dns.transport": {
@@ -135,13 +143,13 @@
         "dependencies": {
           "Grpc.AspNetCore": "[2.84.0, )",
           "Grpc.Net.Client": "[2.84.0, )",
-          "mk8.dns.Contracts": "[0.1.0-alpha.68, )"
+          "mk8.dns.Contracts": "[0.1.0-alpha.69, )"
         }
       },
       "mk8.dns.wire": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Domain": "[0.1.0-alpha.68, )"
+          "mk8.dns.Domain": "[0.1.0-alpha.69, )"
         }
       },
       "Google.Protobuf": {
@@ -187,6 +195,15 @@
         "requested": "[10.0.3, )",
         "resolved": "10.0.3",
         "contentHash": "7nb5YzXuvWWJxB0J8DiyL3we+X4FOctZrt0fIBnucOIaIevFEEwGQVZKtiu9olXdlNAK1eNgqSral6r/jlhI4w=="
+      },
+      "Supprocom.Secrets": {
+        "type": "CentralTransitive",
+        "requested": "[0.1.4, )",
+        "resolved": "0.1.4",
+        "contentHash": "0yZfw62CAuoC9pIrSZ1nXt8/QHIaDiCwdfDXXCX3mM3nCuiTHVEh4/Jv8wL6Htlwr20YOZpLRUeBymlx79ebPg==",
+        "dependencies": {
+          "System.IO.FileSystem.AccessControl": "5.0.0"
+        }
       }
     }
   }

@@ -26,56 +26,130 @@ internal sealed class ControlRuntime : IAsyncDisposable
     private ZoneResigningApplication? resigning;
     private DnssecRenewalScope[] renewalScopes = [];
     private TimeSpan signingScan;
+    private TimeSpan dispatchInterval;
     private readonly List<EcdsaP256DnssecSigningKey> dnssecKeys = [];
     internal AuthoritativeApplication? Authority { get; private set; }
     internal ZoneManagementApplication? Management { get; private set; }
     internal ZonePublicationApplication? Publication { get; private set; }
 
-    internal async ValueTask InitializeAsync(ApplicationSettings settings, FileZoneSnapshotStore snapshots, IDnsCookieService? cookies, ITsigService? tsig, IDnsResponseLimiter? limiter)
+    private ControlConfiguration? prepared;
+    private Dictionary<Guid, DnsName>? preparedZones;
+    private ZoneBundleAdapter? preparedCodec;
+    private string? connectionString;
+    private ScopedManagementAuthorizer? managementAuthorizer;
+
+    internal void Prepare(ApplicationSettings settings, DnsServiceSecrets secrets)
     {
-        if (settings.ControlFile is null)
-            return;
-        var configuration = JsonSerializer.Deserialize(PrivateFile.Read(settings.ControlFile, 65_536), ControlConfigurationContext.Default.ControlConfiguration)
-            ?? throw new InvalidDataException("Control configuration is empty.");
-        if (configuration.Zones is not { Length: > 0 and <= 64 } || configuration.KeyFile is null || configuration.TargetNode is null)
-            throw new InvalidDataException("Publisher scope and key are required.");
+        var configuration = PrepareSecrets(settings, secrets);
+        if (configuration is null) return;
+        dispatchInterval = TimeSpan.FromMilliseconds(configuration.DispatchIntervalMilliseconds);
         var zones = configuration.Zones.ToDictionary(zone => zone.ZoneId, zone => DnsName.Parse(zone.Origin));
         var controller = string.Equals(settings.Role, "controller", StringComparison.Ordinal);
         if (!controller && !string.Equals(configuration.TargetNode, settings.NodeId, StringComparison.Ordinal))
             throw new InvalidDataException("Publisher trust targets a different replica.");
-        var identity = new P256PublicationAuthenticator(configuration.Epoch, configuration.TargetNode, zones, Encoding.UTF8.GetString(PrivateFile.Read(configuration.KeyFile, 4096)), controller);
+        var identity = new P256PublicationAuthenticator(configuration.Epoch, configuration.TargetNode, zones, secrets.Text(configuration.KeySecret, 4096), controller);
         authenticator = identity;
-        if (!controller && (configuration.SigningScanSeconds != 60 || configuration.Zones.Any(zone => zone.SigningKeyFile is not null
+        if (!controller && (configuration.SigningScanSeconds != 60 || configuration.Zones.Any(zone => zone.SigningKeySecret is not null
             || zone.SignatureLifetimeSeconds != 604_800 || zone.DnskeyTtl != 3600 || zone.RenewBeforeSeconds is not null)))
+        {
             throw new InvalidDataException("A serving replica cannot take private signing configuration.");
+        }
+
         if (controller)
         {
-            renewalScopes = configuration.Zones.Where(zone => zone.SigningKeyFile is not null)
-                .Select(zone => new DnssecRenewalScope(zone.ZoneId, DnsName.Parse(zone.Origin), zone.SignatureLifetimeSeconds, zone.RenewBeforeSeconds)).ToArray();
+            renewalScopes = [.. configuration.Zones.Where(zone => zone.SigningKeySecret is not null).Select(zone => new DnssecRenewalScope(zone.ZoneId, DnsName.Parse(zone.Origin), zone.SignatureLifetimeSeconds, zone.RenewBeforeSeconds))];
             if (configuration.SigningScanSeconds is 0 or > 300 || renewalScopes.Any(scope => configuration.SigningScanSeconds > scope.RenewBeforeSeconds / 2)
-                || renewalScopes.Length == 0 && configuration.SigningScanSeconds != 60)
+                || (renewalScopes.Length == 0 && configuration.SigningScanSeconds != 60))
+            {
                 throw new InvalidDataException("Invalid signing renewal scan interval.");
+            }
+
             signingScan = TimeSpan.FromSeconds(configuration.SigningScanSeconds);
         }
-        var codec = controller ? CreateCodec(configuration) : new ZoneBundleAdapter();
+        var codec = controller ? CreateCodec(configuration, secrets) : new ZoneBundleAdapter();
         if (controller)
+        {
+            if (configuration.ConnectionStringSecret is null || configuration.PublicationSocket is null || configuration.Grants is not { Length: > 0 and <= 64 })
+                throw new InvalidDataException("Controller database, target and management grants are required.");
+            if (!Path.IsPathFullyQualified(configuration.PublicationSocket)) throw new InvalidDataException("SecretPublicationPathInvalid");
+            var grants = configuration.Grants.Select(CreateGrant).ToArray();
+            if (grants.Any(grant => !zones.TryGetValue(grant.ZoneId, out var origin) || !origin.Equals(grant.Origin)))
+                throw new InvalidDataException("Management grants exceed the publisher scope.");
+            managementAuthorizer = new ScopedManagementAuthorizer(grants, TimeProvider.System);
+        }
+        else if (configuration.ConnectionStringSecret is not null || configuration.PublicationSocket is not null || configuration.Grants is { Length: > 0 })
+        {
+            throw new InvalidDataException("A serving replica cannot take controller configuration.");
+        }
+
+        prepared = configuration; preparedZones = zones; preparedCodec = codec;
+    }
+
+    private ControlConfiguration? PrepareSecrets(ApplicationSettings settings, DnsServiceSecrets secrets)
+    {
+        var names = new List<string> { "Mode", "Settings", "HostPolicy" };
+        if (settings.CookieSecret is not null) names.Add(settings.CookieSecret);
+        if (settings.Role is "authoritative-replica") names.Add("TsigMode");
+        if (settings.TsigSecret is not null) names.Add(settings.TsigSecret);
+        if (settings.ControlSecret is null) { secrets.RequireOnly(names); return null; }
+        names.Add(settings.ControlSecret);
+        ControlConfiguration? configuration = null;
+        try { configuration = JsonSerializer.Deserialize(secrets.JsonText(settings.ControlSecret), ControlConfigurationContext.Default.ControlConfiguration); }
+        catch (JsonException) { /* Invalid structured input does not expose secret values. */ }
+        if (configuration is null) throw new InvalidDataException("SecretControlInvalid");
+        if (configuration.Zones is not { Length: > 0 and <= 64 } || configuration.Zones.Any(zone => zone is null) || configuration.KeySecret is null || configuration.TargetNode is null)
+            throw new InvalidDataException("Publisher scope and key are required.");
+        DnsServiceSecrets.ValidateName(configuration.KeySecret); names.Add(configuration.KeySecret);
+        foreach (var zone in configuration.Zones)
+            if (zone.SigningKeySecret is { } signing) { DnsServiceSecrets.ValidateName(signing); names.Add(signing); }
+        if (configuration.ConnectionStringSecret is { } database)
+        {
+            DnsServiceSecrets.ValidateName(database); names.Add(database);
+            connectionString = secrets.Text(database, 4096);
+            var databaseValid = false;
+            try
+            {
+                var databaseSettings = new NpgsqlConnectionStringBuilder(connectionString);
+                if (!databaseSettings.ShouldSerialize("Host") || !databaseSettings.ShouldSerialize("Database")
+                    || !databaseSettings.ShouldSerialize("Username") || !databaseSettings.ShouldSerialize("Port")
+                    || string.IsNullOrWhiteSpace(databaseSettings.Host) || string.IsNullOrWhiteSpace(databaseSettings.Database)
+                    || string.IsNullOrWhiteSpace(databaseSettings.Username) || databaseSettings.Port is < 1 or > 65535)
+                {
+                    throw new InvalidDataException("SecretDatabaseScopeMissing");
+                }
+
+                databaseValid = true;
+            }
+            catch (ArgumentException) { /* Diagnostics may include confidential connection settings. */ }
+            if (!databaseValid) throw new InvalidDataException("SecretDatabaseInvalid");
+        }
+        secrets.RequireOnly(names);
+        if (configuration.DispatchIntervalMilliseconds is < 1 or > 1000) throw new InvalidDataException("SecretDispatchIntervalInvalid");
+        return configuration;
+    }
+
+    internal async ValueTask InitializeAsync(ApplicationSettings settings, FileZoneSnapshotStore snapshots, IDnsCookieService? cookies, ITsigService? tsig, IDnsResponseLimiter? limiter)
+    {
+        if (prepared is not { } configuration || preparedZones is not { } zones || preparedCodec is not { } codec || authenticator is not { } identity)
+            return;
+        if (settings.Role is "controller")
             await InitializeControllerAsync(configuration, zones, codec, identity).ConfigureAwait(false);
         else
             await InitializeReplicaAsync(settings, configuration, snapshots, zones, codec, identity, cookies, tsig, limiter).ConfigureAwait(false);
     }
 
-    private ZoneBundleAdapter CreateCodec(ControlConfiguration configuration)
+    private ZoneBundleAdapter CreateCodec(ControlConfiguration configuration, DnsServiceSecrets secrets)
     {
         Dictionary<DnsName, DnssecSigningPolicy> policies = [];
         foreach (var scope in configuration.Zones)
         {
-            if (scope.SigningKeyFile is null)
+            if (scope.SigningKeySecret is null)
             {
                 if (scope.SignatureLifetimeSeconds != 604_800 || scope.DnskeyTtl != 3600 || scope.RenewBeforeSeconds is not null)
                     throw new InvalidDataException("Signing policy requires a private key.");
                 continue;
             }
-            var bytes = PrivateFile.Read(scope.SigningKeyFile, 4096);
+            var bytes = secrets.Bytes(scope.SigningKeySecret, 4096);
             try
             {
                 var key = EcdsaP256DnssecSigningKey.ImportPkcs8(bytes);
@@ -96,14 +170,15 @@ internal sealed class ControlRuntime : IAsyncDisposable
 
     private async ValueTask InitializeControllerAsync(ControlConfiguration configuration, Dictionary<Guid, DnsName> zones, ZoneBundleAdapter codec, P256PublicationAuthenticator identity)
     {
-        if (configuration.ConnectionStringFile is null || configuration.PublicationSocket is null || configuration.Grants is not { Length: > 0 and <= 64 })
+        if (configuration.ConnectionStringSecret is null || configuration.PublicationSocket is null || configuration.Grants is not { Length: > 0 and <= 64 })
             throw new InvalidDataException("Controller database, target and management grants are required.");
         var grants = configuration.Grants.Select(CreateGrant).ToArray();
         if (grants.Any(grant => !zones.TryGetValue(grant.ZoneId, out var origin) || !origin.Equals(grant.Origin)))
             throw new InvalidDataException("Management grants exceed the publisher scope.");
-        store = new PostgresControlPlaneStore(Encoding.UTF8.GetString(PrivateFile.Read(configuration.ConnectionStringFile, 4096)));
+        var authorization = managementAuthorizer ?? throw new InvalidDataException("ControlPreflightMissing");
+        store = new PostgresControlPlaneStore(connectionString ?? throw new InvalidDataException("ControlPreflightMissing"));
         await store.InitializeAsync(configuration.Epoch, CancellationToken.None).ConfigureAwait(false);
-        Management = new ZoneManagementApplication(store, new ScopedManagementAuthorizer(grants, TimeProvider.System), codec, configuration.TargetNode, new ZoneMasterFileAdapter());
+        Management = new ZoneManagementApplication(store, authorization, codec, configuration.TargetNode, new ZoneMasterFileAdapter());
         client = new UnixControlClient(configuration.PublicationSocket);
         publisher = new OutboxPublisher(store, identity, client);
         if (renewalScopes.Length > 0)
@@ -112,21 +187,21 @@ internal sealed class ControlRuntime : IAsyncDisposable
 
     private static ManagementGrant CreateGrant(GrantConfiguration grant)
     {
-        var actions = grant.Actions ?? (grant.Profile is "zone" ? ["edit", "patch", "read", "status"] : Array.Empty<string>());
-        var scopes = grant.RecordScopes ?? Array.Empty<RecordScopeConfiguration>();
+        var actions = grant.Actions ?? throw new InvalidDataException("SecretGrantActionsMissing");
+        var scopes = grant.RecordScopes ?? throw new InvalidDataException("SecretGrantScopesMissing");
         if (scopes.Length > 64 || actions.Length is 0 or > 6)
             throw new InvalidDataException("Invalid management grant bounds.");
         return new ManagementGrant(grant.TenantId, grant.ZoneId, DnsName.Parse(grant.Origin), grant.Actor, grant.Expires, grant.CredentialHash)
         {
             Profile = grant.Profile,
             Actions = actions,
-            RecordScopes = scopes.Select(scope => new ManagementRecordScope(DnsName.Parse(scope.Owner), scope.Type)).ToArray(),
+            RecordScopes = [.. scopes.Select(scope => new ManagementRecordScope(DnsName.Parse(scope.Owner), scope.Type))],
         };
     }
 
     private async ValueTask InitializeReplicaAsync(ApplicationSettings settings, ControlConfiguration configuration, FileZoneSnapshotStore snapshots, Dictionary<Guid, DnsName> zones, ZoneBundleAdapter codec, P256PublicationAuthenticator identity, IDnsCookieService? cookies, ITsigService? tsig, IDnsResponseLimiter? limiter)
     {
-        if (configuration.ConnectionStringFile is not null || configuration.PublicationSocket is not null || configuration.Grants is { Length: > 0 })
+        if (configuration.ConnectionStringSecret is not null || configuration.PublicationSocket is not null || configuration.Grants is { Length: > 0 })
             throw new InvalidDataException("A serving replica cannot take controller configuration.");
         journal = new FilePublicationJournal(settings.StateDirectory + ".publications");
         Authority = new AuthoritativeApplication(new DnsMessageCodecAdapter(), settings.NodeId, cookies, tsig, limiter);
@@ -163,7 +238,7 @@ internal sealed class ControlRuntime : IAsyncDisposable
             }
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
+                await Task.Delay(dispatchInterval, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

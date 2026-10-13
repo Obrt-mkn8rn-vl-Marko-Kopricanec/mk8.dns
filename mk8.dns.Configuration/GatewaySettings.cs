@@ -9,6 +9,15 @@ public sealed record GatewaySettings(string SocketPath, int HealthPort)
     public GatewayRole Role { get; init; }
     public string? ManagementSocketPath { get; init; }
 
+    public static GatewaySettings FromSecrets(DnsServiceSecrets secrets)
+    {
+        ArgumentNullException.ThrowIfNull(secrets);
+        var arguments = secrets.Arguments("Settings");
+        if (!arguments.Contains("--role", StringComparer.Ordinal)) throw new InvalidDataException("SecretRoleMissing");
+        secrets.RequireOnly(["Settings", "HostPolicy"]);
+        return Parse(arguments);
+    }
+
     public static GatewaySettings Parse(string[] args)
     {
         var values = HostArguments.Parse(args, ["--socket", "--health-port", "--dns-address", "--dns-port", "--role", "--management-socket"]);

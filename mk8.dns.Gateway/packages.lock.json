@@ -59,8 +59,16 @@
           "Grpc.Core.Api": "2.84.0"
         }
       },
+      "System.IO.FileSystem.AccessControl": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "SxHB3nuNrpptVk+vZ/F+7OHEpoHUIKKMl02bUmYHQr1r+glbZQxs7pRtsf4ENO29TVm2TH3AEeep2fJcy92oYw=="
+      },
       "mk8.dns.configuration": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Supprocom.Secrets": "[0.1.4, )"
+        }
       },
       "mk8.dns.contracts": {
         "type": "Project",
@@ -72,7 +80,7 @@
       "mk8.dns.presentation": {
         "type": "Project",
         "dependencies": {
-          "mk8.dns.Transport": "[0.1.0-alpha.68, )"
+          "mk8.dns.Transport": "[0.1.0-alpha.69, )"
         }
       },
       "mk8.dns.transport": {
@@ -80,7 +88,7 @@
         "dependencies": {
           "Grpc.AspNetCore": "[2.84.0, )",
           "Grpc.Net.Client": "[2.84.0, )",
-          "mk8.dns.Contracts": "[0.1.0-alpha.68, )"
+          "mk8.dns.Contracts": "[0.1.0-alpha.69, )"
         }
       },
       "Google.Protobuf": {
@@ -120,6 +128,15 @@
         "requested": "[2.84.0, )",
         "resolved": "2.84.0",
         "contentHash": "SarjdfpQYU/mmdu/fWgSW8kEHQ54jiyG2+I4THu9eubtAud+QJf+1iJdGtoKTJ/ZRaI0qAG+7ttsK2WUTao2OQ=="
+      },
+      "Supprocom.Secrets": {
+        "type": "CentralTransitive",
+        "requested": "[0.1.4, )",
+        "resolved": "0.1.4",
+        "contentHash": "0yZfw62CAuoC9pIrSZ1nXt8/QHIaDiCwdfDXXCX3mM3nCuiTHVEh4/Jv8wL6Htlwr20YOZpLRUeBymlx79ebPg==",
+        "dependencies": {
+          "System.IO.FileSystem.AccessControl": "5.0.0"
+        }
       }
     }
   }

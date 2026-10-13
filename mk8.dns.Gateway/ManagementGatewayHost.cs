@@ -9,28 +9,13 @@ namespace Mk8.Dns.Gateway;
 
 internal static class ManagementGatewayHost
 {
-    internal static async Task RunAsync(GatewaySettings settings)
+    internal static async Task RunAsync(GatewaySettings settings, ServiceHostPolicy policy)
     {
+        if (policy.ShutdownSeconds > 20) throw new InvalidDataException("SecretManagementShutdownBounds");
         using var lease = new PrivateUnixSocket(settings.ManagementSocketPath!);
         using var client = new UnixControlClient(settings.SocketPath);
         using var status = new UnixApplicationClient(settings.SocketPath);
-        var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { Args = [] });
-        builder.Configuration.Sources.Clear();
-        builder.Logging.ClearProviders();
-        builder.Logging.AddJsonConsole();
-        builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
-        builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(20));
-        builder.WebHost.ConfigureKestrel(options =>
-        {
-            options.AddServerHeader = false;
-            options.Limits.MaxRequestBodySize = ManagementHttpProtocol.MaximumRequestBytes;
-            options.Limits.MaxRequestHeadersTotalSize = 4096;
-            options.Limits.MaxRequestHeaderCount = 32;
-            options.Limits.MaxRequestLineSize = 2048;
-            options.Limits.RequestHeadersTimeout = TimeSpan.FromSeconds(5);
-            options.Limits.MaxConcurrentConnections = 16;
-            options.ListenUnixSocket(lease.Path, endpoint => endpoint.Protocols = HttpProtocols.Http1);
-        });
+        var builder = CreateBuilder(lease, policy);
         var gateway = builder.Build();
         await using (gateway.ConfigureAwait(false))
         {
@@ -52,19 +37,46 @@ internal static class ManagementGatewayHost
                     }
                 });
                 var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                using var stop = gateway.Lifetime.ApplicationStopping.Register(() => stopped.TrySetResult());
+                var stop = gateway.Lifetime.ApplicationStopping.Register(() => stopped.TrySetResult());
+                await using var stopLifetime = stop.ConfigureAwait(false);
                 try
                 {
-                    await gateway.StartAsync().ConfigureAwait(false);
+                    await gateway.StartAsync(CancellationToken.None).ConfigureAwait(false);
                     lease.SetSocketPermissions();
                     await stopped.Task.ConfigureAwait(false);
                 }
                 finally
                 {
                     await api.DisposeAsync().ConfigureAwait(false);
-                    await gateway.StopAsync().ConfigureAwait(false);
+                    await gateway.StopAsync(CancellationToken.None).ConfigureAwait(false);
                 }
             }
         }
     }
+    private static WebApplicationBuilder CreateBuilder(PrivateUnixSocket lease, ServiceHostPolicy policy)
+    {
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions { Args = [], EnvironmentName = "Production", ContentRootPath = AppContext.BaseDirectory });
+        builder.Configuration.Sources.Clear();
+        builder.WebHost.UseKestrelCore();
+        builder.Services.AddRouting();
+        builder.Host.UseConsoleLifetime();
+        builder.Configuration.AddInMemoryCollection([new KeyValuePair<string, string?>(WebHostDefaults.PreventHostingStartupKey, "true")]);
+        builder.Logging.ClearProviders();
+        builder.Logging.AddJsonConsole();
+        builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+        builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(policy.ShutdownSeconds));
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.AddServerHeader = false;
+            options.Limits.MaxRequestBodySize = ManagementHttpProtocol.MaximumRequestBytes;
+            options.Limits.MaxRequestHeadersTotalSize = policy.HeaderBytes;
+            options.Limits.MaxRequestHeaderCount = policy.HeaderCount;
+            options.Limits.MaxRequestLineSize = policy.RequestLineBytes;
+            options.Limits.RequestHeadersTimeout = TimeSpan.FromSeconds(policy.HeaderTimeoutSeconds);
+            options.Limits.MaxConcurrentConnections = policy.Connections;
+            options.ListenUnixSocket(lease.Path, endpoint => endpoint.Protocols = HttpProtocols.Http1);
+        });
+        return builder;
+    }
+
 }
