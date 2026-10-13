@@ -8,10 +8,32 @@ namespace Mk8.Dns.UnitTests;
 public sealed class QnameMinimisationLifetimeTests
 {
     [Fact]
+    public async Task AlternateEndpointReacquiresDiscoveryAfterTheFirstEndpointExpiresAndFails()
+    {
+        using var fixture = new QnameMinimisationFixture { AlternateRoot = true };
+        fixture.AddAddress("private.team.example.");
+        fixture.Transform = (question, server, reply) =>
+        {
+            if (!server.Equals(OnlineDnssecFixture.RootServer)) return reply;
+            if (question.Type == 1) { fixture.Source.Clock.Advance(4); throw new IOException("Owned abandoned endpoint."); }
+            if (question.Type != 2) return reply;
+            var rows = reply.Authority.Where(record => record.Type != 46).ToArray();
+            return OnlineDnssecFixture.Copy(reply, authority: [.. rows, .. rows.Select(record =>
+                fixture.Source.Sign([record], window: new DnssecSignatureWindow(99, 103)))]);
+        };
+        var result = await fixture.Resolver().ResolveDnssecAsync(new DnsQuestion(DnsName.Parse("private.team.example."), 1, 1), CancellationToken.None).ConfigureAwait(true);
+        Assert.Equal(DnssecResolutionOutcome.Authenticated, result.Outcome);
+        Assert.InRange(result.AuthenticatedTtl, 4u, 300u);
+        Assert.Equal(1, fixture.Calls.Count(call => call.Server.Equals(OnlineDnssecFixture.RootServer) && call.Question.Type == 1));
+        Assert.Contains(fixture.Calls, call => call.Server.Equals(QnameMinimisationFixture.Alternate) && call.Question.Type == 2);
+        Assert.Single(result.Answers);
+    }
+
+    [Fact]
     public async Task FirstDiscoverySignatureCapsOutputWithoutAddingInfrastructureRecords()
     {
         using var fixture = new QnameMinimisationFixture(); fixture.AddAddress("private.team.example.");
-        fixture.Transform = (question, server, reply) =>
+        fixture.Transform = (question, _, reply) =>
         {
             if (question.Type != 2 || !question.Name.Equals(DnsName.Parse("team.example."))) return reply;
             var rows = reply.Authority.Where(record => record.Type != 46).ToArray();
@@ -27,7 +49,7 @@ public sealed class QnameMinimisationLifetimeTests
     public async Task DiscoveryExpiryDuringLaterProviderWorkRefusesAllOutput()
     {
         using var fixture = new QnameMinimisationFixture(); fixture.AddAddress("private.team.example.");
-        fixture.Transform = (question, server, reply) =>
+        fixture.Transform = (question, _, reply) =>
         {
             if (question.Type == 2)
             {
@@ -45,7 +67,7 @@ public sealed class QnameMinimisationLifetimeTests
     public async Task ExpiredDiscoveryWindowCannotReviveAfterAWallClockRollback()
     {
         using var fixture = new QnameMinimisationFixture(); fixture.AddAddress("private.team.example.");
-        fixture.Transform = (question, server, reply) =>
+        fixture.Transform = (question, _, reply) =>
         {
             if (question.Type == 2)
             {
@@ -67,7 +89,7 @@ public sealed class QnameMinimisationLifetimeTests
     {
         using var fixture = new QnameMinimisationFixture();
         var release = new TaskCompletionSource<DnsUpstreamEvidence>(TaskCreationOptions.RunContinuationsAsynchronously);
-        fixture.Delayed = (question, token) => new ValueTask<DnsUpstreamEvidence>(release.Task);
+        fixture.Delayed = (_, _) => new ValueTask<DnsUpstreamEvidence>(release.Task);
         using var cancellation = new CancellationTokenSource();
         var pending = fixture.Resolver().ResolveDnssecAsync(new DnsQuestion(DnsName.Parse("private.team.example."), 1, 1), cancellation.Token).AsTask();
         try
@@ -76,7 +98,7 @@ public sealed class QnameMinimisationLifetimeTests
             await cancellation.CancelAsync().ConfigureAwait(true); Assert.False(pending.IsCompleted);
         }
         finally { release.TrySetResult(null!); }
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(5))).ConfigureAwait(true);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
         Assert.DoesNotContain(fixture.Calls, call => call.Question.Type == 1);
     }
 }

@@ -32,9 +32,11 @@ One document contains one role prefix: `Application:`, `Gateway:` or `Operator:`
 values, duplicate structured fields and malformed encodings fail startup. A
 reference is the name of another value in that same collection, never a file path
 or external provider location. Binary values use base64; publication identity PEM
-and database connection strings are same-collection text values. All mutable
-binary copies are cleared after their contracted use; immutable snapshot strings
-are not claimed to be erased.
+and database connection strings are same-collection text values. Owned management credential arrays are cleared only after operation and transaction
+settlement, including failure; caller ingress buffers remain borrowed. Other mutable
+startup copies follow their declared ownership lifetime. Immutable snapshot strings,
+transport buffers, serializer copies and runtime/provider internals are not claimed
+to be erased.
 
 `Settings` is a JSON array of the closed existing option/value vocabulary, stored
 inside the role collection. It is data from the one snapshot, not actual command

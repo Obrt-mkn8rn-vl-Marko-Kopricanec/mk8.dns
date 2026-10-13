@@ -12,29 +12,41 @@ internal static class ManagementInput
             throw new UnauthorizedAccessException("Management authorization failed.");
         if (request.OperationId == Guid.Empty || request.ExpectedRevision < 0 || request.Origin.Length is 0 or > 255
             || request.Records is not { Count: <= 10_000 } || request.Changes is not { Count: <= 64 } || request.Selection is not { Count: <= 64 })
+        {
             throw new ArgumentException("Invalid management request bounds.", nameof(request));
+        }
+
         if (request.Action is not ("edit" or "patch" or "read" or "status" or "import" or "export")
-            || request.Action is "edit" && (request.Changes.Count != 0 || request.Selection.Count != 0)
-            || request.Action is "patch" && (request.Records.Count != 0 || request.Changes.Count == 0 || request.Selection.Count != 0)
-            || request.Action is "read" && (request.Records.Count != 0 || request.Changes.Count != 0 || request.Selection.Count == 0)
-            || request.Action is "import" or "export" && (request.Records.Count != 0 || request.Changes.Count != 0 || request.Selection.Count != 0)
-            || request.Action is "import" && (request.ZoneFile is not { Length: > 0 and <= ProtocolVersion.MaximumZoneFileBytes }
-                || request.ZoneFile.Any(character => character is not (>= ' ' and <= '~' or '\t' or '\r' or '\n')))
-            || request.Action is not "import" && request.ZoneFile is not null)
+            || (request.Action is "edit" && (request.Changes.Count != 0 || request.Selection.Count != 0))
+            || (request.Action is "patch" && (request.Records.Count != 0 || request.Changes.Count == 0 || request.Selection.Count != 0))
+            || (request.Action is "read" && (request.Records.Count != 0 || request.Changes.Count != 0 || request.Selection.Count == 0))
+            || (request.Action is "import" or "export" && (request.Records.Count != 0 || request.Changes.Count != 0 || request.Selection.Count != 0))
+            || (request.Action is "import" && (request.ZoneFile is not { Length: > 0 and <= ProtocolVersion.MaximumZoneFileBytes }
+                || request.ZoneFile.Any(character => character is not (>= ' ' and <= '~' or '\t' or '\r' or '\n'))))
+            || (request.Action is not "import" && request.ZoneFile is not null))
+        {
             throw new ArgumentException("Invalid management action fields.", nameof(request));
+        }
+
         foreach (var change in request.Changes)
             ValidateChangeBounds(change);
         RequireByteBound(request);
         var result = request with
         {
-            Credential = request.Credential.ToArray(),
             Origin = request.Origin.ToArray(),
-            Records = request.Records.Select(FreezeRecord).ToArray(),
-            Changes = request.Changes.Select(FreezeChange).ToArray(),
-            Selection = request.Selection.Select(key => key is null ? throw new ArgumentException("Empty RRset selection.", nameof(request)) : key with { Owner = CopyOwner(key.Owner) }).ToArray(),
+            Records = [.. request.Records.Select(FreezeRecord)],
+            Changes = [.. request.Changes.Select(FreezeChange)],
+            Selection = [.. request.Selection.Select(key => key is null ? throw new ArgumentException("Empty RRset selection.", nameof(request)) : key with { Owner = CopyOwner(key.Owner) })],
         };
         RequireByteBound(result);
-        return result;
+        // Finish all fallible data clones before acquiring the credential copy.
+        var credential = request.Credential.ToArray();
+        try { return result with { Credential = credential }; }
+        catch
+        {
+            System.Security.Cryptography.CryptographicOperations.ZeroMemory(credential);
+            throw;
+        }
     }
 
     private static void RequireByteBound(ManagementRequest request)
@@ -55,7 +67,7 @@ internal static class ManagementInput
     private static RrsetChange FreezeChange(RrsetChange change)
     {
         ValidateChangeBounds(change);
-        return change with { Owner = CopyOwner(change.Owner), Add = change.Add.Select(CopyData).ToArray(), Remove = change.Remove.Select(CopyData).ToArray() };
+        return change with { Owner = CopyOwner(change.Owner), Add = [.. change.Add.Select(CopyData)], Remove = [.. change.Remove.Select(CopyData)] };
     }
 
     private static void ValidateChangeBounds(RrsetChange change)

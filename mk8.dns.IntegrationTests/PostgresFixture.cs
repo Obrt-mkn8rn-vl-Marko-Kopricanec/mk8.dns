@@ -19,7 +19,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         try
         {
             await RunAsync("initdb", ["-D", Path.Combine(root, "data"), "--no-locale", "--encoding=UTF8", "--data-checksums", "--auth-local=trust", "--auth-host=reject"]).ConfigureAwait(true);
-            await File.AppendAllTextAsync(Path.Combine(root, "data", "postgresql.conf"), FormattableString.Invariant($"\nlisten_addresses = ''\nunix_socket_directories = '{root}'\nunix_socket_permissions = 0700\nfsync = on\nfull_page_writes = on\nsynchronous_commit = on\n")).ConfigureAwait(true);
+            await File.AppendAllTextAsync(Path.Combine(root, "data", "postgresql.conf"), $"\nlisten_addresses = ''\nunix_socket_directories = '{root}'\nunix_socket_permissions = 0700\nfsync = on\nfull_page_writes = on\nsynchronous_commit = on\n").ConfigureAwait(true);
             await RunAsync("pg_ctl", ["-D", Path.Combine(root, "data"), "-l", Path.Combine(root, "postgres.log"), "-w", "-t", "15", "start"]).ConfigureAwait(true);
             started = true;
         }
@@ -37,7 +37,8 @@ public sealed class PostgresFixture : IAsyncLifetime
         await using (connection.ConfigureAwait(true))
         {
             await connection.OpenAsync().ConfigureAwait(true);
-            using var command = new NpgsqlCommand("DROP SCHEMA public CASCADE; CREATE SCHEMA public", connection);
+            var command = new NpgsqlCommand("DROP SCHEMA public CASCADE; CREATE SCHEMA public", connection);
+            await using var commandLifetime = command.ConfigureAwait(true);
             _ = await command.ExecuteNonQueryAsync().ConfigureAwait(true);
         }
         return builder.ConnectionString;
@@ -54,7 +55,8 @@ public sealed class PostgresFixture : IAsyncLifetime
         await using (connection.ConfigureAwait(true))
         {
             await connection.OpenAsync().ConfigureAwait(true);
-            using var command = new NpgsqlCommand("SELECT current_setting('listen_addresses'), current_setting('fsync')::boolean, current_setting('full_page_writes')::boolean, current_setting('synchronous_commit')", connection);
+            var command = new NpgsqlCommand("SELECT current_setting('listen_addresses'), current_setting('fsync')::boolean, current_setting('full_page_writes')::boolean, current_setting('synchronous_commit')", connection);
+            await using var commandLifetime = command.ConfigureAwait(true);
             var reader = await command.ExecuteReaderAsync().ConfigureAwait(true);
             await using (reader.ConfigureAwait(true))
             {
@@ -85,21 +87,6 @@ public sealed class PostgresFixture : IAsyncLifetime
         var start = new ProcessStartInfo(Bin + executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var argument in arguments)
             start.ArgumentList.Add(argument);
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start the owned PostgreSQL development process.");
-        var output = process.StandardOutput.ReadToEndAsync();
-        var errors = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        try
-        {
-            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(true);
-            if (process.ExitCode != 0)
-                throw new InvalidOperationException(await output.ConfigureAwait(true) + await errors.ConfigureAwait(true));
-        }
-        catch
-        {
-            if (!process.HasExited)
-                process.Kill(entireProcessTree: true);
-            throw;
-        }
+        await PostgresCommand.RunAsync(start, TimeSpan.FromSeconds(60)).ConfigureAwait(true);
     }
 }

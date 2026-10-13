@@ -1,3 +1,4 @@
+using Mk8.Dns.Application.Abstractions;
 using Mk8.Dns.Application.BLL;
 using Mk8.Dns.Application.DAL;
 using Mk8.Dns.Contracts;
@@ -29,7 +30,7 @@ public sealed class ControlPlaneTests(PostgresFixture postgres) : IClassFixture<
         Assert.Equal(accepted.ContentHash, pending.Snapshot.ContentHash);
         Assert.Equal("operator-test", pending.Actor);
         Assert.Equal(ControlFixture.Node, pending.TargetNode);
-        var status = await application.ExecuteAsync(edit with { Action = "status", Records = Array.Empty<ZoneRecordData>() }, CancellationToken.None).ConfigureAwait(true);
+        var status = await application.ExecuteAsync(edit with { Action = "status", Records = [] }, CancellationToken.None).ConfigureAwait(true);
         Assert.Equal(accepted, status);
         var transaction = await store.BeginAsync(CancellationToken.None).ConfigureAwait(true);
         await using var transactionLifetime = transaction.ConfigureAwait(true);
@@ -152,7 +153,8 @@ public sealed class ControlPlaneTests(PostgresFixture postgres) : IClassFixture<
         await using (connection.ConfigureAwait(true))
         {
             await connection.OpenAsync().ConfigureAwait(true);
-            using var command = new NpgsqlCommand("DELETE FROM mk8_control_metadata", connection);
+            var command = new NpgsqlCommand("DELETE FROM mk8_control_metadata", connection);
+            await using var commandLifetime = command.ConfigureAwait(true);
             _ = await command.ExecuteNonQueryAsync().ConfigureAwait(true);
         }
         _ = await Assert.ThrowsAsync<InvalidOperationException>(() => InitializeCandidateAsync(connectionString, fixture.Epoch, CancellationToken.None).AsTask()).ConfigureAwait(true);
@@ -204,22 +206,18 @@ public sealed class ControlPlaneTests(PostgresFixture postgres) : IClassFixture<
         await using var storeStartupLifetime = store.ConfigureAwait(true);
         await store.InitializeAsync(fixture.Epoch, CancellationToken.None).ConfigureAwait(true);
         var transaction = await store.BeginAsync(CancellationToken.None).ConfigureAwait(true);
-        var queued = store.BeginAsync(CancellationToken.None).AsTask();
-        await WaitForQueuedTransactionAsync(connection).ConfigureAwait(true);
-        var disposal = store.DisposeAsync().AsTask();
-        try
+        Task<IControlTransaction>? queued = null;
+        await TestTaskSettlement.RunAsync(async () =>
         {
+            queued = store.BeginAsync(CancellationToken.None).AsTask();
+            await WaitForQueuedTransactionAsync(connection).ConfigureAwait(true);
+            var disposal = store.DisposeAsync().AsTask();
             Assert.False(disposal.IsCompleted);
             _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => queued.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
             _ = await Assert.ThrowsAsync<InvalidOperationException>(() => InitializeCandidateAsync(connection, fixture.Epoch, CancellationToken.None).AsTask()).ConfigureAwait(true);
             _ = await Assert.ThrowsAsync<ObjectDisposedException>(() => store.BeginAsync(CancellationToken.None).AsTask()).ConfigureAwait(true);
             await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(true);
-        }
-        finally
-        {
-            await transaction.DisposeAsync().ConfigureAwait(true);
-            await disposal.ConfigureAwait(true);
-        }
+        }, () => RetireTransactionAsync(store, transaction, queued?.WaitAsync(CancellationToken.None))).ConfigureAwait(true);
         var successor = new PostgresControlPlaneStore(connection);
         await using var successorStartupLifetime = successor.ConfigureAwait(true);
         await successor.InitializeAsync(fixture.Epoch, CancellationToken.None).ConfigureAwait(true);
@@ -227,6 +225,53 @@ public sealed class ControlPlaneTests(PostgresFixture postgres) : IClassFixture<
         var admitted = await successor.BeginAsync(CancellationToken.None).ConfigureAwait(true);
         await using var admittedLifetime = admitted.ConfigureAwait(true);
         await admitted.CommitAsync(CancellationToken.None).ConfigureAwait(true);
+    }
+
+    [Fact]
+    public async Task QueuedAdmissionObserverFaultRetiresBothTransactionOwnersAndWriterLease()
+    {
+        var fixture = new ControlFixture();
+        var connection = await postgres.ResetDatabaseAsync().ConfigureAwait(true);
+        var store = new PostgresControlPlaneStore(connection);
+        await using var lifetime = store.ConfigureAwait(true);
+        await store.InitializeAsync(fixture.Epoch, CancellationToken.None).ConfigureAwait(true);
+        var transaction = await store.BeginAsync(CancellationToken.None).ConfigureAwait(true);
+        Task<IControlTransaction>? queued = null;
+        var fault = new InvalidOperationException("Owned queued observer fault.");
+        var observed = await Assert.ThrowsAsync<InvalidOperationException>(() => TestTaskSettlement.RunAsync(async () =>
+        {
+            queued = store.BeginAsync(CancellationToken.None).AsTask();
+            await WaitForQueuedTransactionAsync(connection).ConfigureAwait(true);
+            throw fault;
+        }, () => RetireTransactionAsync(store, transaction, queued?.WaitAsync(CancellationToken.None)))).ConfigureAwait(true);
+        Assert.Same(fault, observed);
+        Assert.NotNull(queued);
+        Assert.True(queued.IsCompleted);
+        var successor = new PostgresControlPlaneStore(connection);
+        await using var successorLifetime = successor.ConfigureAwait(true);
+        await successor.InitializeAsync(fixture.Epoch, CancellationToken.None).ConfigureAwait(true);
+        var admitted = await successor.BeginAsync(CancellationToken.None).ConfigureAwait(true);
+        await using var admittedLifetime = admitted.ConfigureAwait(true);
+        await admitted.CommitAsync(CancellationToken.None).ConfigureAwait(true);
+    }
+
+    private static async Task RetireTransactionAsync(PostgresControlPlaneStore store, IControlTransaction transaction,
+        Task<IControlTransaction>? queued)
+    {
+        var disposal = store.DisposeAsync().AsTask();
+        await TestTaskSettlement.RunAsync(() => transaction.DisposeAsync().AsTask(), async () =>
+        {
+            await TestTaskSettlement.RunAsync(async () =>
+            {
+                if (queued is null) return;
+                try
+                {
+                    var unexpected = await queued.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+                    await unexpected.DisposeAsync().ConfigureAwait(true);
+                }
+                catch (OperationCanceledException) when (queued.IsCanceled) { }
+            }, () => disposal.WaitAsync(TimeSpan.FromSeconds(10))).ConfigureAwait(true);
+        }).ConfigureAwait(true);
     }
 
     [Fact]
@@ -243,7 +288,8 @@ public sealed class ControlPlaneTests(PostgresFixture postgres) : IClassFixture<
         await using (connection.ConfigureAwait(true))
         {
             await connection.OpenAsync().ConfigureAwait(true);
-            using var terminate = new NpgsqlCommand("SELECT pg_terminate_backend(pid, 5000) FROM pg_stat_activity WHERE application_name='mk8-old-writer' AND state='idle'", connection);
+            var terminate = new NpgsqlCommand("SELECT pg_terminate_backend(pid, 5000) FROM pg_stat_activity WHERE application_name='mk8-old-writer' AND state='idle'", connection);
+            await using var terminateLifetime = terminate.ConfigureAwait(true);
             Assert.Equal(true, await terminate.ExecuteScalarAsync().ConfigureAwait(true));
         }
         var successor = new PostgresControlPlaneStore(connectionString);
@@ -267,7 +313,8 @@ public sealed class ControlPlaneTests(PostgresFixture postgres) : IClassFixture<
         await using var connectionLifetime = connection.ConfigureAwait(true);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await connection.OpenAsync(timeout.Token).ConfigureAwait(true);
-        using var command = new NpgsqlCommand("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' AND wait_event='advisory'", connection);
+        var command = new NpgsqlCommand("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' AND wait_event='advisory'", connection);
+        await using var commandLifetime = command.ConfigureAwait(true);
         while (await command.ExecuteScalarAsync(timeout.Token).ConfigureAwait(true) is not long count || count == 0)
             await Task.Delay(TimeSpan.FromMilliseconds(10), timeout.Token).ConfigureAwait(true);
     }

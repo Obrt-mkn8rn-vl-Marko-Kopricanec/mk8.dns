@@ -16,11 +16,11 @@ public sealed class AnchorRefreshOwnershipTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var held = new TaskCompletionSource<DnsUpstreamEvidence>(TaskCreationOptions.RunContinuationsAsynchronously);
         f.Upstream.Override = (_, _, _) => { entered.SetResult(); return new(held.Task); };
-        var session = f.Create();
+        await using var session = f.Create();
         var refresh = session.RefreshAsync(caller.Token).AsTask();
-        await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, f.Keys.Clock, caller.Token).ConfigureAwait(true);
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
+            await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, f.Keys.Clock, caller.Token).ConfigureAwait(true);
             Assert.Equal(DnssecAnchorRefreshOutcome.Busy, await session.RefreshAsync(CancellationToken.None).ConfigureAwait(true));
             if (cancel) await caller.CancelAsync().ConfigureAwait(true);
             var closing = session.DisposeAsync().AsTask();
@@ -30,16 +30,18 @@ public sealed class AnchorRefreshOwnershipTests
             await Assert.ThrowsAsync<ObjectDisposedException>(() => session.RefreshAsync(CancellationToken.None).AsTask()).ConfigureAwait(true);
             held.SetResult(f.Reply());
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => refresh.WaitAsync(AnchorRefreshFixture.Timeout, f.Keys.Clock, CancellationToken.None)).ConfigureAwait(true);
-            else Assert.Equal(DnssecAnchorRefreshOutcome.Refused, await refresh.ConfigureAwait(true));
+            else Assert.Equal(DnssecAnchorRefreshOutcome.Refused, await refresh.WaitAsync(CancellationToken.None).ConfigureAwait(true));
             await closing.WaitAsync(AnchorRefreshFixture.Timeout, f.Keys.Clock, CancellationToken.None).ConfigureAwait(true);
             Assert.Equal(0, f.Store.Commits); Assert.Equal(1, f.Upstream.Calls);
-        }
-        finally
+        }, async () =>
         {
             held.TrySetResult(f.Reply());
-            _ = await Record.ExceptionAsync(() => refresh.WaitAsync(AnchorRefreshFixture.Timeout, f.Keys.Clock, CancellationToken.None)).ConfigureAwait(true);
-            await session.DisposeAsync().ConfigureAwait(true);
-        }
+            var retirement = session.DisposeAsync().AsTask();
+            try { await refresh.WaitAsync(AnchorRefreshFixture.Timeout, f.Keys.Clock, CancellationToken.None).ConfigureAwait(true); }
+            catch (OperationCanceledException) when (refresh.IsCanceled && caller.IsCancellationRequested) { }
+            await retirement.WaitAsync(AnchorRefreshFixture.Timeout, f.Keys.Clock, CancellationToken.None).ConfigureAwait(true);
+        }).ConfigureAwait(true);
+
     }
 
     [Fact]
