@@ -21,16 +21,16 @@ public sealed class AuthoritativeCancellationDrainTests
         var run = new AuthoritativeListener(endpoint, exchange).RunAsync(caller.Token);
         using var udp = new UdpClient(AddressFamily.InterNetwork);
         using var tcp = new TcpClient(AddressFamily.InterNetwork);
-        using var kick = new TcpClient(AddressFamily.InterNetwork);
         await TestTaskSettlement.RunAsync(async () =>
         {
             _ = await udp.SendAsync(new byte[] { 1 }, endpoint, CancellationToken.None).ConfigureAwait(true);
             await exchange.UdpEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(true);
             await tcp.ConnectAsync(endpoint, CancellationToken.None).ConfigureAwait(true);
             await tcp.GetStream().WriteAsync(new byte[] { 0, 1, 1 }, CancellationToken.None).ConfigureAwait(true);
+            await exchange.TcpEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(true);
+            exchange.TcpRelease.TrySetResult();
             await exchange.TcpFailed.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(true);
-            // Wake the accepted-connection loop so it observes its completed failed child.
-            await kick.ConnectAsync(endpoint, CancellationToken.None).ConfigureAwait(true);
+            // No unrelated connection or caller stop wakes the accept operation.
             await exchange.CallbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(true);
             Assert.False(run.IsCompleted);
             Assert.False(caller.IsCancellationRequested);
@@ -44,7 +44,7 @@ public sealed class AuthoritativeCancellationDrainTests
             binding.Bind(endpoint);
         }, async () =>
         {
-            exchange.Release.TrySetResult([]);
+            exchange.Release.TrySetResult([]); exchange.TcpRelease.TrySetResult();
             await TestTaskSettlement.RunAsync(() => caller.CancelAsync(), async () =>
             {
                 var error = await Record.ExceptionAsync(() => run.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None)).ConfigureAwait(true);
@@ -63,12 +63,20 @@ public sealed class AuthoritativeCancellationDrainTests
         internal InvalidOperationException Primary { get; } = new("Owned TCP exchange fault.");
         internal IOException CallbackFault { get; } = new("Owned UDP callback fault.");
         internal TaskCompletionSource UdpEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource TcpEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource TcpRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource TcpFailed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource CallbackEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource<byte[]> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public async ValueTask<byte[]> ExchangeAsync(ReadOnlyMemory<byte> message, bool tcp, ReadOnlyMemory<byte> peerAddress, CancellationToken cancellationToken)
         {
-            if (tcp) { TcpFailed.TrySetResult(); throw Primary; }
+            if (tcp)
+            {
+                TcpEntered.TrySetResult();
+                await TcpRelease.Task.WaitAsync(CancellationToken.None).ConfigureAwait(true);
+                await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+                TcpFailed.TrySetResult(); throw Primary;
+            }
             Interlocked.Increment(ref active);
             registration = cancellationToken.Register(() => { CallbackEntered.TrySetResult(); throw CallbackFault; });
             UdpEntered.TrySetResult();

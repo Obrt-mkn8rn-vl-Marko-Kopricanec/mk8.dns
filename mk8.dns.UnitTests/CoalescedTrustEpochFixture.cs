@@ -18,6 +18,7 @@ internal sealed class CoalescedTrustEpochFixture : IAsyncDisposable
     internal TrustEpochFixture Data { get; } = new();
     internal DnssecTrustEpochResolver Resolver { get; }
     internal WorkClock Clock { get; }
+    internal Exception? ExpectedDisposalFailure { get; set; }
     internal DnsQuestion Question => Data.Question;
     internal Func<DnsQuestion, DnsServerEndpoint, CancellationToken, ValueTask<DnsUpstreamEvidence>>? Override { get; set; }
     internal TaskCompletionSource<DnsUpstreamEvidence> Hold(DnsQuestion question)
@@ -48,6 +49,7 @@ internal sealed class CoalescedTrustEpochFixture : IAsyncDisposable
         var closing = Resolver.DisposeAsync().AsTask();
         foreach (var (Held, Reply) in held) Held.TrySetResult(Reply);
         try { await closing.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
+        catch (Exception error) when (ReferenceEquals(error, ExpectedDisposalFailure)) { }
         finally { await Data.DisposeAsync().ConfigureAwait(true); }
     }
 
@@ -66,6 +68,7 @@ internal sealed class CoalescedTrustEpochFixture : IAsyncDisposable
         private readonly RecursiveCacheClock timers = new();
         internal bool HoldDisposal { get; set; }
         internal bool FailCreation { get; set; }
+        internal IOException? DisposalFailure { get; set; }
         internal int ActiveTimers => timers.ActiveTimers;
         internal TaskCompletionSource DisposalEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource DisposalReleased { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -95,6 +98,7 @@ internal sealed class CoalescedTrustEpochFixture : IAsyncDisposable
                     await owner.DisposalReleased.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
                 }
                 await timer.DisposeAsync().ConfigureAwait(true);
+                if (owner.DisposalFailure is not null) throw owner.DisposalFailure;
             }
         }
     }

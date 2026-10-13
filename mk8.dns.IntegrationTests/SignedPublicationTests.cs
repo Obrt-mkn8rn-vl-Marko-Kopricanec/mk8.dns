@@ -7,12 +7,14 @@ using Mk8.Dns.Domain;
 using Mk8.Dns.Infrastructure;
 using Mk8.Dns.Infrastructure.Cryptography;
 using Mk8.Dns.Wire;
+using Npgsql;
 using Xunit;
 
 namespace Mk8.Dns.IntegrationTests;
 
 public sealed class SignedPublicationTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
+    private readonly PostgresFixture database = postgres;
     [Fact]
     public async Task SignedCommitReplayAndOutboxPublicationPreserveOriginalIntentAndReceipt()
     {
@@ -190,9 +192,84 @@ public sealed class SignedPublicationTests(PostgresFixture postgres) : IClassFix
 
     private async Task<PostgresControlPlaneStore> StoreAsync(ControlFixture control)
     {
-        var store = new PostgresControlPlaneStore(await postgres.ResetDatabaseAsync().ConfigureAwait(true));
-        await store.InitializeAsync(control.Epoch, CancellationToken.None).ConfigureAwait(true);
-        return store;
+        var store = new PostgresControlPlaneStore(await database.ResetDatabaseAsync().ConfigureAwait(true));
+        return await InitializeOwnedStoreAsync(store, control.Epoch).ConfigureAwait(true);
+    }
+
+    private static async Task<PostgresControlPlaneStore> InitializeOwnedStoreAsync(PostgresControlPlaneStore store, Guid epoch)
+    {
+        try
+        {
+            await store.InitializeAsync(epoch, CancellationToken.None).ConfigureAwait(true);
+            return store;
+        }
+        catch (Exception primary)
+        {
+            var secondary = await Record.ExceptionAsync(() => store.DisposeAsync().AsTask()).ConfigureAwait(true);
+            if (secondary is not null) throw new AggregateException(primary, secondary);
+            throw;
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedInitializationAfterLeaseAcquisitionRetiresOwnedSessionAndPreservesCleanupFault(bool cleanupFault)
+    {
+        var connectionString = await database.ResetDatabaseAsync().ConfigureAwait(true);
+        var epoch = Guid.NewGuid();
+        var seed = new PostgresControlPlaneStore(connectionString);
+        await using (seed.ConfigureAwait(true))
+            await seed.InitializeAsync(epoch, CancellationToken.None).ConfigureAwait(true);
+        var settings = new NpgsqlConnectionStringBuilder(connectionString) { ApplicationName = "mk8-signed-init-control" };
+        var released = 0;
+        var fault = new IOException("Controlled post-lease cleanup failure.");
+        var rejected = new PostgresControlPlaneStore(settings.ConnectionString, () =>
+        {
+            Interlocked.Increment(ref released);
+            return cleanupFault ? ValueTask.FromException(fault) : ValueTask.CompletedTask;
+        });
+        try
+        {
+            var attempt = InitializeOwnedStoreAsync(rejected, Guid.NewGuid());
+            await TestTaskSettlement.RunAsync(async () =>
+            {
+                var observed = await Assert.ThrowsAnyAsync<Exception>(() => attempt.WaitAsync(TimeSpan.FromSeconds(20), CancellationToken.None)).ConfigureAwait(true);
+                var primary = cleanupFault ? Assert.IsType<AggregateException>(observed).InnerExceptions[0] : observed;
+                Assert.Equal("Controller schema, missing committed metadata or publisher epoch requires explicit migration.", Assert.IsType<InvalidOperationException>(primary).Message);
+                if (cleanupFault) Assert.Contains(fault, Assert.IsType<AggregateException>(observed).Flatten().InnerExceptions);
+                Assert.Equal(1, released);
+                var repeated = await Record.ExceptionAsync(() => rejected.DisposeAsync().AsTask()).ConfigureAwait(true);
+                if (cleanupFault) Assert.Same(fault, repeated);
+                else Assert.Null(repeated);
+                _ = await Assert.ThrowsAsync<ObjectDisposedException>(() => rejected.BeginAsync(CancellationToken.None).AsTask()).ConfigureAwait(true);
+                await AssertRetiredLeaseAsync(connectionString, epoch).ConfigureAwait(true);
+            }, async () =>
+            {
+                _ = await Record.ExceptionAsync(() => attempt.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+                var error = await Record.ExceptionAsync(() => rejected.DisposeAsync().AsTask()).ConfigureAwait(true);
+                if (error is not null && !ReferenceEquals(error, fault)) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
+            }).ConfigureAwait(true);
+        }
+        finally
+        {
+            var disposal = rejected.DisposeAsync().AsTask();
+            try { await disposal.ConfigureAwait(true); }
+            catch (IOException error) when (ReferenceEquals(error, fault) && cleanupFault) { }
+        }
+    }
+
+    private static async Task AssertRetiredLeaseAsync(string connectionString, Guid epoch)
+    {
+        var probe = new NpgsqlConnection(connectionString);
+        await using var probeLifetime = probe.ConfigureAwait(true);
+        await probe.OpenAsync(CancellationToken.None).ConfigureAwait(true);
+        var sessions = new NpgsqlCommand("SELECT count(*) FROM pg_stat_activity WHERE application_name='mk8-signed-init-control'", probe);
+        await using var commandLifetime = sessions.ConfigureAwait(true);
+        Assert.Equal(0L, await sessions.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(true));
+        var replacement = new PostgresControlPlaneStore(connectionString);
+        await using var replacementLifetime = replacement.ConfigureAwait(true);
+        await replacement.InitializeAsync(epoch, CancellationToken.None).ConfigureAwait(true);
     }
 
     private static ZoneBundleAdapter Codec(IDnssecSigningKey key, Clock time) => new(new DnssecZoneSigningService(

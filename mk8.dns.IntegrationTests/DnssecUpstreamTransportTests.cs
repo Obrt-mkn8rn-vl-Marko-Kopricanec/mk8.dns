@@ -48,8 +48,8 @@ public sealed class DnssecUpstreamTransportTests
             var request = await server.ReceiveAsync(closure.Token).ConfigureAwait(true); var good = DnssecUpstreamFixture.Reply(request.Buffer);
             var forged = good.ToArray(); forged[^12] ^= 1;
             await stranger.SendAsync(forged, request.RemoteEndPoint, closure.Token).ConfigureAwait(true);
-            var wrongId = good.ToArray(); wrongId[0] ^= 1; await server.SendAsync(wrongId, request.RemoteEndPoint, closure.Token).ConfigureAwait(true);
-            var wrongQuestion = good.ToArray(); wrongQuestion[13] = (byte)'z'; await server.SendAsync(wrongQuestion, request.RemoteEndPoint, closure.Token).ConfigureAwait(true);
+            var wrongId = DnssecUpstreamFixture.Reply(request.Buffer, data: [192, 0, 2, 44]); wrongId[0] ^= 1; await server.SendAsync(wrongId, request.RemoteEndPoint, closure.Token).ConfigureAwait(true);
+            var wrongQuestion = DnssecUpstreamFixture.Reply(request.Buffer, data: [192, 0, 2, 45]); wrongQuestion[13] = (byte)'z'; await server.SendAsync(wrongQuestion, request.RemoteEndPoint, closure.Token).ConfigureAwait(true);
             var oversized = DnssecUpstreamFixture.Reply(request.Buffer, data: new byte[1500]); await server.SendAsync(oversized, request.RemoteEndPoint, closure.Token).ConfigureAwait(true);
             await server.SendAsync(good, request.RemoteEndPoint, closure.Token).ConfigureAwait(true);
         }, closure.Token);
@@ -74,7 +74,7 @@ public sealed class DnssecUpstreamTransportTests
     public async Task TcpRetryReusesExactDoCdTransactionAndRefusesPersistentTc(bool ipv6, bool persistentTc)
     {
         using var closure = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var pair = DnssecUpstreamFixture.BindPair(ipv6); using var udp = pair.Udp; using var tcp = pair.Tcp;
+        var (udp, tcp) = DnssecUpstreamFixture.BindPair(ipv6); using var udpLifetime = udp; using var tcpLifetime = tcp;
         var server = DnssecUpstreamFixture.Endpoint(udp);
         byte[]? datagram = null;
         var udpWorker = Task.Run(async () =>
@@ -84,7 +84,7 @@ public sealed class DnssecUpstreamTransportTests
         }, closure.Token);
         var tcpWorker = Task.Run(async () =>
         {
-            using var peer = await tcp.AcceptTcpClientAsync(closure.Token).ConfigureAwait(true); using var stream = peer.GetStream();
+            using var peer = await tcp.AcceptTcpClientAsync(closure.Token).ConfigureAwait(true); var stream = peer.GetStream(); await using var streamLifetime = stream.ConfigureAwait(true);
             var frame = await DnssecUpstreamFixture.ReadFrameAsync(stream, closure.Token).ConfigureAwait(true); Assert.Equal(datagram, frame);
             Assert.True(DnsMessageCodec.DecodeQuery(frame).DnssecOk);
             await DnssecUpstreamFixture.SendFrameAsync(stream, DnssecUpstreamFixture.Reply(frame, persistentTc ? (ushort)0x8630 : (ushort)0x8430, [192, 0, 2, 43]), closure.Token).ConfigureAwait(true);
@@ -107,7 +107,7 @@ public sealed class DnssecUpstreamTransportTests
     public async Task RevocationBeforeTcpDoesNotOpenTheListener()
     {
         using var closure = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var pair = DnssecUpstreamFixture.BindPair(false); using var udp = pair.Udp; using var tcp = pair.Tcp;
+        var (udp, tcp) = DnssecUpstreamFixture.BindPair(ipv6: false); using var udpLifetime = udp; using var tcpLifetime = tcp;
         var server = DnssecUpstreamFixture.Endpoint(udp); var policyCalls = 0;
         var worker = Task.Run(async () =>
         {
@@ -131,7 +131,7 @@ public sealed class DnssecUpstreamTransportTests
     [Fact]
     public async Task CallerCancellationDeadlineAndPreEgressRefusalAreDistinct()
     {
-        using var server = DnssecUpstreamFixture.Bind(false); var endpoint = DnssecUpstreamFixture.Endpoint(server);
+        using var server = DnssecUpstreamFixture.Bind(ipv6: false); var endpoint = DnssecUpstreamFixture.Endpoint(server);
         _ = await Assert.ThrowsAsync<IOException>(() => new DnssecUpstreamClient(_ => false, TimeSpan.FromSeconds(1)).ExchangeDnssecAsync(DnssecUpstreamFixture.Question, endpoint, CancellationToken.None).AsTask()).ConfigureAwait(true);
         Assert.Equal(0, server.Available);
         var client = new DnssecUpstreamClient(_ => true, TimeSpan.FromMilliseconds(100));

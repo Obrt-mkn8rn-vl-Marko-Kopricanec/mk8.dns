@@ -20,17 +20,20 @@ public sealed class NativeClientListenerLifetimeTests
             entered.TrySetResult(); return new(held.Task);
         };
         var response = NativeClientListenerFixture.UdpAsync(endpoint, ClientRequestFixture.Request(), deadline.Token);
-        await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
-        var first = f.Listener.DisposeAsync().AsTask(); var second = f.Listener.DisposeAsync().AsTask();
-        Assert.False(first.IsCompleted); Assert.False(second.IsCompleted); Assert.Equal(1, f.Processor.ActiveRequests);
-        held.TrySetResult(f.Epoch.Default(keys, AnchorRefreshFixture.Server));
-        await Task.WhenAll(first, second).WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
-        await deadline.CancelAsync().ConfigureAwait(true);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
-        Assert.Equal(0, f.Processor.ActiveRequests);
-        var result = await f.Processor.ProcessAsync(ClientRequestFixture.Request(), f.Address.GetAddressBytes(), tcp: false,
-            CancellationToken.None).ConfigureAwait(true);
-        Assert.Equal(Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome.Encoded, result.Outcome);
+        await TestTaskSettlement.RunAsync(async () =>
+        {
+            await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
+            var first = f.Listener.DisposeAsync().AsTask(); var second = f.Listener.DisposeAsync().AsTask();
+            Assert.False(first.IsCompleted); Assert.False(second.IsCompleted); Assert.Equal(1, f.Processor.ActiveRequests);
+            held.TrySetResult(f.Epoch.Default(keys, AnchorRefreshFixture.Server));
+            await Task.WhenAll(first, second).WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
+            await deadline.CancelAsync().ConfigureAwait(true);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
+            Assert.Equal(0, f.Processor.ActiveRequests);
+            var result = await f.Processor.ProcessAsync(ClientRequestFixture.Request(), f.Address.GetAddressBytes(), tcp: false,
+                CancellationToken.None).ConfigureAwait(true);
+            Assert.Equal(Mk8.Dns.Engine.Recursive.DnssecClientReplyOutcome.Encoded, result.Outcome);
+        }, () => RetireClientAsync(deadline, response.WaitAsync(CancellationToken.None))).ConfigureAwait(true);
     }
 
     [Fact]
@@ -47,16 +50,83 @@ public sealed class NativeClientListenerLifetimeTests
             entered.TrySetResult(); return new(held.Task);
         };
         var response = NativeClientListenerFixture.UdpAsync(endpoint, ClientRequestFixture.Request(), deadline.Token);
-        await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
-        await f.Listener.DisposeAsync().AsTask().WaitAsync(AnchorRefreshFixture.Timeout,
-            TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
-        Assert.Equal(0, f.Processor.ActiveRequests); Assert.Equal(1, f.Epoch.Resolver.ActiveWorkers);
-        var epochClosure = f.Epoch.Resolver.DisposeAsync().AsTask(); Assert.False(epochClosure.IsCompleted);
-        held.TrySetResult(f.Epoch.Default(keys, AnchorRefreshFixture.Server));
-        await epochClosure.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
-        await deadline.CancelAsync().ConfigureAwait(true);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
-        Assert.Equal(0, f.Epoch.Resolver.ActiveWorkers);
+        await TestTaskSettlement.RunAsync(async () =>
+        {
+            await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
+            await f.Listener.DisposeAsync().AsTask().WaitAsync(AnchorRefreshFixture.Timeout,
+                TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
+            Assert.Equal(0, f.Processor.ActiveRequests); Assert.Equal(1, f.Epoch.Resolver.ActiveWorkers);
+            var epochClosure = f.Epoch.Resolver.DisposeAsync().AsTask(); Assert.False(epochClosure.IsCompleted);
+            held.TrySetResult(f.Epoch.Default(keys, AnchorRefreshFixture.Server));
+            await epochClosure.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
+            await deadline.CancelAsync().ConfigureAwait(true);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
+            Assert.Equal(0, f.Epoch.Resolver.ActiveWorkers);
+        }, () => RetireClientAsync(deadline, response.WaitAsync(CancellationToken.None))).ConfigureAwait(true);
+    }
+
+    [Fact]
+    public async Task EarlyObserverFailureJoinsSeparateUdpClientBeforeHeldServerRetirement()
+    {
+        var f = new NativeClientListenerFixture(); await using var lifetime = f.ConfigureAwait(true);
+        using var deadline = new CancellationTokenSource(AnchorRefreshFixture.Timeout);
+        var endpoint = await f.StartAsync(deadline.Token).ConfigureAwait(true);
+        var keys = new DnsQuestion(f.Epoch.Anchors.Keys.Origin, 48, 1); var held = f.Hold(keys);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        f.Epoch.Override = (question, server, _) =>
+        {
+            if (question.Type != 48) return ValueTask.FromResult(f.Epoch.Default(question, server));
+            entered.TrySetResult(); return new(held.Task);
+        };
+        System.Net.Sockets.SafeSocketHandle? clientHandle = null;
+        var response = NativeClientListenerFixture.UdpAsync(endpoint, ClientRequestFixture.Request(), deadline.Token,
+            socket => clientHandle = socket.SafeHandle);
+        var fault = new IOException("Controlled early native client observer failure.");
+        Task? shutdown = null;
+        var control = TestTaskSettlement.RunAsync(async () =>
+        {
+            await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
+            throw fault;
+        }, async () =>
+        {
+            await TestTaskSettlement.RunAsync(() => RetireClientAsync(deadline, response.WaitAsync(CancellationToken.None)), async () =>
+            {
+                shutdown = f.Listener.DisposeAsync().AsTask();
+                Assert.True(response.IsCanceled); Assert.NotNull(clientHandle); Assert.True(clientHandle.IsClosed);
+                Assert.False(shutdown.IsCompleted); Assert.Equal(1, f.Processor.ActiveRequests);
+            }).ConfigureAwait(true);
+        });
+        try
+        {
+            Assert.Same(fault, await Assert.ThrowsAsync<IOException>(() => control.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None)).ConfigureAwait(true));
+        }
+        finally
+        {
+            await TestTaskSettlement.RunAsync(async () =>
+                _ = await Record.ExceptionAsync(() => control.WaitAsync(CancellationToken.None)).ConfigureAwait(true), async () =>
+            {
+                held.TrySetResult(f.Epoch.Default(keys, AnchorRefreshFixture.Server));
+                await f.DisposeAsync().ConfigureAwait(true);
+            }).ConfigureAwait(true);
+        }
+        Assert.NotNull(shutdown); Assert.True(shutdown.IsCompletedSuccessfully);
+        Assert.Equal(0, f.Processor.ActiveRequests); Assert.Equal(0, f.Epoch.Resolver.ActiveWorkers);
+    }
+
+    private static async Task RetireClientAsync(CancellationTokenSource deadline, Task response)
+    {
+        await TestTaskSettlement.RunAsync(() => deadline.CancelAsync(), async () =>
+        {
+            await TestTaskSettlement.RunAsync(async () =>
+            {
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response.WaitAsync(AnchorRefreshFixture.Timeout,
+                    TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
+            }, async () =>
+            {
+                var error = await Record.ExceptionAsync(() => response.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+                if (error is not null and not OperationCanceledException) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
+            }).ConfigureAwait(true);
+        }).ConfigureAwait(true);
     }
 
     [Theory]
