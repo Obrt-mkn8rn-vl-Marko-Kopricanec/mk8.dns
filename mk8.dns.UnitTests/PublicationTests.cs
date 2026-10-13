@@ -28,7 +28,7 @@ public sealed class PublicationTests
         Assert.Equal(first, second);
         Assert.Equal("activated", first.State);
         Assert.True((await fixture.Authority.GetStatusAsync(CancellationToken.None).ConfigureAwait(true)).DnsReady);
-        var wire = await fixture.Authority.ExchangeAsync(AuthorityFixture.Query(), false, new byte[] { 127, 0, 0, 1 }, CancellationToken.None).ConfigureAwait(true);
+        var wire = await fixture.Authority.ExchangeAsync(AuthorityFixture.Query(), tcp: false, new byte[] { 127, 0, 0, 1 }, CancellationToken.None).ConfigureAwait(true);
         Assert.Equal(new byte[] { 192, 0, 2, 1 }, wire[^4..]);
         Assert.False(File.Exists(Path.Combine(fixture.Root, "state", PublicationFixture.ZoneId.ToString("N"), "previous.json")));
     }
@@ -165,15 +165,15 @@ public sealed class PublicationTests
         _ = await publisher.ExecuteAsync(fixture.Activate(old.PublicationId), CancellationToken.None).ConfigureAwait(true);
         var query = AuthorityFixture.Query();
         var peer = new byte[] { 127, 0, 0, 1 };
-        var before = await fixture.Authority.ExchangeAsync(query, false, peer, CancellationToken.None).ConfigureAwait(true);
+        var before = await fixture.Authority.ExchangeAsync(query, tcp: false, peer, CancellationToken.None).ConfigureAwait(true);
         var newer = fixture.Prepare(PublicationFixture.Snapshot(2, 2, 2));
         _ = await publisher.ExecuteAsync(newer, CancellationToken.None).ConfigureAwait(true);
         var update = publisher.ExecuteAsync(fixture.Activate(newer.PublicationId), CancellationToken.None).AsTask();
         var results = new List<byte[]>();
         for (var index = 0; index < 1000; index++)
-            results.Add(await fixture.Authority.ExchangeAsync(query, false, peer, CancellationToken.None).ConfigureAwait(true));
+            results.Add(await fixture.Authority.ExchangeAsync(query, tcp: false, peer, CancellationToken.None).ConfigureAwait(true));
         _ = await update.ConfigureAwait(true);
-        var after = await fixture.Authority.ExchangeAsync(query, false, peer, CancellationToken.None).ConfigureAwait(true);
+        var after = await fixture.Authority.ExchangeAsync(query, tcp: false, peer, CancellationToken.None).ConfigureAwait(true);
         Assert.NotEqual(before, after);
         Assert.All(results, result => Assert.True(result.AsSpan().SequenceEqual(before) || result.AsSpan().SequenceEqual(after)));
     }
@@ -231,15 +231,31 @@ public sealed class PublicationTests
         var prepared = fixture.Prepare(PublicationFixture.Snapshot(1, 1));
         _ = await publisher.ExecuteAsync(prepared, CancellationToken.None).ConfigureAwait(true);
         var activation = publisher.ExecuteAsync(fixture.Activate(prepared.PublicationId), CancellationToken.None).AsTask();
-        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
-        var queued = publisher.ExecuteAsync(prepared, CancellationToken.None).AsTask();
-        var disposal = publisher.DisposeAsync().AsTask();
-        Assert.False(disposal.IsCompleted);
-        _ = await Assert.ThrowsAsync<ObjectDisposedException>(() => publisher.ExecuteAsync(prepared, CancellationToken.None).AsTask()).ConfigureAwait(true);
-        resume.SetResult();
-        Assert.Equal("activated", (await activation.ConfigureAwait(true)).State);
-        _ = await Assert.ThrowsAsync<ObjectDisposedException>(() => queued.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
-        await disposal.ConfigureAwait(true);
+        Task<PublicationReply>? queued = null;
+        await TestTaskSettlement.RunAsync(async () =>
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+            queued = publisher.ExecuteAsync(prepared, CancellationToken.None).AsTask();
+            var disposal = publisher.DisposeAsync().AsTask();
+            Assert.False(disposal.IsCompleted);
+            _ = await Assert.ThrowsAsync<ObjectDisposedException>(() => publisher.ExecuteAsync(prepared, CancellationToken.None).AsTask()).ConfigureAwait(true);
+            resume.TrySetResult();
+            Assert.Equal("activated", (await activation.WaitAsync(CancellationToken.None).ConfigureAwait(true)).State);
+            _ = await Assert.ThrowsAsync<ObjectDisposedException>(() => queued.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+            await disposal.ConfigureAwait(true);
+        }, async () =>
+        {
+            resume.TrySetResult();
+            // Begin closure even when the first entry observer failed.
+            var disposal = publisher.DisposeAsync().AsTask();
+            await activation.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+            if (queued is not null)
+            {
+                try { await queued.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true); }
+                catch (ObjectDisposedException) when (queued.IsFaulted) { }
+            }
+            await disposal.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+        }).ConfigureAwait(true);
     }
 
     [Fact]
@@ -253,7 +269,7 @@ public sealed class PublicationTests
         _ = await publisher.ExecuteAsync(prepared, CancellationToken.None).ConfigureAwait(true);
         _ = await Assert.ThrowsAsync<IOException>(() => publisher.ExecuteAsync(fixture.Activate(prepared.PublicationId), CancellationToken.None).AsTask()).ConfigureAwait(true);
         _ = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Authority.GetStatusAsync(CancellationToken.None).AsTask()).ConfigureAwait(true);
-        var reply = await fixture.Authority.ExchangeAsync(AuthorityFixture.Query(), false, new byte[] { 127, 0, 0, 1 }, CancellationToken.None).ConfigureAwait(true);
+        var reply = await fixture.Authority.ExchangeAsync(AuthorityFixture.Query(), tcp: false, new byte[] { 127, 0, 0, 1 }, CancellationToken.None).ConfigureAwait(true);
         Assert.Equal(2, reply[3] & 15);
         _ = await Assert.ThrowsAsync<InvalidOperationException>(() => publisher.ExecuteAsync(fixture.Activate(prepared.PublicationId), CancellationToken.None).AsTask()).ConfigureAwait(true);
     }

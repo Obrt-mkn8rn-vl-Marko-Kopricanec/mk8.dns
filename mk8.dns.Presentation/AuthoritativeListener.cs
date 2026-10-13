@@ -17,7 +17,7 @@ public sealed class AuthoritativeListener
         ArgumentNullException.ThrowIfNull(exchange);
         if (endpoint.Port == 0)
             throw new ArgumentException("An explicit DNS port is required.", nameof(endpoint));
-        if (endpoint.Address.GetAddressBytes().AsSpan().IndexOfAnyExcept((byte)0) < 0 || endpoint.Address.IsIPv4MappedToIPv6 && endpoint.Address.MapToIPv4().Equals(IPAddress.Any))
+        if (endpoint.Address.GetAddressBytes().AsSpan().IndexOfAnyExcept((byte)0) < 0 || (endpoint.Address.IsIPv4MappedToIPv6 && endpoint.Address.MapToIPv4().Equals(IPAddress.Any)))
             throw new ArgumentException("DNS requires a specific bind address to preserve UDP reply source identity.", nameof(endpoint));
         this.endpoint = new IPEndPoint(endpoint.Address, endpoint.Port);
         this.exchange = exchange;
@@ -34,7 +34,7 @@ public sealed class AuthoritativeListener
             tcp.Server.DualMode = false;
         }
         udp.Bind(endpoint);
-        tcp.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        tcp.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, optionValue: true);
         tcp.Start(16);
         await RunServersAsync(udp, tcp, lifetime).ConfigureAwait(false);
     }
@@ -42,17 +42,32 @@ public sealed class AuthoritativeListener
     private async Task RunServersAsync(Socket udp, TcpListener tcp, CancellationTokenSource lifetime)
     {
         var tasks = new[] { ServeUdpAsync(udp, lifetime.Token), AcceptTcpAsync(tcp, lifetime.Token) };
-        try
-        {
-            var finished = await Task.WhenAny(tasks).ConfigureAwait(false);
-            await finished.ConfigureAwait(false);
-        }
-        finally
-        {
-            await lifetime.CancelAsync().ConfigureAwait(false);
-            await Task.WhenAll(tasks).ConfigureAwait(false);
-        }
+        var finished = await Task.WhenAny(tasks).ConfigureAwait(false);
+        List<Exception> errors = [];
+        await CaptureAsync(finished, errors).ConfigureAwait(false);
+        await StopAndDrainAsync(lifetime, tasks.Where(task => !ReferenceEquals(task, finished)), errors).ConfigureAwait(false);
     }
+
+    private static async Task CaptureAsync(Task task, List<Exception> errors)
+    {
+        try { await task.WaitAsync(CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception error) when (task.IsFaulted || task.IsCanceled) { errors.Add(error); }
+    }
+
+    private static async Task StopAndDrainAsync(CancellationTokenSource lifetime, IEnumerable<Task> tasks, List<Exception> errors)
+    {
+        var stopping = CancelAsync(lifetime);
+        // Callback dispatch and admitted work are independent owned operations.
+        // A failed dispatcher must not skip a still-live server or connection.
+        await CaptureAsync(stopping, errors).ConfigureAwait(false);
+        foreach (var task in tasks) await CaptureAsync(task, errors).ConfigureAwait(false);
+        if (errors.Count == 1 || (errors.Count != 0 && errors.TrueForAll(error => error is OperationCanceledException)))
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(errors[0]).Throw();
+        if (errors.Count != 0) throw new AggregateException(errors);
+    }
+
+    private static async Task CancelAsync(CancellationTokenSource lifetime)
+        => await lifetime.CancelAsync().ConfigureAwait(false);
 
     private async Task ServeUdpAsync(Socket socket, CancellationToken token)
     {
@@ -64,7 +79,7 @@ public sealed class AuthoritativeListener
             {
                 var received = await socket.ReceiveFromAsync(buffer, SocketFlags.None, any, token).ConfigureAwait(false);
                 var peer = (IPEndPoint)received.RemoteEndPoint;
-                var reply = await exchange.ExchangeAsync(buffer.AsMemory(0, received.ReceivedBytes), false, peer.Address.GetAddressBytes(), token).ConfigureAwait(false);
+                var reply = await exchange.ExchangeAsync(buffer.AsMemory(0, received.ReceivedBytes), tcp: false, peer.Address.GetAddressBytes(), token).ConfigureAwait(false);
                 if (reply.Length > 1232)
                     throw new InvalidDataException("Application exceeded the UDP response bound.");
                 if (reply.Length != 0)
@@ -91,23 +106,23 @@ public sealed class AuthoritativeListener
     private async Task AcceptConnectionsAsync(TcpListener listener, SemaphoreSlim admission, CancellationTokenSource lifetime)
     {
         List<Task> connections = [];
-        try
+        var accepting = AcceptLoopAsync();
+        List<Exception> errors = [];
+        await CaptureAsync(accepting, errors).ConfigureAwait(false);
+        await StopAndDrainAsync(lifetime, connections, errors).ConfigureAwait(false);
+
+        async Task AcceptLoopAsync()
         {
             while (true)
             {
                 foreach (var finished in connections.Where(task => task.IsCompleted).ToArray())
                 {
-                    await finished.ConfigureAwait(false);
                     connections.Remove(finished);
+                    await finished.ConfigureAwait(false);
                 }
                 var socket = await listener.AcceptSocketAsync(lifetime.Token).ConfigureAwait(false);
                 connections.Add(AdmitAndServeAsync(socket, admission, lifetime.Token));
             }
-        }
-        finally
-        {
-            await lifetime.CancelAsync().ConfigureAwait(false);
-            await Task.WhenAll(connections).ConfigureAwait(false);
         }
     }
 
@@ -124,7 +139,8 @@ public sealed class AuthoritativeListener
     {
         try
         {
-            using var stream = new NetworkStream(socket, ownsSocket: true);
+            var stream = new NetworkStream(socket, ownsSocket: true);
+            await using var streamLifetime = stream.ConfigureAwait(false);
             var peer = ((IPEndPoint)socket.RemoteEndPoint!).Address.GetAddressBytes();
             var prefix = new byte[2];
             for (var count = 0; count < 100; count++)
@@ -137,7 +153,7 @@ public sealed class AuthoritativeListener
                     return;
                 var message = new byte[length];
                 await stream.ReadExactlyAsync(message, frame.Token).ConfigureAwait(false);
-                var reply = await exchange.ExchangeAsync(message, true, peer, frame.Token).ConfigureAwait(false);
+                var reply = await exchange.ExchangeAsync(message, tcp: true, peer, frame.Token).ConfigureAwait(false);
                 if (reply.Length == 0)
                     return;
                 if (reply.Length > ushort.MaxValue)

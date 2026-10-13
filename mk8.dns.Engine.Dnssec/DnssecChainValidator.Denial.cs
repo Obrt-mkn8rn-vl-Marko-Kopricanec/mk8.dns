@@ -29,7 +29,10 @@ public sealed partial class DnssecChainValidator
         var stamp = ReadClock();
         if (!AdmitQuestion(parent, question, stamp) || child.Equals(parent.Origin)
             || !TryProofInputs(parent.Origin, nsecs, signatures, out var denial, out var sigs))
+        {
             return false;
+        }
+
         var budget = new Budget();
         if (!AuthenticateNsecs(parent, denial, sigs, stamp, budget, out var proofs) || denial.Any(item => item.Blocks(question)))
             return false;
@@ -51,21 +54,34 @@ public sealed partial class DnssecChainValidator
         if (!AdmitQuestion(keys, question, stamp) || question.Type is 2 or 6 or 43 or 46 or 47 or 48
             || !DnssecValidationInput.TryRrset(records, question.Name, question.Type, MaximumRrsetRecords, out var items)
             || !TryProofInputs(keys.Origin, nsecs, signatures, out var denial, out var sigs))
+        {
             return false;
+        }
+
         var budget = new Budget();
         if (!AuthenticateNsecs(keys, denial, sigs, stamp, budget, out var proofs) || denial.Any(item => item.Blocks(question))
             || !ProvesAbsent(denial, question.Name))
+        {
             return false;
+        }
+
         var closest = Closest(keys.Origin, question.Name, denial);
         var wildcard = closest.PrependLabel([(byte)'*']);
         var nextCloser = NextCloser(question.Name, closest);
         if (!ProvesAbsent(denial, nextCloser)
             || !TryVerifyResponse(items, sigs, keys, stamp, budget, (byte)closest.LabelCount, out var proof))
+        {
             return false;
+        }
+
         var source = denial.SingleOrDefault(item => item.Owner.Equals(wildcard));
-        if (source is not null && (source.Delegation || !source.Types.Contains(question.Type)
-            || source.Types.Contains((ushort)5) && question.Type != 5))
+        if (denial.Any(item => item.Covers(wildcard))
+            || (source is not null && (source.Delegation || !source.Types.Contains(question.Type)
+            || (source.Types.Contains((ushort)5) && question.Type != 5))))
+        {
             return false;
+        }
+
         proofs.Add(proof);
         return FinishResponse(keys, stamp, proofs, uint.MaxValue, out authenticatedTtl);
     }
@@ -80,15 +96,21 @@ public sealed partial class DnssecChainValidator
         ArgumentNullException.ThrowIfNull(signatures);
         ttl = 0;
         var stamp = ReadClock();
-        if (!AdmitQuestion(keys, question, stamp) || question.Type == 43 && question.Name.Equals(keys.Origin)
-            || !nameError && question.Name.Equals(keys.Origin) && question.Type is 6 or 48
+        if (!AdmitQuestion(keys, question, stamp) || (question.Type == 43 && question.Name.Equals(keys.Origin))
+            || (!nameError && question.Name.Equals(keys.Origin) && question.Type is 6 or 48)
             || !DnssecValidationInput.TryRrset(soa, keys.Origin, 6, 1, out var soaRecords)
             || !TryProofInputs(keys.Origin, nsecs, signatures, out var denial, out var sigs))
+        {
             return false;
+        }
+
         var budget = new Budget();
         if (!TryVerifyResponse(soaRecords, sigs, keys, stamp, budget, (byte)keys.Origin.LabelCount, out var soaProof)
             || !AuthenticateNsecs(keys, denial, sigs, stamp, budget, out var proofs) || denial.Any(item => item.Blocks(question)))
+        {
             return false;
+        }
+
         proofs.Add(soaProof);
         if (nameError ? !ProvesNameError(keys.Origin, question, denial) : !ProvesNoData(keys.Origin, question, denial))
             return false;
@@ -109,8 +131,11 @@ public sealed partial class DnssecChainValidator
             return false;
         var snapshot = input.ToArray();
         if (snapshot.Length != input.Count || snapshot.Any(record => record is null || record.Type != 47)
-            || snapshot.Select(record => record.Owner).Distinct().Count() != snapshot.Length)
+            || snapshot.Select(record => record.Owner).Distinct().Take(snapshot.Length + 1).Count() != snapshot.Length)
+        {
             return false;
+        }
+
         try
         {
             var decoded = snapshot.Select(record => NsecProof.Decode(record, origin)).ToArray();

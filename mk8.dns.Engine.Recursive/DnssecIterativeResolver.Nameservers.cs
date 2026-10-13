@@ -17,7 +17,7 @@ public sealed partial class DnssecIterativeResolver
             if (target.IsSubdomainOf(cut) || !target.IsSubdomainOf(anchor.Origin)) continue;
             foreach (var type in new ushort[] { 1, 28 })
             {
-                var routingStart = work.RoutingProofs.Count;
+                var start = (Routing: work.RoutingProofs.Count, Discovery: work.DiscoveryProofs.Count);
                 var proof = await ResolveAddressAsync(new DnsQuestion(target, type, 1), bootstrap, work, cancellationToken).ConfigureAwait(false);
                 if (proof is null) continue;
                 var before = servers.Count;
@@ -28,12 +28,14 @@ public sealed partial class DnssecIterativeResolver
                     if (servers.Count == 16) break;
                 }
                 if (servers.Count != before) { work.RoutingProofs.Add(proof); break; }
-                else work.RoutingProofs.RemoveRange(routingStart, work.RoutingProofs.Count - routingStart);
+
+                DiscardBranch(work, start);
+
                 if (servers.Count == 16 || work.Exhausted) break;
             }
             if (servers.Count == 16 || work.Exhausted) break;
         }
-        return servers.Distinct().ToArray();
+        return [.. servers.Distinct()];
     }
 
     private async ValueTask<DnssecResolutionProof?> ResolveAddressAsync(DnsQuestion question, AuthorityContext bootstrap,

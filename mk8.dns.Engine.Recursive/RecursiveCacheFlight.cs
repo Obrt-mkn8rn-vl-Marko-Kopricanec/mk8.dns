@@ -54,22 +54,31 @@ internal sealed class RecursiveCacheFlight : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        List<Exception> errors = [];
+        var timerDrain = DisposeTimerAsync();
+        await CaptureAsync(timerDrain, errors).ConfigureAwait(false);
         Task? pending;
         lock (cancellationGate)
         {
+            // Waiter cancellation stays live throughout actual timer disposal.
+            // Only now can no new owned timer callback initiate cancellation.
             finishing = true;
             pending = cancellationTask;
         }
-        try
-        {
-            await deadline.DisposeAsync().ConfigureAwait(false);
-            if (pending is not null)
-                await pending.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-        finally
-        {
-            await canceled.DisposeAsync().ConfigureAwait(false);
-            cancellation.Dispose();
-        }
+        if (pending is not null) await CaptureAsync(pending, errors).ConfigureAwait(false);
+        var registrationDrain = DisposeRegistrationAsync();
+        await CaptureAsync(registrationDrain, errors).ConfigureAwait(false);
+        cancellation.Dispose();
+        if (errors.Count == 1) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(errors[0]).Throw();
+        if (errors.Count > 1) throw new AggregateException(errors);
+    }
+
+    private async Task DisposeTimerAsync() => await deadline.DisposeAsync().ConfigureAwait(false);
+    private async Task DisposeRegistrationAsync() => await canceled.DisposeAsync().ConfigureAwait(false);
+
+    private static async Task CaptureAsync(Task task, List<Exception> errors)
+    {
+        try { await task.WaitAsync(CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception error) when (task.IsFaulted || task.IsCanceled) { errors.Add(error); }
     }
 }

@@ -5,23 +5,30 @@ namespace Mk8.Dns.UnitTests;
 
 internal sealed class RecursiveCacheCallbackFixture : IAsyncDisposable
 {
-    internal RecursiveCacheCallbackFixture()
+    internal RecursiveCacheCallbackFixture(bool holdTimer = false, bool failTimer = false)
     {
+        if (!holdTimer) TimerRelease.SetResult();
+        TimerFailure = failTimer ? new IOException("Owned timer disposal failure.") : null;
         Cache = new CachingRecursiveResolver(Source, maximumFlights: 1,
-            resolutionTimeout: TimeSpan.FromSeconds(1), time: new ObservedClock(Clock, TimerDisposed));
+            resolutionTimeout: TimeSpan.FromSeconds(1), time: new ObservedClock(this));
     }
 
     internal BlockingResolver Source { get; } = new();
     internal RecursiveCacheClock Clock { get; } = new();
     internal TaskCompletionSource TimerDisposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal TaskCompletionSource TimerDisposing { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal TaskCompletionSource TimerRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal IOException? TimerFailure { get; }
     internal CachingRecursiveResolver Cache { get; }
 
     public async ValueTask DisposeAsync()
     {
         var drain = Cache.DisposeAsync().AsTask();
+        TimerRelease.TrySetResult();
         Source.FinishProvider();
         Source.ReleaseCallback();
-        try { await drain.WaitAsync(RecursiveCacheFixture.Timeout).ConfigureAwait(true); }
+        try { await drain.WaitAsync(RecursiveCacheFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
+        catch (InvalidOperationException) when (TimerFailure is not null && drain.IsFaulted) { }
         finally { await Source.DisposeAsync().ConfigureAwait(true); }
     }
 
@@ -32,6 +39,7 @@ internal sealed class RecursiveCacheCallbackFixture : IAsyncDisposable
         private CancellationTokenRegistration registration;
         private int calls;
 
+        internal Exception? CallbackFailure { get; set; }
         internal int Calls => Volatile.Read(ref calls);
         internal CancellationToken Token { get; private set; }
         internal TaskCompletionSource Registered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -48,8 +56,9 @@ internal sealed class RecursiveCacheCallbackFixture : IAsyncDisposable
                 CallbackEntered.TrySetResult();
                 try
                 {
-                    if (!released.Wait(RecursiveCacheFixture.Timeout))
+                    if (!released.Wait(RecursiveCacheFixture.Timeout, CancellationToken.None))
                         throw new TimeoutException("The controlled provider callback was not released.");
+                    if (CallbackFailure is not null) throw CallbackFailure;
                 }
                 finally { CallbackExited.TrySetResult(); }
             });
@@ -68,27 +77,30 @@ internal sealed class RecursiveCacheCallbackFixture : IAsyncDisposable
         }
     }
 
-    private sealed class ObservedClock(RecursiveCacheClock clock, TaskCompletionSource timerDisposed) : TimeProvider
+    private sealed class ObservedClock(RecursiveCacheCallbackFixture fixture) : TimeProvider
     {
-        public override long TimestampFrequency => clock.TimestampFrequency;
-        public override long GetTimestamp() => clock.GetTimestamp();
-        public override DateTimeOffset GetUtcNow() => clock.GetUtcNow();
+        public override long TimestampFrequency => fixture.Clock.TimestampFrequency;
+        public override long GetTimestamp() => fixture.Clock.GetTimestamp();
+        public override DateTimeOffset GetUtcNow() => fixture.Clock.GetUtcNow();
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-            => new ObservedTimer(clock.CreateTimer(callback, state, dueTime, period), timerDisposed);
+            => new ObservedTimer(fixture.Clock.CreateTimer(callback, state, dueTime, period), fixture);
     }
 
-    private sealed class ObservedTimer(ITimer timer, TaskCompletionSource disposed) : ITimer
+    private sealed class ObservedTimer(ITimer timer, RecursiveCacheCallbackFixture fixture) : ITimer
     {
         public bool Change(TimeSpan dueTime, TimeSpan period) => timer.Change(dueTime, period);
         public void Dispose()
         {
             timer.Dispose();
-            disposed.TrySetResult();
+            fixture.TimerDisposed.TrySetResult();
         }
         public async ValueTask DisposeAsync()
         {
+            fixture.TimerDisposing.TrySetResult();
+            await fixture.TimerRelease.Task.WaitAsync(RecursiveCacheFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             await timer.DisposeAsync().ConfigureAwait(true);
-            disposed.TrySetResult();
+            fixture.TimerDisposed.TrySetResult();
+            if (fixture.TimerFailure is not null) throw fixture.TimerFailure;
         }
     }
 }

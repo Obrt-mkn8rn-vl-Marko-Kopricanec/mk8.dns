@@ -64,52 +64,50 @@ public sealed partial class NonValidatingIterativeResolver : IDnsResolver
 
     private async ValueTask<DnsAnswer> ResolveQuestionAsync(DnsQuestion question, Work work, int depth, CancellationToken cancellationToken)
     {
-        var cut = Root;
-        var servers = roots;
+        Stack<AuthorityFrame> frames = new();
+        frames.Push(new AuthorityFrame(Root, roots));
         HashSet<DnsName> aliases = [question.Name];
         List<(DnsRecord Record, long Received)> chain = [];
         List<(DnsRecord Record, long Received)> materialAuthority = [];
-        while (true)
+        while (frames.Count != 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var advanced = false;
-            foreach (var server in servers)
+            var frame = frames.Peek();
+            if (frame.NextServer == frame.Servers.Length)
             {
-                var reply = await ReadReplyAsync(question, server, work, cancellationToken).ConfigureAwait(false);
-                if (work.Exhausted)
-                    return Empty(2);
-                if (reply is null)
-                    continue;
-                var received = time.GetTimestamp();
-                if (reply.Authoritative)
-                {
-                    var step = AnalyzeStep(question, cut, reply);
-                    if (step is null)
-                        continue;
-                    if (step.Target is null)
-                        return FinishAnswer(chain, materialAuthority, step.Answer);
-                    if (!work.TakeAlias() || !aliases.Add(step.Target))
-                        return Empty(2);
-                    AppendStep(chain, materialAuthority, step, received);
-                    question = question with { Name = step.Target };
-                    // Never trust inline target data from a previous authority, even in the same packet.
-                    cut = Root;
-                    servers = roots;
-                    advanced = true;
-                    break;
-                }
-                var next = await FollowReferralAsync(question, cut, reply, work, depth, cancellationToken).ConfigureAwait(false);
-                if (work.Exhausted)
-                    return Empty(2);
-                if (next is null)
-                    continue;
-                (cut, servers) = next.Value;
-                advanced = true;
-                break;
+                frames.Pop();
+                continue;
             }
-            if (!advanced)
-                return Empty(2);
+            var server = frame.Servers[frame.NextServer++];
+            var reply = await ReadReplyAsync(question, server, work, cancellationToken).ConfigureAwait(false);
+            if (work.Exhausted) return Empty(2);
+            if (reply is null) continue;
+            var received = time.GetTimestamp();
+            if (reply.Authoritative)
+            {
+                var step = AnalyzeStep(question, frame.Cut, reply);
+                if (step is null) continue;
+                if (step.Target is null) return FinishAnswer(chain, materialAuthority, step.Answer);
+                if (!work.TakeAlias() || !aliases.Add(step.Target)) return Empty(2);
+                AppendStep(chain, materialAuthority, step, received);
+                question = question with { Name = step.Target };
+                // Alias targets are reacquired from bootstrap, never inline authority data.
+                frames.Clear();
+                frames.Push(new AuthorityFrame(Root, roots));
+                continue;
+            }
+            var next = await FollowReferralAsync(question, frame.Cut, reply, work, depth, cancellationToken).ConfigureAwait(false);
+            if (work.Exhausted) return Empty(2);
+            if (next is not null) frames.Push(new AuthorityFrame(next.Value.Cut, next.Value.Servers));
         }
+        return Empty(2);
+    }
+
+    private sealed class AuthorityFrame(DnsName cut, DnsServerEndpoint[] servers)
+    {
+        internal DnsName Cut { get; } = cut;
+        internal DnsServerEndpoint[] Servers { get; } = servers;
+        internal int NextServer { get; set; }
     }
 
     private async ValueTask<DnsAnswer?> ReadReplyAsync(DnsQuestion question, DnsServerEndpoint server, Work work, CancellationToken cancellationToken)

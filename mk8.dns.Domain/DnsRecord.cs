@@ -45,8 +45,10 @@ public sealed class DnsRecord
             {
                 var length = copy[offset++];
                 for (var octet = 0; octet < length; octet++, offset++)
+                {
                     if (copy[offset] is >= (byte)'A' and <= (byte)'Z')
                         copy[offset] += 32;
+                }
             }
             offset++;
         }
@@ -155,14 +157,14 @@ public sealed class DnsRecord
             var key = BinaryPrimitives.ReadUInt16BigEndian(value[offset..]);
             var length = BinaryPrimitives.ReadUInt16BigEndian(value[(offset + 2)..]);
             offset += 4;
-            Require(key > lastKey && length <= value.Length - offset);
+            Require(key != ushort.MaxValue && key > lastKey && length <= value.Length - offset);
             var parameter = value.Slice(offset, length);
             keys.Add(key);
             ValidateServiceParameter(key, parameter, mandatory);
             lastKey = key;
             offset += length;
         }
-        Require(mandatory.All(keys.Contains) && (!keys.Contains(2) || keys.Contains(1)));
+        Require(mandatory.TrueForAll(keys.Contains) && (!keys.Contains(2) || keys.Contains(1)));
     }
 
     private static void ValidateServiceParameter(ushort key, ReadOnlySpan<byte> parameter, List<ushort> mandatory)

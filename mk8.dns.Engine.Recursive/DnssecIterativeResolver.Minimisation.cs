@@ -14,13 +14,19 @@ public sealed partial class DnssecIterativeResolver
         return new DnsQuestion(next, 2, 1);
     }
 
-    private static void ObserveDiscovery(DnsQuestion question, AuthorityFrame frame, DnssecReceivedEvidence reply, DnssecResolutionWork work)
+    private static bool ObserveDiscovery(DnsQuestion question, AuthorityFrame frame, DnssecReceivedEvidence reply, DnssecResolutionWork work)
     {
         var observed = Terminal(question, frame.Context, reply, work);
         if (observed is null || observed.Target is not null || observed.Code != 0
-            || observed.Proof.Kind is not (DnssecResolutionProofKind.Exact or DnssecResolutionProofKind.NoData)) return;
+            || observed.Proof.Kind is not (DnssecResolutionProofKind.Exact or DnssecResolutionProofKind.NoData))
+        {
+            return false;
+        }
+
         work.DiscoveryProofs.Add(observed.Proof);
         frame.Exposed = question.Name;
-        frame.NextServer = 0;
+        // Continue this endpoint first; a later endpoint must establish its own discovery path.
+        frame.NextServer--;
+        return true;
     }
 }

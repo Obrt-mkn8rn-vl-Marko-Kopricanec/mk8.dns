@@ -38,19 +38,24 @@ internal sealed class Nsec3ProofSet(Nsec3Proof[] proofs)
         for (var name = question.Name; ; name = name.Parent)
         {
             var match = Match(name);
-            if (match is not null && (match.Delegation && (!question.Name.Equals(name) || question.Type != 43)
-                || match.Types.Contains((ushort)39) && !question.Name.Equals(name))) return true;
+            if (match is not null && ((match.Delegation && (!question.Name.Equals(name) || question.Type != 43))
+                || (match.Types.Contains((ushort)39) && !question.Name.Equals(name))))
+            {
+                return true;
+            }
+
             if (name.Equals(origin)) return false;
         }
     }
 
     internal DnsName? Closest(DnsName name, DnsName origin)
     {
+        if (name.Equals(origin) || !name.IsSubdomainOf(origin)) return null;
         for (var candidate = name.Parent; ; candidate = candidate.Parent)
         {
             var match = Match(candidate);
             if (match is not null) return match.Delegation || match.Types.Contains((ushort)39) ? null : candidate;
-            if (candidate.Equals(origin)) return null;
+            if (candidate.Equals(origin) || candidate.Parent.Equals(candidate)) return null;
         }
     }
 }
