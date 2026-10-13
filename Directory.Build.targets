@@ -11,4 +11,10 @@
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'mk8.dns.Engine.Recursive'">
     <PackageReference Include="NetFabric.Hyperlinq.Analyzer" PrivateAssets="all" />
   </ItemGroup>
+  <!-- Active installation inputs are never build or publication content. The
+       pinned package copies only its explicitly discovered portable templates. -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'mk8.dns.Application' or '$(MSBuildProjectName)' == 'mk8.dns.Gateway' or '$(MSBuildProjectName)' == 'mk8.dns.Operator'">
+    <Content Remove="Environment/**" />
+    <None Remove="Environment/**" />
+  </ItemGroup>
 </Project>

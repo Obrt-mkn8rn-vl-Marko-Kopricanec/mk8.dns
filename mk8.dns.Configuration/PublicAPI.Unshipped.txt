@@ -83,3 +83,46 @@ Mk8.Dns.Configuration.UdpResponseBudgetSettings.GlobalByteBurst.get -> int
 Mk8.Dns.Configuration.UdpResponseBudgetSettings.GlobalByteBurst.init -> void
 Mk8.Dns.Configuration.UdpResponseBudgetSettings.MaximumPrefixes.get -> int
 Mk8.Dns.Configuration.UdpResponseBudgetSettings.MaximumPrefixes.init -> void
+Mk8.Dns.Configuration.DnsServiceSecrets
+Mk8.Dns.Configuration.ServiceHostPolicy.ShutdownSeconds.get -> int
+Mk8.Dns.Configuration.ServiceHostPolicy.ShutdownSeconds.init -> void
+Mk8.Dns.Configuration.ServiceHostPolicy
+override Mk8.Dns.Configuration.ServiceHostPolicy.ToString() -> string!
+static Mk8.Dns.Configuration.ServiceHostPolicy.operator !=(Mk8.Dns.Configuration.ServiceHostPolicy? left, Mk8.Dns.Configuration.ServiceHostPolicy? right) -> bool
+static Mk8.Dns.Configuration.ServiceHostPolicy.operator ==(Mk8.Dns.Configuration.ServiceHostPolicy? left, Mk8.Dns.Configuration.ServiceHostPolicy? right) -> bool
+override Mk8.Dns.Configuration.ServiceHostPolicy.GetHashCode() -> int
+override Mk8.Dns.Configuration.ServiceHostPolicy.Equals(object? obj) -> bool
+Mk8.Dns.Configuration.ServiceHostPolicy.Equals(Mk8.Dns.Configuration.ServiceHostPolicy? other) -> bool
+Mk8.Dns.Configuration.ServiceHostPolicy.<Clone>$() -> Mk8.Dns.Configuration.ServiceHostPolicy!
+Mk8.Dns.Configuration.ServiceHostPolicy.Deconstruct(out int ShutdownSeconds, out int HeaderBytes, out int HeaderCount, out int RequestLineBytes, out int HeaderTimeoutSeconds, out int Connections, out int ApplicationStreams, out int PublicationStreams) -> void
+Mk8.Dns.Configuration.ServiceHostPolicy.HeaderBytes.get -> int
+Mk8.Dns.Configuration.ServiceHostPolicy.HeaderBytes.init -> void
+Mk8.Dns.Configuration.ServiceHostPolicy.HeaderCount.get -> int
+Mk8.Dns.Configuration.ServiceHostPolicy.HeaderCount.init -> void
+Mk8.Dns.Configuration.ServiceHostPolicy.RequestLineBytes.get -> int
+Mk8.Dns.Configuration.ServiceHostPolicy.RequestLineBytes.init -> void
+Mk8.Dns.Configuration.ServiceHostPolicy.Connections.get -> int
+Mk8.Dns.Configuration.ServiceHostPolicy.Connections.init -> void
+Mk8.Dns.Configuration.ServiceHostPolicy.HeaderTimeoutSeconds.get -> int
+Mk8.Dns.Configuration.ServiceHostPolicy.HeaderTimeoutSeconds.init -> void
+Mk8.Dns.Configuration.ServiceHostPolicy.ApplicationStreams.get -> int
+Mk8.Dns.Configuration.ServiceHostPolicy.ApplicationStreams.init -> void
+Mk8.Dns.Configuration.ServiceHostPolicy.PublicationStreams.get -> int
+Mk8.Dns.Configuration.ServiceHostPolicy.PublicationStreams.init -> void
+Mk8.Dns.Configuration.ApplicationSettings.ControlSecret.init -> void
+Mk8.Dns.Configuration.ApplicationSettings.CookieSecret.get -> string?
+Mk8.Dns.Configuration.ApplicationSettings.CookieSecret.init -> void
+Mk8.Dns.Configuration.ApplicationSettings.TsigSecret.get -> string?
+Mk8.Dns.Configuration.ApplicationSettings.ControlSecret.get -> string?
+Mk8.Dns.Configuration.ApplicationSettings.TsigSecret.init -> void
+static Mk8.Dns.Configuration.ApplicationSettings.FromSecrets(Mk8.Dns.Configuration.DnsServiceSecrets! secrets) -> Mk8.Dns.Configuration.ApplicationSettings!
+Mk8.Dns.Configuration.ServiceHostPolicy.ServiceHostPolicy(int ShutdownSeconds, int HeaderBytes, int HeaderCount, int RequestLineBytes, int HeaderTimeoutSeconds, int Connections, int ApplicationStreams, int PublicationStreams) -> void
+static Mk8.Dns.Configuration.ServiceHostPolicy.FromSecrets(Mk8.Dns.Configuration.DnsServiceSecrets! secrets) -> Mk8.Dns.Configuration.ServiceHostPolicy!
+static Mk8.Dns.Configuration.GatewaySettings.FromSecrets(Mk8.Dns.Configuration.DnsServiceSecrets! secrets) -> Mk8.Dns.Configuration.GatewaySettings!
+static Mk8.Dns.Configuration.DnsServiceSecrets.LoadAsync(string! role, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Mk8.Dns.Configuration.DnsServiceSecrets!>!
+Mk8.Dns.Configuration.DnsServiceSecrets.Text(string! name, int maximumBytes = 65536) -> string!
+Mk8.Dns.Configuration.DnsServiceSecrets.Bytes(string! name, int maximumBytes) -> byte[]!
+Mk8.Dns.Configuration.DnsServiceSecrets.JsonText(string! name, int maximumBytes = 65536) -> string!
+Mk8.Dns.Configuration.DnsServiceSecrets.Arguments(string! name) -> string![]!
+Mk8.Dns.Configuration.DnsServiceSecrets.RequireOnly(System.Collections.Generic.IEnumerable<string!>! names) -> void
+static Mk8.Dns.Configuration.DnsServiceSecrets.ValidateName(string! name) -> void

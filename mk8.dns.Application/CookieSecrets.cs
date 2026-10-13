@@ -7,17 +7,17 @@ namespace Mk8.Dns.Application;
 
 internal static class CookieSecrets
 {
-    internal static DnsCookieService Load(ApplicationSettings settings)
+    internal static DnsCookieService Load(ApplicationSettings settings, DnsServiceSecrets secrets)
     {
-        if (settings.CookieSecretFile is null)
-            return DnsCookieService.CreateEphemeral(TimeProvider.System);
-        var bytes = PrivateFile.Read(settings.CookieSecretFile, 49);
+        if (settings.CookieSecret is null)
+            throw new InvalidDataException("SecretCookieMissing");
+        var bytes = secrets.Bytes(settings.CookieSecret, 49);
         byte[]? primary = null;
         byte[]? alternate = null;
         try
         {
             if (bytes.Length is not (25 or 49) || bytes[0] != 1)
-                throw new InvalidDataException("Cookie secrets require a version-one file with one or two dated keys.");
+                throw new InvalidDataException("Cookie secrets require a version-one value with one or two dated keys.");
             var created = DateTimeOffset.FromUnixTimeSeconds(BinaryPrimitives.ReadInt64BigEndian(bytes.AsSpan(1)));
             primary = bytes.AsSpan(9, 16).ToArray();
             DateTimeOffset? alternateCreated = null;

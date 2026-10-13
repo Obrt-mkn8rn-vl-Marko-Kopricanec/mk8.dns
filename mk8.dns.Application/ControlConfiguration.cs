@@ -11,4 +11,4 @@ using Mk8.Dns.Transport;
 
 namespace Mk8.Dns.Application;
 
-internal sealed record ControlConfiguration(Guid Epoch, string TargetNode, ZoneScope[] Zones, string KeyFile, string? ConnectionStringFile, string? PublicationSocket, GrantConfiguration[]? Grants, uint SigningScanSeconds = 60);
+internal sealed record ControlConfiguration([property: JsonRequired] Guid Epoch, [property: JsonRequired] string TargetNode, [property: JsonRequired] ZoneScope[] Zones, [property: JsonRequired] string KeySecret, [property: JsonRequired] string? ConnectionStringSecret, [property: JsonRequired] string? PublicationSocket, [property: JsonRequired] GrantConfiguration[]? Grants, [property: JsonRequired] uint SigningScanSeconds, [property: JsonRequired] uint DispatchIntervalMilliseconds);

@@ -6,13 +6,14 @@ namespace Mk8.Dns.IntegrationTests;
 internal sealed class HostProcess : IAsyncDisposable
 {
     private readonly Process process;
+    private readonly HostInstallationFixture installation;
     private readonly Task<string> output;
     private readonly Task<string> errors;
     private readonly string? diagnosticPrefix;
     private readonly DateTimeOffset startedAt = DateTimeOffset.UtcNow;
     private bool diagnosticsSaved;
 
-    internal HostProcess(string host, string[] arguments, int injectedPort)
+    internal HostProcess(string host, string[] arguments, int injectedPort, string[]? forbiddenArguments = null)
     {
         var diagnostics = Environment.GetEnvironmentVariable("MK8_DNS_TEST_HOST_LOGS");
         if (!string.IsNullOrEmpty(diagnostics))
@@ -28,12 +29,18 @@ internal sealed class HostProcess : IAsyncDisposable
             RedirectStandardError = true,
             WorkingDirectory = RepositoryPaths.Root,
         };
-        start.ArgumentList.Add(RepositoryPaths.HostAssembly(host));
-        foreach (var argument in arguments)
-            start.ArgumentList.Add(argument);
+        installation = new HostInstallationFixture(host, arguments);
+        start.ArgumentList.Add(installation.AssemblyPath);
+        if (forbiddenArguments is not null)
+            foreach (var argument in forbiddenArguments) start.ArgumentList.Add(argument);
         start.Environment["ASPNETCORE_URLS"] = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"http://0.0.0.0:{injectedPort}");
         start.Environment["Kestrel__Endpoints__Injected__Url"] = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"http://0.0.0.0:{injectedPort}");
-        process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start the host process.");
+        start.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
+        start.Environment["DOTNET_ENVIRONMENT"] = "Development";
+        start.Environment["ASPNETCORE_HOSTINGSTARTUPASSEMBLIES"] = "DeliberatelyAbsentOwnedFixtureAssembly";
+        start.Environment[host["mk8.dns.".Length..] + "__Settings"] = "not-a-service-configuration";
+        try { process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start the host process."); }
+        catch { installation.Dispose(); throw; }
         output = process.StandardOutput.ReadToEndAsync();
         errors = process.StandardError.ReadToEndAsync();
     }
@@ -72,6 +79,8 @@ internal sealed class HostProcess : IAsyncDisposable
                 Pid = process.Id,
                 process.ExitCode,
                 StartedUtc = startedAt,
+                InstallationAssemblyHashes = installation.AssemblyHashes,
+                BootstrapScope = "Task-owned fixed installation document; no active document/key values retained. DLL hashes are copy-before-start POINTS, not loaded identity.",
                 CompletedUtc = DateTimeOffset.UtcNow,
                 Scope = "Owned integration-test child host; output captured at exit, no startup latency guarantee.",
             }), cancellationToken).ConfigureAwait(true);
@@ -90,6 +99,7 @@ internal sealed class HostProcess : IAsyncDisposable
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await KillAsync(timeout.Token).ConfigureAwait(true);
+            installation.Dispose();
         }
         finally
         {

@@ -10,20 +10,16 @@ namespace Mk8.Dns.Application;
 
 internal static class RecursiveStartup
 {
-    internal static Task RunAsync(string configurationPath) => RunCoreAsync(configurationPath, authenticatedRefresh: false, checkingDisabled: false);
+    internal static Task RunAsync(DnsServiceSecrets secrets, string mode)
+        => RunCoreAsync(secrets, mode is "recursive-refresh", mode is "recursive-checking-disabled");
 
-    internal static Task RunWithRefreshAsync(string configurationPath) => RunCoreAsync(configurationPath, authenticatedRefresh: true, checkingDisabled: false);
-
-    internal static Task RunWithCheckingDisabledAsync(string configurationPath)
-        => RunCoreAsync(configurationPath, authenticatedRefresh: false, checkingDisabled: true);
-
-    private static async Task RunCoreAsync(string configurationPath, bool authenticatedRefresh, bool checkingDisabled)
+    private static async Task RunCoreAsync(DnsServiceSecrets secrets, bool authenticatedRefresh, bool checkingDisabled)
     {
-        var settings = checkingDisabled ? RecursiveStartupConfiguration.LoadCheckingDisabled(configurationPath)
-            : RecursiveStartupConfiguration.Load(configurationPath, authenticatedRefresh);
+        var settings = RecursiveStartupConfiguration.FromSecrets(secrets, authenticatedRefresh, checkingDisabled);
+        secrets.RequireOnly(["Mode", "Recursive", settings.KeySecret]);
         var verifier = new DnssecSignatureVerifier();
         var time = TimeProvider.System;
-        var key = PrivateFile.Read(settings.KeyFile, 32);
+        var key = secrets.Bytes(settings.KeySecret, 32);
         FileAnchorCheckpointStore store;
         try
         {

@@ -11,33 +11,30 @@ using Mk8.Dns.Infrastructure.Cryptography;
 using Mk8.Dns.Transport;
 using Mk8.Dns.Wire;
 
-if (args.Length != 0 && (string.Equals(args[0], "--recursive-config", StringComparison.Ordinal)
-    || string.Equals(args[0], "--recursive-refresh-config", StringComparison.Ordinal)
-    || string.Equals(args[0], "--recursive-checking-disabled-config", StringComparison.Ordinal)))
+if (args.Length != 0) throw new ArgumentException("ServiceArgumentsForbidden", nameof(args));
+var secrets = await DnsServiceSecrets.LoadAsync("Application", CancellationToken.None).ConfigureAwait(false);
+var mode = secrets.Text("Mode", 64);
+if (mode is "recursive" or "recursive-refresh" or "recursive-checking-disabled")
 {
-    if (args.Length != 2)
-        throw new ArgumentException("Recursive startup requires exactly one private configuration path.", nameof(args));
-    if (string.Equals(args[0], "--recursive-refresh-config", StringComparison.Ordinal))
-        await RecursiveStartup.RunWithRefreshAsync(args[1]).ConfigureAwait(false);
-    else if (string.Equals(args[0], "--recursive-checking-disabled-config", StringComparison.Ordinal))
-        await RecursiveStartup.RunWithCheckingDisabledAsync(args[1]).ConfigureAwait(false);
-    else await RecursiveStartup.RunAsync(args[1]).ConfigureAwait(false);
+    await RecursiveStartup.RunAsync(secrets, mode).ConfigureAwait(false);
     return;
 }
-
-var settings = ApplicationSettings.Parse(args);
+if (mode is not "authority") throw new InvalidDataException("SecretModeInvalid");
+var settings = ApplicationSettings.FromSecrets(secrets);
+var policy = ServiceHostPolicy.FromSecrets(secrets);
 var limits = settings.UdpResponseLimits;
 var limiter = string.Equals(settings.Role, "authoritative-replica", StringComparison.Ordinal)
     ? new DnsResponseLimiter(TimeProvider.System, limits.ResponsesPerSecond, limits.ResponseBurst, limits.BytesPerSecond, limits.ByteBurst,
         limits.GlobalResponsesPerSecond, limits.GlobalResponseBurst, limits.GlobalBytesPerSecond, limits.GlobalByteBurst, limits.MaximumPrefixes)
     : null;
-using var cookies = string.Equals(settings.Role, "authoritative-replica", StringComparison.Ordinal) ? CookieSecrets.Load(settings) : null;
-using var tsig = string.Equals(settings.Role, "authoritative-replica", StringComparison.Ordinal) ? TsigKeys.Load(settings) : null;
+using var cookies = string.Equals(settings.Role, "authoritative-replica", StringComparison.Ordinal) ? CookieSecrets.Load(settings, secrets) : null;
+using var tsig = string.Equals(settings.Role, "authoritative-replica", StringComparison.Ordinal) ? TsigKeys.Load(settings, secrets) : null;
+var control = new ControlRuntime();
+await using var controlLifetime = control.ConfigureAwait(false);
+control.Prepare(settings, secrets);
 using var socket = new PrivateUnixSocket(settings.SocketPath);
 var snapshots = new FileZoneSnapshotStore(settings.StateDirectory);
 await using var snapshotLifetime = snapshots.ConfigureAwait(false);
-var control = new ControlRuntime();
-await using var controlLifetime = control.ConfigureAwait(false);
 await control.InitializeAsync(settings, snapshots, cookies, tsig, limiter).ConfigureAwait(false);
 AuthoritativeApplication? authority = control.Authority;
 if (settings.ZoneIds.Count != 0)
@@ -53,15 +50,25 @@ if (settings.ZoneIds.Count != 0)
     authority = new AuthoritativeApplication(new AuthoritativeCatalog(zones, new EcdsaP256DnssecVerifier(), TimeProvider.System), new DnsMessageCodecAdapter(), settings.NodeId, cookies, tsig, limiter);
 }
 
-var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { Args = [] });
+var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions { Args = [], EnvironmentName = "Production", ContentRootPath = AppContext.BaseDirectory });
 builder.Configuration.Sources.Clear();
+builder.WebHost.UseKestrelCore();
+builder.Services.AddRouting();
+builder.Host.UseConsoleLifetime();
+builder.Configuration.AddInMemoryCollection([new KeyValuePair<string, string?>(WebHostDefaults.PreventHostingStartupKey, "true")]);
+builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(policy.ShutdownSeconds));
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole();
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.AddServerHeader = false;
+    options.Limits.MaxRequestHeadersTotalSize = policy.HeaderBytes;
+    options.Limits.MaxRequestHeaderCount = policy.HeaderCount;
+    options.Limits.MaxRequestLineSize = policy.RequestLineBytes;
+    options.Limits.RequestHeadersTimeout = TimeSpan.FromSeconds(policy.HeaderTimeoutSeconds);
+    options.Limits.MaxConcurrentConnections = policy.Connections;
     options.Limits.MaxRequestBodySize = (control.Management is not null ? ControlHostingExtensions.MaximumManagementBytes : authority is null ? ProtocolVersion.MaximumMessageBytes : QueryHostingExtensions.MaximumExchangeBytes) + 5;
-    options.Limits.Http2.MaxStreamsPerConnection = 16;
+    options.Limits.Http2.MaxStreamsPerConnection = policy.ApplicationStreams;
     options.ListenUnixSocket(socket.Path, endpoint => endpoint.Protocols = HttpProtocols.Http2);
 });
 IApplicationStatusSource statusSource = authority ?? (IApplicationStatusSource)new ApplicationStatusSource(snapshots, settings.NodeId, settings.Role);
@@ -87,15 +94,25 @@ await using (application.ConfigureAwait(false))
     {
         if (publicationSocket is not null && control.Publication is not null)
         {
-            var publicationBuilder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { Args = [] });
+            var publicationBuilder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions { Args = [], EnvironmentName = "Production", ContentRootPath = AppContext.BaseDirectory });
             publicationBuilder.Configuration.Sources.Clear();
+            publicationBuilder.WebHost.UseKestrelCore();
+            publicationBuilder.Services.AddRouting();
+            publicationBuilder.Host.UseConsoleLifetime();
+            publicationBuilder.Configuration.AddInMemoryCollection([new KeyValuePair<string, string?>(WebHostDefaults.PreventHostingStartupKey, "true")]);
+            publicationBuilder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(policy.ShutdownSeconds));
             publicationBuilder.Logging.ClearProviders();
             publicationBuilder.Logging.AddJsonConsole();
             publicationBuilder.WebHost.ConfigureKestrel(options =>
             {
                 options.AddServerHeader = false;
+                options.Limits.MaxRequestHeadersTotalSize = policy.HeaderBytes;
+                options.Limits.MaxRequestHeaderCount = policy.HeaderCount;
+                options.Limits.MaxRequestLineSize = policy.RequestLineBytes;
+                options.Limits.RequestHeadersTimeout = TimeSpan.FromSeconds(policy.HeaderTimeoutSeconds);
+                options.Limits.MaxConcurrentConnections = policy.Connections;
                 options.Limits.MaxRequestBodySize = ControlHostingExtensions.MaximumPublicationBytes + 5;
-                options.Limits.Http2.MaxStreamsPerConnection = 2;
+                options.Limits.Http2.MaxStreamsPerConnection = policy.PublicationStreams;
                 options.ListenUnixSocket(publicationSocket.Path, endpoint => endpoint.Protocols = HttpProtocols.Http2);
             });
             publicationBuilder.Services.AddZonePublication(control.Publication);

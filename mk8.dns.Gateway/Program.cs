@@ -6,23 +6,35 @@ using Mk8.Dns.Gateway;
 using Mk8.Dns.Presentation;
 using Mk8.Dns.Transport;
 
-var settings = GatewaySettings.Parse(args);
+if (args.Length != 0) throw new ArgumentException("ServiceArgumentsForbidden", nameof(args));
+var secrets = await DnsServiceSecrets.LoadAsync("Gateway", CancellationToken.None).ConfigureAwait(false);
+var settings = GatewaySettings.FromSecrets(secrets);
+var policy = ServiceHostPolicy.FromSecrets(secrets);
 if (settings.Role == GatewayRole.Management)
 {
-    await ManagementGatewayHost.RunAsync(settings).ConfigureAwait(false);
+    await ManagementGatewayHost.RunAsync(settings, policy).ConfigureAwait(false);
     return;
 }
 using var client = new UnixApplicationClient(settings.SocketPath);
 using var queries = new UnixDnsClient(settings.SocketPath);
-var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { Args = [] });
+var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions { Args = [], EnvironmentName = "Production", ContentRootPath = AppContext.BaseDirectory });
 builder.Configuration.Sources.Clear();
+builder.WebHost.UseKestrelCore();
+builder.Services.AddRouting();
+builder.Host.UseConsoleLifetime();
+builder.Configuration.AddInMemoryCollection([new KeyValuePair<string, string?>(WebHostDefaults.PreventHostingStartupKey, "true")]);
+builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(policy.ShutdownSeconds));
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole();
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.AddServerHeader = false;
     options.Limits.MaxRequestBodySize = 0;
-    options.Limits.MaxRequestHeadersTotalSize = 4096;
+    options.Limits.MaxRequestHeadersTotalSize = policy.HeaderBytes;
+    options.Limits.MaxRequestHeaderCount = policy.HeaderCount;
+    options.Limits.MaxRequestLineSize = policy.RequestLineBytes;
+    options.Limits.RequestHeadersTimeout = TimeSpan.FromSeconds(policy.HeaderTimeoutSeconds);
+    options.Limits.MaxConcurrentConnections = policy.Connections;
     options.Listen(IPAddress.Loopback, settings.HealthPort);
 });
 
@@ -78,8 +90,8 @@ static async Task RunDnsGatewayAsync(WebApplication gateway, GatewaySettings set
     {
         if (dns.IsCompleted)
             await dns.ConfigureAwait(false);
-        await gateway.StartAsync().ConfigureAwait(false);
-        var shutdown = gateway.WaitForShutdownAsync();
+        await gateway.StartAsync(CancellationToken.None).ConfigureAwait(false);
+        var shutdown = gateway.WaitForShutdownAsync(CancellationToken.None);
         var finished = await Task.WhenAny(dns, shutdown).ConfigureAwait(false);
         await finished.ConfigureAwait(false);
     }
@@ -87,7 +99,7 @@ static async Task RunDnsGatewayAsync(WebApplication gateway, GatewaySettings set
     finally
     {
         await lifetime.CancelAsync().ConfigureAwait(false);
-        await gateway.StopAsync().ConfigureAwait(false);
+        await gateway.StopAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
             await dns.ConfigureAwait(false);

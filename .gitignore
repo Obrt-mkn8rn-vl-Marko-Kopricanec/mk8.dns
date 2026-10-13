@@ -7,6 +7,9 @@
 .env
 .env.*
 !.env.example
+!**/Environment/.env.template
+**/Environment/.installation.key
+**/Environment/.installation.key.*
 
 # Editor and operating system files.
 .idea/

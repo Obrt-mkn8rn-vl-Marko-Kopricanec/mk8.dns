@@ -11,4 +11,4 @@ using Mk8.Dns.Transport;
 
 namespace Mk8.Dns.Application;
 
-internal sealed record ZoneScope(Guid ZoneId, string Origin, string? SigningKeyFile = null, uint SignatureLifetimeSeconds = 604_800, uint DnskeyTtl = 3600, uint? RenewBeforeSeconds = null);
+internal sealed record ZoneScope([property: JsonRequired] Guid ZoneId, [property: JsonRequired] string Origin, [property: JsonRequired] string? SigningKeySecret = null, [property: JsonRequired] uint SignatureLifetimeSeconds = 604_800, [property: JsonRequired] uint DnskeyTtl = 3600, [property: JsonRequired] uint? RenewBeforeSeconds = null);

@@ -8,25 +8,17 @@ using Mk8.Dns.Engine.Recursive;
 namespace Mk8.Dns.Application;
 
 // No deployment defaults. Parsing and all policy validation precede key/store I/O.
-internal sealed partial record RecursiveStartupConfiguration(string StoreDirectory, string KeyFile, Guid StoreIdentity,
+internal sealed partial record RecursiveStartupConfiguration(string StoreDirectory, string KeySecret, Guid StoreIdentity,
     DnsName Origin, long MinimumRevision, bool Retention, IPEndPoint Binding, DnsServerEndpoint[] Roots,
     DnsServerEndpoint RefreshServer, DnssecClientAccessPolicy Access, DnssecClientNetwork[] Egress,
     ushort AuthorityPort, DnssecWorkPolicy Work, int MaximumRequests, int UdpWorkers,
     int MaximumTcpConnections, int MaximumTcpMessages, TimeSpan UpstreamTimeout, DnssecAnchorPollingPolicy? RefreshPolicy, bool? CheckingDisabledDnssecMaterial)
 {
-    internal static RecursiveStartupConfiguration Load(string path) => Load(path, authenticatedRefresh: false);
-
-    internal static RecursiveStartupConfiguration Load(string path, bool authenticatedRefresh)
-        => LoadCore(path, authenticatedRefresh, checkingDisabled: false);
-
-    internal static RecursiveStartupConfiguration LoadCheckingDisabled(string path)
-        => LoadCore(path, authenticatedRefresh: false, checkingDisabled: true);
-
-    private static RecursiveStartupConfiguration LoadCore(string path, bool authenticatedRefresh, bool checkingDisabled)
+    internal static RecursiveStartupConfiguration FromSecrets(DnsServiceSecrets secrets, bool authenticatedRefresh, bool checkingDisabled)
     {
-        using var document = JsonDocument.Parse(PrivateFile.Read(path, 65536), new JsonDocumentOptions { MaxDepth = 8 });
+        using var document = JsonDocument.Parse(secrets.Text("Recursive", 65536), new JsonDocumentOptions { MaxDepth = 8 });
         var values = document.RootElement;
-        string[] fields = ["storeDirectory", "keyFile", "storeIdentity", "origin", "minimumRevision", "retention",
+        string[] fields = ["storeDirectory", "keySecret", "storeIdentity", "origin", "minimumRevision", "retention",
             "listen", "roots", "refreshServer", "clientNetworks", "allowAuthenticatedData", "egressNetworks", "authorityPort",
             "maximumRequests", "udpWorkers", "maximumTcpConnections", "maximumTcpMessages", "maximumWorkers",
             "maximumWaiters", "resolutionTimeoutMilliseconds", "upstreamTimeoutMilliseconds"];
@@ -51,7 +43,7 @@ internal sealed partial record RecursiveStartupConfiguration(string StoreDirecto
         if (identity == Guid.Empty) throw new InvalidDataException("Store identity must be nonempty.");
         var retention = values.GetProperty("retention").GetBoolean();
         var minimum = Number(values, "minimumRevision", 1, retention ? long.MaxValue : FileAnchorCheckpointStore.MaximumGenerations);
-        return new RecursiveStartupConfiguration(AbsolutePath(values, "storeDirectory"), AbsolutePath(values, "keyFile"),
+        return new RecursiveStartupConfiguration(AbsolutePath(values, "storeDirectory"), SecretName(values, "keySecret"),
             identity, DnsName.Parse(Text(values, "origin")), minimum,
             retention, new IPEndPoint(address, (int)Number(listen, "port", 1, ushort.MaxValue)),
             roots, server, new DnssecClientAccessPolicy(Networks(values.GetProperty("clientNetworks")),
@@ -109,6 +101,13 @@ internal sealed partial record RecursiveStartupConfiguration(string StoreDirecto
 
     private static string Text(JsonElement value, string name)
         => value.GetProperty(name).GetString() ?? throw new InvalidDataException("Configuration text cannot be null.");
+
+    private static string SecretName(JsonElement value, string name)
+    {
+        var reference = Text(value, name);
+        DnsServiceSecrets.ValidateName(reference);
+        return reference;
+    }
 
     private static string AbsolutePath(JsonElement value, string name)
     {
