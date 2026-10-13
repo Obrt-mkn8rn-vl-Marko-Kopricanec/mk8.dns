@@ -6,6 +6,28 @@ namespace Mk8.Dns.IntegrationTests;
 
 public sealed class ServiceBootstrapTests
 {
+    [Theory]
+    [InlineData("publication-ascii", "Use an absolute Unix socket path of at most 100 UTF-8 bytes.")]
+    [InlineData("publication-utf8", "Use an absolute Unix socket path of at most 100 UTF-8 bytes.")]
+    [InlineData("database-name", "This controller profile requires one local PostgreSQL Unix socket directory.")]
+    [InlineData("database-relative", "This controller profile requires one local PostgreSQL Unix socket directory.")]
+    [InlineData("database-comma", "This controller profile requires one local PostgreSQL Unix socket directory.")]
+    public async Task InvalidControllerTargetRefusesBeforeStateIpcAndDatabaseContact(string fault, string reason)
+    {
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var fixture = new ControllerPreflightFixture(fault);
+        var host = fixture.Start();
+        await using var lifetime = host.ConfigureAwait(true);
+        await host.WaitForExitAsync(guard.Token).ConfigureAwait(true);
+        var logs = await host.ReadLogsAsync(guard.Token).ConfigureAwait(true);
+        fixture.ObserveSettledChild();
+        Assert.NotEqual(0, host.ExitCode);
+        Assert.False(fixture.DatabaseContacted, "Invalid settings must not contact the owned database sentinel.");
+        Assert.False(Directory.Exists(fixture.State), "Invalid settings must not create snapshot state.");
+        Assert.False(Directory.Exists(fixture.Runtime), "Invalid settings must not acquire IPC directories or leases.");
+        Assert.Contains(reason, logs, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task InvalidGrantCannotCreateStateOrReachTheUnopenedDatabase()
     {

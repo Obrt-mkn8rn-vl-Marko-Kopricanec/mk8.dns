@@ -52,3 +52,4 @@ static Mk8.Dns.Transport.ManagementHttpProtocol.VerifyReply(Mk8.Dns.Contracts.Ma
 static Mk8.Dns.Transport.ManagementHttpProtocol.WriteError(string! code) -> byte[]!
 static Mk8.Dns.Transport.ManagementHttpProtocol.WriteReply(Mk8.Dns.Contracts.ManagementReply! reply) -> byte[]!
 static Mk8.Dns.Transport.ManagementHttpProtocol.WriteRequest(Mk8.Dns.Contracts.ManagementApiRequest! request) -> byte[]!
+static Mk8.Dns.Transport.PrivateUnixSocket.ValidatePath(string! path) -> void

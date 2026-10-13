@@ -72,6 +72,7 @@ internal sealed class ControlRuntime : IAsyncDisposable
             if (configuration.ConnectionStringSecret is null || configuration.PublicationSocket is null || configuration.Grants is not { Length: > 0 and <= 64 })
                 throw new InvalidDataException("Controller database, target and management grants are required.");
             if (!Path.IsPathFullyQualified(configuration.PublicationSocket)) throw new InvalidDataException("SecretPublicationPathInvalid");
+            PrivateUnixSocket.ValidatePath(configuration.PublicationSocket);
             var grants = configuration.Grants.Select(CreateGrant).ToArray();
             if (grants.Any(grant => !zones.TryGetValue(grant.ZoneId, out var origin) || !origin.Equals(grant.Origin)))
                 throw new InvalidDataException("Management grants exceed the publisher scope.");
@@ -106,26 +107,32 @@ internal sealed class ControlRuntime : IAsyncDisposable
         {
             DnsServiceSecrets.ValidateName(database); names.Add(database);
             connectionString = secrets.Text(database, 4096);
-            var databaseValid = false;
-            try
-            {
-                var databaseSettings = new NpgsqlConnectionStringBuilder(connectionString);
-                if (!databaseSettings.ShouldSerialize("Host") || !databaseSettings.ShouldSerialize("Database")
-                    || !databaseSettings.ShouldSerialize("Username") || !databaseSettings.ShouldSerialize("Port")
-                    || string.IsNullOrWhiteSpace(databaseSettings.Host) || string.IsNullOrWhiteSpace(databaseSettings.Database)
-                    || string.IsNullOrWhiteSpace(databaseSettings.Username) || databaseSettings.Port is < 1 or > 65535)
-                {
-                    throw new InvalidDataException("SecretDatabaseScopeMissing");
-                }
-
-                databaseValid = true;
-            }
-            catch (ArgumentException) { /* Diagnostics may include confidential connection settings. */ }
-            if (!databaseValid) throw new InvalidDataException("SecretDatabaseInvalid");
+            ValidateDatabaseSettings(connectionString);
         }
         secrets.RequireOnly(names);
         if (configuration.DispatchIntervalMilliseconds is < 1 or > 1000) throw new InvalidDataException("SecretDispatchIntervalInvalid");
         return configuration;
+    }
+
+    private static void ValidateDatabaseSettings(string connectionString)
+    {
+        var databaseValid = false;
+        try
+        {
+            var databaseSettings = new NpgsqlConnectionStringBuilder(connectionString);
+            if (!databaseSettings.ShouldSerialize("Host") || !databaseSettings.ShouldSerialize("Database")
+                || !databaseSettings.ShouldSerialize("Username") || !databaseSettings.ShouldSerialize("Port")
+                || string.IsNullOrWhiteSpace(databaseSettings.Host) || string.IsNullOrWhiteSpace(databaseSettings.Database)
+                || string.IsNullOrWhiteSpace(databaseSettings.Username) || databaseSettings.Port is < 1 or > 65535)
+            {
+                throw new InvalidDataException("SecretDatabaseScopeMissing");
+            }
+
+            databaseValid = true;
+        }
+        catch (ArgumentException) { /* Diagnostics may include confidential connection settings. */ }
+        if (!databaseValid) throw new InvalidDataException("SecretDatabaseInvalid");
+        PostgresControlPlaneStore.ValidateLocalConnectionString(connectionString);
     }
 
     internal async ValueTask InitializeAsync(ApplicationSettings settings, FileZoneSnapshotStore snapshots, IDnsCookieService? cookies, ITsigService? tsig, IDnsResponseLimiter? limiter)
