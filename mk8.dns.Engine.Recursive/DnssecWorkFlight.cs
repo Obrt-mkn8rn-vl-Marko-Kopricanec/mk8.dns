@@ -37,18 +37,25 @@ internal sealed class DnssecWorkFlight : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        try
-        {
-            await timer.DisposeAsync().ConfigureAwait(false);
-        }
+        var disposal = DisposeTimerAsync();
+        Exception? timerError = null;
+        try { await disposal.ConfigureAwait(false); }
+        catch (Exception error) when (disposal.IsFaulted || disposal.IsCanceled) { timerError = error; }
+        Task? callbacks;
+        lock (gate) { finishing = true; callbacks = cancellationTask; }
+        Exception? callbackError = null;
+        try { if (callbacks is not null) await callbacks.WaitAsync(CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception error) when (callbacks?.IsFaulted == true || callbacks?.IsCanceled == true) { callbackError = error; }
         finally
         {
-            Task? callbacks;
-            lock (gate) { finishing = true; callbacks = cancellationTask; }
-            try { if (callbacks is not null) await callbacks.WaitAsync(CancellationToken.None).ConfigureAwait(false); }
-            finally { cancellation.Dispose(); }
+            cancellation.Dispose();
         }
+        if (timerError is not null && callbackError is not null) throw new AggregateException(timerError, callbackError);
+        if (timerError is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(timerError).Throw();
+        if (callbackError is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(callbackError).Throw();
     }
+
+    private async Task DisposeTimerAsync() => await timer.DisposeAsync().ConfigureAwait(false);
 
     internal sealed record Delivery(DnssecResolutionResult Result, long Received);
 }

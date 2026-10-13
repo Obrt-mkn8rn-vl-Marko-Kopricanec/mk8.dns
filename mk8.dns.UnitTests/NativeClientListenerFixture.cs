@@ -44,9 +44,9 @@ internal sealed class NativeClientListenerFixture : IAsyncDisposable
         var message = new byte[System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(prefix)];
         await stream.ReadExactlyAsync(message, token).ConfigureAwait(true); return message;
     }
-    internal static async Task<byte[]> UdpAsync(IPEndPoint endpoint, byte[] request, CancellationToken token)
+    internal static async Task<byte[]> UdpAsync(IPEndPoint endpoint, byte[] request, CancellationToken token, Action<Socket>? opened = null)
     {
-        using var peer = new UdpClient(endpoint.AddressFamily); peer.Connect(endpoint);
+        using var peer = new UdpClient(endpoint.AddressFamily); opened?.Invoke(peer.Client); peer.Connect(endpoint);
         _ = await peer.SendAsync(request, token).ConfigureAwait(true);
         return (await peer.ReceiveAsync(token).ConfigureAwait(true)).Buffer;
     }

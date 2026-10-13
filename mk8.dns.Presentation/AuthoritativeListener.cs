@@ -106,9 +106,13 @@ public sealed class AuthoritativeListener
     private async Task AcceptConnectionsAsync(TcpListener listener, SemaphoreSlim admission, CancellationTokenSource lifetime)
     {
         List<Task> connections = [];
+        Task<Socket>? pendingAccept = null;
         var accepting = AcceptLoopAsync();
         List<Exception> errors = [];
         await CaptureAsync(accepting, errors).ConfigureAwait(false);
+        // A child can finish while accept is suspended. The outstanding accept
+        // still owns any socket it returns, even when that child faults first.
+        if (pendingAccept is not null) connections.Add(RetireAcceptAsync(pendingAccept));
         await StopAndDrainAsync(lifetime, connections, errors).ConfigureAwait(false);
 
         async Task AcceptLoopAsync()
@@ -120,10 +124,20 @@ public sealed class AuthoritativeListener
                     connections.Remove(finished);
                     await finished.ConfigureAwait(false);
                 }
-                var socket = await listener.AcceptSocketAsync(lifetime.Token).ConfigureAwait(false);
+                pendingAccept ??= listener.AcceptSocketAsync(lifetime.Token).AsTask();
+                var completed = await Task.WhenAny(connections.Append(pendingAccept)).ConfigureAwait(false);
+                if (!ReferenceEquals(completed, pendingAccept)) continue;
+                var accepted = pendingAccept;
+                pendingAccept = null;
+                var socket = await accepted.ConfigureAwait(false);
                 connections.Add(AdmitAndServeAsync(socket, admission, lifetime.Token));
             }
         }
+    }
+
+    private static async Task RetireAcceptAsync(Task<Socket> accept)
+    {
+        using var socket = await accept.WaitAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
     private async Task AdmitAndServeAsync(Socket socket, SemaphoreSlim admission, CancellationToken token)
