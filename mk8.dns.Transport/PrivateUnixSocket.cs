@@ -66,7 +66,7 @@ public sealed partial class PrivateUnixSocket : IDisposable
         lease.Dispose();
     }
 
-    internal static void ValidatePath(string path)
+    public static void ValidatePath(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         if (!OperatingSystem.IsLinux())
@@ -82,7 +82,7 @@ public sealed partial class PrivateUnixSocket : IDisposable
         if (new DirectoryInfo(directory).LinkTarget is not null)
             throw new IOException("The runtime directory cannot be a symbolic link.");
         Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        var unsafeMode = UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute;
+        const UnixFileMode unsafeMode = UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute;
         if ((File.GetUnixFileMode(directory) & unsafeMode) != UnixFileMode.None)
             throw new IOException("Runtime directory must be private; an operator-controlled group may have traverse access only.");
     }

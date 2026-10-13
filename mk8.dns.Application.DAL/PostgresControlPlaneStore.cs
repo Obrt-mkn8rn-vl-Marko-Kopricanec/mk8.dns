@@ -29,16 +29,13 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
     private int initializationStarted;
 
     public PostgresControlPlaneStore(string connectionString)
-        : this(connectionString, null)
+        : this(connectionString, afterLeaseRelease: null)
     {
     }
 
     internal PostgresControlPlaneStore(string connectionString, Func<ValueTask>? afterLeaseRelease)
     {
-        ArgumentException.ThrowIfNullOrEmpty(connectionString);
-        var configured = new NpgsqlConnectionStringBuilder(connectionString);
-        if (configured.Host is null || !Path.IsPathFullyQualified(configured.Host) || configured.Host.Contains(',', StringComparison.Ordinal))
-            throw new ArgumentException("This controller profile requires one local PostgreSQL Unix socket directory.", nameof(connectionString));
+        ValidateLocalConnectionString(connectionString);
         writerId = Guid.NewGuid();
         this.afterLeaseRelease = afterLeaseRelease;
         var settings = new NpgsqlConnectionStringBuilder(connectionString) { Pooling = false };
@@ -54,6 +51,16 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
         }
     }
 
+    // The executable can reject a deterministic scope error before acquiring its
+    // state or IPC owners. This validates syntax/scope only, never database I/O.
+    public static void ValidateLocalConnectionString(string connectionString)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(connectionString);
+        var configured = new NpgsqlConnectionStringBuilder(connectionString);
+        if (configured.Host is null || !Path.IsPathFullyQualified(configured.Host) || configured.Host.Contains(',', StringComparison.Ordinal))
+            throw new ArgumentException("This controller profile requires one local PostgreSQL Unix socket directory.", nameof(connectionString));
+    }
+
     public async ValueTask InitializeAsync(Guid epoch, CancellationToken cancellationToken)
     {
         if (epoch == Guid.Empty)
@@ -63,7 +70,8 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
             throw new InvalidOperationException("Controller storage can only be initialized once.");
         using var admission = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, admissionClosed.Token);
         await lease.OpenAsync(admission.Token).ConfigureAwait(false);
-        using (var ownership = Command(lease, null, SqlQuery.AcquireLease))
+        var ownership = Command(lease, transaction: null, SqlQuery.AcquireLease);
+        await using (ownership.ConfigureAwait(false))
         {
             if (await ownership.ExecuteScalarAsync(admission.Token).ConfigureAwait(false) is not true)
                 throw new InvalidOperationException("Another controller owns this database's writer lease.");
@@ -79,7 +87,8 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
 
     private static async ValueTask InitializeAsync(NpgsqlConnection connection, Guid epoch, Guid identity, CancellationToken cancellationToken)
     {
-        using var durability = Command(connection, null, SqlQuery.ReadDurability);
+        var durability = Command(connection, transaction: null, SqlQuery.ReadDurability);
+        await using var durabilityLifetime = durability.ConfigureAwait(false);
         var reader = await durability.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await using (reader.ConfigureAwait(false))
         {
@@ -89,20 +98,25 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
         }
         var bootstrap = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         await using var bootstrapLifetime = bootstrap.ConfigureAwait(false);
-        using var bootstrapLock = Command(connection, bootstrap, SqlQuery.AcquireTransaction);
+        var bootstrapLock = Command(connection, bootstrap, SqlQuery.AcquireTransaction);
+        await using var bootstrapLockLifetime = bootstrapLock.ConfigureAwait(false);
         _ = await bootstrapLock.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        using var schema = Command(connection, bootstrap, SqlQuery.CreateSchema);
+        var schema = Command(connection, bootstrap, SqlQuery.CreateSchema);
+        await using var schemaLifetime = schema.ConfigureAwait(false);
         _ = await schema.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        using var insert = Command(connection, bootstrap, SqlQuery.BootstrapMetadata, epoch, identity);
+        var insert = Command(connection, bootstrap, SqlQuery.BootstrapMetadata, epoch, identity);
+        await using var insertLifetime = insert.ConfigureAwait(false);
         _ = await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        using var metadata = Command(connection, bootstrap, SqlQuery.ReadMetadata);
+        var metadata = Command(connection, bootstrap, SqlQuery.ReadMetadata);
+        await using var metadataLifetime = metadata.ConfigureAwait(false);
         var metaReader = await metadata.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await using (metaReader.ConfigureAwait(false))
         {
             if (!await metaReader.ReadAsync(cancellationToken).ConfigureAwait(false) || metaReader.GetInt32(0) != 1 || metaReader.GetGuid(1) != epoch)
                 throw new InvalidOperationException("Controller schema, missing committed metadata or publisher epoch requires explicit migration.");
         }
-        using var fence = Command(connection, bootstrap, SqlQuery.FenceWriter, identity);
+        var fence = Command(connection, bootstrap, SqlQuery.FenceWriter, identity);
+        await using var fenceLifetime = fence.ConfigureAwait(false);
         _ = await fence.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         await bootstrap.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -118,9 +132,11 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
             var transaction = await connection.BeginTransactionAsync(admission.Token).ConfigureAwait(false);
             try
             {
-                using var gate = Command(connection, transaction, SqlQuery.AcquireTransaction);
+                var gate = Command(connection, transaction, SqlQuery.AcquireTransaction);
+                await using var gateLifetime = gate.ConfigureAwait(false);
                 _ = await gate.ExecuteNonQueryAsync(admission.Token).ConfigureAwait(false);
-                using var ownership = Command(connection, transaction, SqlQuery.ReadWriter);
+                var ownership = Command(connection, transaction, SqlQuery.ReadWriter);
+                await using var ownershipLifetime = ownership.ConfigureAwait(false);
                 if (await ownership.ExecuteScalarAsync(admission.Token).ConfigureAwait(false) is not Guid currentWriter || currentWriter != writerId)
                     throw new InvalidOperationException("Controller writer identity has been fenced by a successor.");
                 lock (lifetimeLock)
@@ -155,7 +171,8 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
         using var registration = Register();
         var connection = await source.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var connectionLifetime = connection.ConfigureAwait(false);
-        using var command = Command(connection, null, SqlQuery.ReadPending);
+        var command = Command(connection, transaction: null, SqlQuery.ReadPending);
+        await using var commandLifetime = command.ConfigureAwait(false);
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await using var readerLifetime = reader.ConfigureAwait(false);
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? await PostgresControlPlaneStore.ReadOperationAsync(reader, cancellationToken).ConfigureAwait(false) : null;
@@ -167,7 +184,10 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
         ArgumentNullException.ThrowIfNull(receipt);
         if (!string.Equals(operation.TargetNode, receipt.NodeId, StringComparison.Ordinal) || operation.Snapshot.ZoneId != receipt.ZoneId || operation.Snapshot.Revision != receipt.Revision
             || !string.Equals(operation.Snapshot.ContentHash, receipt.ContentHash, StringComparison.Ordinal) || !string.Equals(receipt.State, "activated", StringComparison.Ordinal))
+        {
             throw new InvalidOperationException("Activation receipt does not identify the requested node and generation.");
+        }
+
         var transaction = (ControlTransaction)await BeginAsync(cancellationToken).ConfigureAwait(false);
         await using var lifetime = transaction.ConfigureAwait(false);
         await transaction.MarkActivatedAsync(operation, receipt, cancellationToken).ConfigureAwait(false);
@@ -242,7 +262,8 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
     {
         if (!writerLeaseHeld || lease.State != System.Data.ConnectionState.Open)
             return;
-        using var release = Command(lease, null, SqlQuery.ReleaseLease);
+        var release = Command(lease, transaction: null, SqlQuery.ReleaseLease);
+        await using var releaseLifetime = release.ConfigureAwait(false);
         try
         {
             if (await release.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false) is not true)
@@ -303,58 +324,58 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
         {
             case SqlQuery.AcquireLease:
                 command.CommandText = "SELECT pg_try_advisory_lock(5565946963831500800)";
-                break;
+                return;
             case SqlQuery.ReleaseLease:
                 command.CommandText = "SELECT pg_advisory_unlock(5565946963831500800)";
-                break;
+                return;
             case SqlQuery.ReadDurability:
                 command.CommandText = "SELECT current_setting('fsync'),current_setting('full_page_writes'),current_setting('synchronous_commit')";
-                break;
+                return;
             case SqlQuery.AcquireTransaction:
                 command.CommandText = "SET LOCAL synchronous_commit=on; SELECT pg_advisory_xact_lock(5565946963831500801)";
-                break;
+                return;
             case SqlQuery.CreateSchema:
                 command.CommandText = SchemaSql;
-                break;
+                return;
             case SqlQuery.BootstrapMetadata:
                 command.CommandText = "INSERT INTO mk8_control_metadata SELECT true,1,$1,$2 WHERE NOT EXISTS(SELECT 1 FROM mk8_zones) AND NOT EXISTS(SELECT 1 FROM mk8_operations) ON CONFLICT(singleton) DO NOTHING";
-                break;
+                return;
             case SqlQuery.ReadMetadata:
                 command.CommandText = "SELECT schema_version,epoch FROM mk8_control_metadata WHERE singleton";
-                break;
+                return;
             case SqlQuery.FenceWriter:
                 command.CommandText = "UPDATE mk8_control_metadata SET writer_id=$1 WHERE singleton";
-                break;
+                return;
             case SqlQuery.ReadWriter:
                 command.CommandText = "SELECT writer_id FROM mk8_control_metadata WHERE singleton";
-                break;
+                return;
             case SqlQuery.ReadPending:
                 command.CommandText = "SELECT " + OperationColumns + " FROM mk8_operations WHERE NOT activated AND NOT EXISTS(SELECT 1 FROM mk8_operations earlier WHERE earlier.zone_id=mk8_operations.zone_id AND NOT earlier.activated AND earlier.revision<mk8_operations.revision) ORDER BY accepted_at,zone_id,revision LIMIT 1";
-                break;
+                return;
             case SqlQuery.ReadOperation:
                 command.CommandText = "SELECT " + OperationColumns + " FROM mk8_operations WHERE tenant_id=$1 AND operation_id=$2";
-                break;
+                return;
             case SqlQuery.ReadGeneration:
                 command.CommandText = "SELECT " + OperationColumns + " FROM mk8_operations WHERE tenant_id=$1 AND zone_id=$2 AND revision=$3";
-                break;
+                return;
             case SqlQuery.HasPending:
                 command.CommandText = "SELECT EXISTS(SELECT 1 FROM mk8_operations WHERE zone_id=$1 AND NOT activated)";
-                break;
+                return;
             case SqlQuery.ReadZone:
                 command.CommandText = "SELECT zone_id,origin,revision,serial,payload,content_hash FROM mk8_zones WHERE tenant_id=$1 AND zone_id=$2";
-                break;
+                return;
             case SqlQuery.ReadOwnership:
                 command.CommandText = "SELECT tenant_id,zone_id,origin FROM mk8_zones";
-                break;
+                return;
             case SqlQuery.UpsertZone:
                 command.CommandText = "INSERT INTO mk8_zones VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(zone_id) DO UPDATE SET revision=EXCLUDED.revision,serial=EXCLUDED.serial,payload=EXCLUDED.payload,content_hash=EXCLUDED.content_hash";
-                break;
+                return;
             case SqlQuery.AppendOperation:
                 command.CommandText = "INSERT INTO mk8_operations(tenant_id,operation_id,fingerprint,actor,target_node,zone_id,origin,revision,serial,payload,content_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)";
-                break;
+                return;
             case SqlQuery.MarkActivated:
                 command.CommandText = "UPDATE mk8_operations SET activated=true,activated_at=COALESCE(activated_at,clock_timestamp()),receipt=$1 WHERE tenant_id=$2 AND operation_id=$3 AND revision=$4 AND content_hash=$5";
-                break;
+                return;
             default:
                 throw new ArgumentOutOfRangeException(nameof(query));
         }
@@ -370,11 +391,23 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
 
     private static async ValueTask<ZoneOperation> ReadOperationAsync(NpgsqlDataReader reader, CancellationToken cancellationToken) => new(reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), await SnapshotAsync(reader, 5, cancellationToken).ConfigureAwait(false), reader.GetBoolean(11));
 
-    private sealed class ControlTransaction(NpgsqlConnection connection, NpgsqlTransaction transaction, Registration registration) : IZoneResigningTransaction
+    private sealed class ControlTransaction : IZoneResigningTransaction
     {
+        private readonly NpgsqlConnection connection;
+        private readonly NpgsqlTransaction transaction;
+        private readonly Registration registration;
+
+        internal ControlTransaction(NpgsqlConnection connection, NpgsqlTransaction transaction, Registration registration)
+        {
+            this.connection = connection;
+            this.transaction = transaction;
+            this.registration = registration;
+        }
+
         public async ValueTask<ZoneOperation?> ReadOperationAsync(Guid tenantId, Guid operationId, CancellationToken cancellationToken)
         {
-            using var command = Command(connection, transaction, SqlQuery.ReadOperation, tenantId, operationId);
+            var command = Command(connection, transaction, SqlQuery.ReadOperation, tenantId, operationId);
+            await using var commandLifetime = command.ConfigureAwait(false);
             var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             await using var readerLifetime = reader.ConfigureAwait(false);
             return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? await PostgresControlPlaneStore.ReadOperationAsync(reader, cancellationToken).ConfigureAwait(false) : null;
@@ -382,7 +415,8 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
 
         public async ValueTask<ZoneSnapshot?> ReadZoneAsync(Guid tenantId, Guid zoneId, CancellationToken cancellationToken)
         {
-            using var command = Command(connection, transaction, SqlQuery.ReadZone, tenantId, zoneId);
+            var command = Command(connection, transaction, SqlQuery.ReadZone, tenantId, zoneId);
+            await using var commandLifetime = command.ConfigureAwait(false);
             var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             await using var readerLifetime = reader.ConfigureAwait(false);
             return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? await SnapshotAsync(reader, 0, cancellationToken).ConfigureAwait(false) : null;
@@ -390,7 +424,8 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
 
         public async ValueTask<ZoneOperation?> ReadGenerationAsync(Guid tenantId, Guid zoneId, long revision, CancellationToken cancellationToken)
         {
-            using var command = Command(connection, transaction, SqlQuery.ReadGeneration, tenantId, zoneId, revision);
+            var command = Command(connection, transaction, SqlQuery.ReadGeneration, tenantId, zoneId, revision);
+            await using var commandLifetime = command.ConfigureAwait(false);
             var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             await using var readerLifetime = reader.ConfigureAwait(false);
             return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? await PostgresControlPlaneStore.ReadOperationAsync(reader, cancellationToken).ConfigureAwait(false) : null;
@@ -398,13 +433,15 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
 
         public async ValueTask<bool> HasPendingAsync(Guid zoneId, CancellationToken cancellationToken)
         {
-            using var command = Command(connection, transaction, SqlQuery.HasPending, zoneId);
+            var command = Command(connection, transaction, SqlQuery.HasPending, zoneId);
+            await using var commandLifetime = command.ConfigureAwait(false);
             return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is true;
         }
 
         public async ValueTask<IReadOnlyList<ZoneOwnership>> ReadOwnershipAsync(CancellationToken cancellationToken)
         {
-            using var command = Command(connection, transaction, SqlQuery.ReadOwnership);
+            var command = Command(connection, transaction, SqlQuery.ReadOwnership);
+            await using var commandLifetime = command.ConfigureAwait(false);
             var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             await using var readerLifetime = reader.ConfigureAwait(false);
             var results = new List<ZoneOwnership>();
@@ -417,9 +454,11 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
         {
             ArgumentNullException.ThrowIfNull(operation);
             var snapshot = operation.Snapshot;
-            using var zone = Command(connection, transaction, SqlQuery.UpsertZone, snapshot.ZoneId, operation.TenantId, snapshot.Origin.ToWire(), snapshot.Revision, (long)snapshot.Serial, snapshot.GetPayload(), snapshot.ContentHash);
+            var zone = Command(connection, transaction, SqlQuery.UpsertZone, snapshot.ZoneId, operation.TenantId, snapshot.Origin.ToWire(), snapshot.Revision, (long)snapshot.Serial, snapshot.GetPayload(), snapshot.ContentHash);
+            await using var zoneLifetime = zone.ConfigureAwait(false);
             _ = await zone.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-            using var auditAndOutbox = Command(connection, transaction, SqlQuery.AppendOperation, operation.TenantId, operation.OperationId, operation.Fingerprint, operation.Actor, operation.TargetNode, snapshot.ZoneId, snapshot.Origin.ToWire(), snapshot.Revision, (long)snapshot.Serial, snapshot.GetPayload(), snapshot.ContentHash);
+            var auditAndOutbox = Command(connection, transaction, SqlQuery.AppendOperation, operation.TenantId, operation.OperationId, operation.Fingerprint, operation.Actor, operation.TargetNode, snapshot.ZoneId, snapshot.Origin.ToWire(), snapshot.Revision, (long)snapshot.Serial, snapshot.GetPayload(), snapshot.ContentHash);
+            await using var auditAndOutboxLifetime = auditAndOutbox.ConfigureAwait(false);
             _ = await auditAndOutbox.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -427,7 +466,8 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
 
         internal async ValueTask MarkActivatedAsync(ZoneOperation operation, PublicationReply receipt, CancellationToken cancellationToken)
         {
-            using var command = Command(connection, transaction, SqlQuery.MarkActivated, receipt.PublicationId, operation.TenantId, operation.OperationId, operation.Snapshot.Revision, operation.Snapshot.ContentHash);
+            var command = Command(connection, transaction, SqlQuery.MarkActivated, receipt.PublicationId, operation.TenantId, operation.OperationId, operation.Snapshot.Revision, operation.Snapshot.ContentHash);
+            await using var commandLifetime = command.ConfigureAwait(false);
             if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
                 throw new InvalidOperationException("Outbox operation no longer matches its acknowledgement.");
         }

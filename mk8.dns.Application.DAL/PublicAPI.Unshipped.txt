@@ -34,3 +34,4 @@ static Mk8.Dns.Application.DAL.FileAnchorCheckpointStore.CreateWithRetention(str
 static Mk8.Dns.Application.DAL.FileAnchorCheckpointStore.OpenWithRetention(string! directory, System.Guid storageId, Mk8.Dns.Domain.DnsName! expectedOrigin, System.ReadOnlySpan<byte> authenticationKey, long minimumRevision, Mk8.Dns.Domain.IDnssecSignatureVerifier! verifier, System.TimeProvider? time = null) -> Mk8.Dns.Application.DAL.FileAnchorCheckpointStore!
 Mk8.Dns.Application.DAL.FileAnchorCheckpointStore.FirstRetainedRevision.get -> long
 Mk8.Dns.Application.DAL.FileAnchorCheckpointStore.Retain(long expectedRevision, long trustedMinimumRevision, int generationsToKeep, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> long
+static Mk8.Dns.Application.DAL.PostgresControlPlaneStore.ValidateLocalConnectionString(string! connectionString) -> void
