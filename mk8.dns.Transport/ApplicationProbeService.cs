@@ -3,10 +3,10 @@ using Mk8.Dns.Contracts;
 
 namespace Mk8.Dns.Transport;
 
-internal sealed class ApplicationProbeService : ApplicationProbe.ApplicationProbeBase, IDisposable
+internal sealed class ApplicationProbeService : ApplicationProbe.ApplicationProbeBase
 {
     private readonly IApplicationStatusSource source;
-    private readonly SemaphoreSlim admission = new(16, 16);
+    private int active;
 
     public ApplicationProbeService(IApplicationStatusSource source)
     {
@@ -20,8 +20,12 @@ internal sealed class ApplicationProbeService : ApplicationProbe.ApplicationProb
         ArgumentNullException.ThrowIfNull(context);
         if (request.ProtocolVersion != ProtocolVersion.Current)
             throw new RpcException(new Status(StatusCode.FailedPrecondition, "Unsupported Application protocol version."));
-        if (!await admission.WaitAsync(0, context.CancellationToken).ConfigureAwait(false))
+        context.CancellationToken.ThrowIfCancellationRequested();
+        if (Interlocked.Increment(ref active) > 16)
+        {
+            _ = Interlocked.Decrement(ref active);
             throw new RpcException(new Status(StatusCode.ResourceExhausted, "Application probe capacity exhausted."));
+        }
         try
         {
             var status = await source.GetStatusAsync(context.CancellationToken).ConfigureAwait(false);
@@ -40,9 +44,7 @@ internal sealed class ApplicationProbeService : ApplicationProbe.ApplicationProb
         }
         finally
         {
-            admission.Release();
+            _ = Interlocked.Decrement(ref active);
         }
     }
-
-    public void Dispose() => admission.Dispose();
 }

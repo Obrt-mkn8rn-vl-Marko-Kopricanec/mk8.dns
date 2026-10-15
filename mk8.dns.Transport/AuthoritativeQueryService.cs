@@ -4,9 +4,9 @@ using Mk8.Dns.Contracts;
 
 namespace Mk8.Dns.Transport;
 
-internal sealed class AuthoritativeQueryService(IDnsExchange source) : AuthoritativeQuery.AuthoritativeQueryBase, IDisposable
+internal sealed class AuthoritativeQueryService(IDnsExchange source) : AuthoritativeQuery.AuthoritativeQueryBase
 {
-    private readonly SemaphoreSlim admission = new(16, 16);
+    private int active;
 
     public override async Task<DnsReply> Exchange(DnsRequest request, ServerCallContext context)
     {
@@ -16,8 +16,12 @@ internal sealed class AuthoritativeQueryService(IDnsExchange source) : Authorita
             throw new RpcException(new Status(StatusCode.FailedPrecondition, "Unsupported Application protocol version."));
         if (request.Message.Length is 0 or > ushort.MaxValue || request.PeerAddress.Length is not (4 or 16))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid DNS exchange bounds."));
-        if (!await admission.WaitAsync(0, context.CancellationToken).ConfigureAwait(false))
+        context.CancellationToken.ThrowIfCancellationRequested();
+        if (Interlocked.Increment(ref active) > 16)
+        {
+            _ = Interlocked.Decrement(ref active);
             throw new RpcException(new Status(StatusCode.ResourceExhausted, "Query capacity exhausted."));
+        }
         try
         {
             var response = await source.ExchangeAsync(request.Message.Memory, request.Tcp, request.PeerAddress.Memory, context.CancellationToken).ConfigureAwait(false);
@@ -27,9 +31,7 @@ internal sealed class AuthoritativeQueryService(IDnsExchange source) : Authorita
         }
         finally
         {
-            admission.Release();
+            _ = Interlocked.Decrement(ref active);
         }
     }
-
-    public void Dispose() => admission.Dispose();
 }
