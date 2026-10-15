@@ -30,7 +30,7 @@ public sealed class DnssecUpstreamDeadlineTests
         }, guard.Token);
         var tcpWorker = Task.Run(async () =>
         {
-            using var peer = await tcp.AcceptTcpClientAsync(guard.Token).ConfigureAwait(true); using var stream = peer.GetStream();
+            using var peer = await tcp.AcceptTcpClientAsync(guard.Token).ConfigureAwait(true); var stream = peer.GetStream(); await using var streamLifetime = stream.ConfigureAwait(true);
             var prefix = new byte[2]; await stream.ReadExactlyAsync(prefix, guard.Token).ConfigureAwait(true);
             var query = new byte[BinaryPrimitives.ReadUInt16BigEndian(prefix)]; await stream.ReadExactlyAsync(query, guard.Token).ConfigureAwait(true);
             accepted.SetResult();
@@ -43,10 +43,7 @@ public sealed class DnssecUpstreamDeadlineTests
             await accepted.Task.WaitAsync(guard.Token).ConfigureAwait(true);
             Assert.Equal(1, clock.ActiveTimers); clock.Set(TimeSpan.FromMilliseconds(999)); Assert.False(result.IsCompleted);
             clock.Set(TimeSpan.FromSeconds(1));
-            Exception? error = null;
-            try { await result.WaitAsync(guard.Token).ConfigureAwait(true); }
-            catch (TimeoutException caught) { error = caught; }
-            Assert.IsType<TimeoutException>(error);
+            await Assert.ThrowsAsync<TimeoutException>(() => result.WaitAsync(guard.Token)).ConfigureAwait(true);
             Assert.Equal(0, clock.ActiveTimers);
         }
         finally
@@ -57,19 +54,38 @@ public sealed class DnssecUpstreamDeadlineTests
         }
     }
 
-    [Fact]
-    public async Task CancellationWhileUdpPendingReleasesTheOwnedTimer()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CancellationWhileUdpPendingReleasesTheOwnedTimer(bool observerFailure)
     {
-        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(10)); using var caller = new CancellationTokenSource();
-        using var server = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0)); var endpoint = (IPEndPoint)server.Client.LocalEndPoint!;
-        var clock = new RecursiveCacheClock(); var client = new DnssecUpstreamClient(_ => true, TimeSpan.FromSeconds(1), clock);
-        var task = client.ExchangeDnssecAsync(DnssecUpstreamFixture.Question, new DnsServerEndpoint(endpoint.Address.GetAddressBytes(), (ushort)endpoint.Port), caller.Token).AsTask();
-        _ = await server.ReceiveAsync(guard.Token).ConfigureAwait(true); Assert.Equal(1, clock.ActiveTimers);
-        await caller.CancelAsync().ConfigureAwait(true);
-        Exception? error = null;
-        try { await task.WaitAsync(guard.Token).ConfigureAwait(true); }
-        catch (OperationCanceledException caught) when (!guard.IsCancellationRequested && caller.IsCancellationRequested) { error = caught; }
-        Assert.IsAssignableFrom<OperationCanceledException>(error); Assert.Equal(0, clock.ActiveTimers);
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var caller = new CancellationTokenSource();
+        using var server = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+        var endpoint = (IPEndPoint)server.Client.LocalEndPoint!;
+        var clock = new RecursiveCacheClock();
+        var client = new DnssecUpstreamClient(_ => true, TimeSpan.FromSeconds(1), clock);
+        var task = client.ExchangeDnssecAsync(DnssecUpstreamFixture.Question,
+            new DnsServerEndpoint(endpoint.Address.GetAddressBytes(), (ushort)endpoint.Port), caller.Token).AsTask();
+        var observer = new IOException("Controlled UDP entry observer failure.");
+        var observed = await Record.ExceptionAsync(() => TestTaskSettlement.RunAsync(async () =>
+        {
+            _ = await server.ReceiveAsync(guard.Token).ConfigureAwait(true);
+            Assert.Equal(1, clock.ActiveTimers);
+            if (observerFailure) throw observer;
+        }, async () => await TestTaskSettlement.RunAsync(() => caller.CancelAsync(), async () =>
+        {
+            await TestTaskSettlement.RunAsync(async () =>
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task.WaitAsync(guard.Token)).ConfigureAwait(true), async () =>
+            {
+                var error = await Record.ExceptionAsync(() => task.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+                if (error is not OperationCanceledException) Assert.Null(error);
+            }).ConfigureAwait(true);
+        }).ConfigureAwait(true))).ConfigureAwait(true);
+        if (observerFailure) Assert.Same(observer, observed);
+        else Assert.Null(observed);
+        Assert.True(task.IsCanceled);
+        Assert.Equal(0, clock.ActiveTimers);
     }
 
     private static UdpClient Bind(bool ipv6)

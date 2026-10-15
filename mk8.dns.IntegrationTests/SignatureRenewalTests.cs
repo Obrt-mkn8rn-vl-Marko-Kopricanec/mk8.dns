@@ -13,6 +13,8 @@ namespace Mk8.Dns.IntegrationTests;
 
 public sealed class SignatureRenewalTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
+    private readonly PostgresFixture postgres = postgres;
+
     [Fact]
     public async Task AutomaticRefreshPublishesNewSerialWithoutChangingIntentOrHistoricalUserReplay()
     {
@@ -25,7 +27,7 @@ public sealed class SignatureRenewalTests(PostgresFixture postgres) : IClassFixt
         var management = new ZoneManagementApplication(store, control.Authorizer(), codec, ControlFixture.Node);
         var edit = control.Edit();
         var receipt = await management.ExecuteAsync(edit, CancellationToken.None).ConfigureAwait(true);
-        var replica = new ReplicaFixture(control);
+        var replica = await ReplicaFixture.CreateAsync(control).ConfigureAwait(true);
         await using var replicaLifetime = replica.ConfigureAwait(true);
         await replica.OpenSignedAsync(time).ConfigureAwait(true);
         var publisher = new OutboxPublisher(store, replica.Signer, replica.Publication!);
@@ -75,7 +77,7 @@ public sealed class SignatureRenewalTests(PostgresFixture postgres) : IClassFixt
         Assert.Single(results, result => result);
         var pending = (await store.ReadPendingAsync(CancellationToken.None).ConfigureAwait(true))!;
         Assert.Equal(2L, pending.Snapshot.Revision);
-        await RequireRowsAsync(store, control, 2, true).ConfigureAwait(true);
+        await RequireRowsAsync(store, control, 2, hasOperation: true).ConfigureAwait(true);
     }
 
     [Theory]
@@ -103,7 +105,7 @@ public sealed class SignatureRenewalTests(PostgresFixture postgres) : IClassFixt
         time.Seconds = 6000;
         Assert.False(await Job(store, codec, time, control).ResignAsync(control.Zone, CancellationToken.None).ConfigureAwait(true));
         Assert.Equal(original.ContentHash, (await store.ReadPendingAsync(CancellationToken.None).ConfigureAwait(true))!.Snapshot.ContentHash);
-        await RequireRowsAsync(store, control, newerIntent ? 2 : 1, true).ConfigureAwait(true);
+        await RequireRowsAsync(store, control, newerIntent ? 2 : 1, hasOperation: true).ConfigureAwait(true);
     }
 
     [Fact]
@@ -118,7 +120,7 @@ public sealed class SignatureRenewalTests(PostgresFixture postgres) : IClassFixt
         var time = new Clock();
         var codec = Codec(key, time);
         _ = await new ZoneManagementApplication(store, control.Authorizer(), codec, ControlFixture.Node).ExecuteAsync(control.Edit(), CancellationToken.None).ConfigureAwait(true);
-        var replica = new ReplicaFixture(control);
+        var replica = await ReplicaFixture.CreateAsync(control).ConfigureAwait(true);
         await using var replicaLifetime = replica.ConfigureAwait(true);
         await replica.OpenSignedAsync(time).ConfigureAwait(true);
         Assert.True(await new OutboxPublisher(store, replica.Signer, replica.Publication!).DispatchOneAsync(CancellationToken.None).ConfigureAwait(true));
@@ -189,7 +191,7 @@ public sealed class SignatureRenewalTests(PostgresFixture postgres) : IClassFixt
         else
             _ = await Assert.ThrowsAsync<CryptographicException>(() => Job(store, codec, time, control).ResignAsync(control.Zone, CancellationToken.None).AsTask()).ConfigureAwait(true);
         Assert.Null(await store.ReadPendingAsync(CancellationToken.None).ConfigureAwait(true));
-        await RequireRowsAsync(store, control, 1, true).ConfigureAwait(true);
+        await RequireRowsAsync(store, control, 1, hasOperation: true).ConfigureAwait(true);
         Assert.True(await Job(store, original, time, control).ResignAsync(control.Zone, CancellationToken.None).ConfigureAwait(true));
     }
 
@@ -207,7 +209,7 @@ public sealed class SignatureRenewalTests(PostgresFixture postgres) : IClassFixt
         var waiting = Job(store, codec, time, control).ResignAsync(control.Zone, CancellationToken.None).AsTask();
         var disposal = store.DisposeAsync().AsTask();
         Assert.False(disposal.IsCompleted);
-        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting.WaitAsync(TimeSpan.FromSeconds(20))).ConfigureAwait(true);
+        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting.WaitAsync(TimeSpan.FromSeconds(20), TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
         await admitted.DisposeAsync().ConfigureAwait(true);
         await disposal.ConfigureAwait(true);
     }

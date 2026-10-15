@@ -21,7 +21,7 @@ public sealed class OutboxTests(PostgresFixture postgres) : IClassFixture<Postgr
         var management = new ZoneManagementApplication(store, control.Authorizer(), new ZoneBundleAdapter(), ControlFixture.Node);
         var edit = control.Edit();
         var accepted = await management.ExecuteAsync(edit, CancellationToken.None).ConfigureAwait(true);
-        var replica = new ReplicaFixture(control);
+        var replica = await ReplicaFixture.CreateAsync(control).ConfigureAwait(true);
         await using var replicaLifetime = replica.ConfigureAwait(true);
         await replica.OpenAsync().ConfigureAwait(true);
         var publisher = new OutboxPublisher(store, replica.Signer, new InterruptedPublicationClient(replica.Publication!, corruptReceipt));
@@ -58,11 +58,12 @@ public sealed class OutboxTests(PostgresFixture postgres) : IClassFixture<Postgr
         await using (connection.ConfigureAwait(true))
         {
             await connection.OpenAsync().ConfigureAwait(true);
-            using var rollbackClock = new NpgsqlCommand("UPDATE mk8_operations SET accepted_at=CASE WHEN revision=1 THEN now()+interval '1 hour' ELSE now()-interval '1 hour' END", connection);
+            var rollbackClock = new NpgsqlCommand("UPDATE mk8_operations SET accepted_at=CASE WHEN revision=1 THEN now()+interval '1 hour' ELSE now()-interval '1 hour' END", connection);
+            await using var rollbackLifetime = rollbackClock.ConfigureAwait(true);
             _ = await rollbackClock.ExecuteNonQueryAsync().ConfigureAwait(true);
         }
         Assert.Equal(1L, (await store.ReadPendingAsync(CancellationToken.None).ConfigureAwait(true))!.Snapshot.Revision);
-        var replica = new ReplicaFixture(control);
+        var replica = await ReplicaFixture.CreateAsync(control).ConfigureAwait(true);
         await using var replicaLifetime = replica.ConfigureAwait(true);
         await replica.OpenAsync().ConfigureAwait(true);
         var publisher = new OutboxPublisher(store, replica.Signer, replica.Publication!);
