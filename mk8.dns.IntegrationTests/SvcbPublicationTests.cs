@@ -22,7 +22,7 @@ public sealed class SvcbPublicationTests(PostgresFixture postgres) : IClassFixtu
         await store.InitializeAsync(fixture.Epoch, CancellationToken.None).ConfigureAwait(true);
         var authorizer = new ScopedManagementAuthorizer([fixture.Grant() with { Actions = ["import", "export", "patch", "read", "status"] }], TimeProvider.System);
         var management = new ZoneManagementApplication(store, authorizer, new ZoneBundleAdapter(), ControlFixture.Node, new ZoneMasterFileAdapter());
-        var replica = new ReplicaFixture(fixture);
+        var replica = await ReplicaFixture.CreateAsync(fixture).ConfigureAwait(true);
         await using var replicaLifetime = replica.ConfigureAwait(true);
         await replica.OpenAsync().ConfigureAwait(true);
         var publisher = new OutboxPublisher(store, replica.Signer, replica.Publication!);
@@ -36,7 +36,7 @@ public sealed class SvcbPublicationTests(PostgresFixture postgres) : IClassFixtu
         Assert.Equal(initial.ContentHash, ZoneBundleCodec.Compile(fixture.Zone, 1, ZoneMasterFileCodec.Import(DnsName.Parse("example."), export.ZoneFile)).ContentHash);
         var replacement = Convert.FromHexString(Data);
         replacement[1] = 2;
-        var patch = import with { Action = "patch", ZoneFile = null, OperationId = Guid.NewGuid(), ExpectedRevision = 1, Changes = [new RrsetChange(DnsName.Parse("svc.example.").ToWire(), 65, 300, [replacement], Array.Empty<ReadOnlyMemory<byte>>(), true)] };
+        var patch = import with { Action = "patch", ZoneFile = null, OperationId = Guid.NewGuid(), ExpectedRevision = 1, Changes = [new RrsetChange(DnsName.Parse("svc.example.").ToWire(), 65, 300, [replacement], [], Replace: true)] };
         Assert.Equal(2L, (await management.ExecuteAsync(patch, CancellationToken.None).ConfigureAwait(true)).Revision);
         Assert.True(await publisher.DispatchOneAsync(CancellationToken.None).ConfigureAwait(true));
         var replay = await management.ExecuteAsync(import with { ZoneFile = export.ZoneFile }, CancellationToken.None).ConfigureAwait(true);
@@ -49,7 +49,7 @@ public sealed class SvcbPublicationTests(PostgresFixture postgres) : IClassFixtu
     }
 
     private static ManagementRequest Import(ControlFixture fixture) => new("import", fixture.Tenant, fixture.Zone, Guid.NewGuid(), 0,
-        DnsName.Parse("example.").ToWire(), Array.Empty<ZoneRecordData>(), fixture.Credential)
+        DnsName.Parse("example.").ToWire(), [], fixture.Credential)
     { ZoneFile = ZoneFileManagementTests.Text + "svc HTTPS 1 . key65280=\"\\000\\255\" port=443 alpn=\"h2,h3\"\n" };
 
     private static async Task AssertReplyAsync(AuthoritativeApplication authority, string hex)

@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -272,16 +273,88 @@ internal sealed class ControlRuntime : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
+    private readonly Lock disposalSync = new();
+    private Task? disposal;
+    private FileZoneSnapshotStore? snapshots;
+
+    internal ControlRuntime() { }
+
+    // Direct owned composition is also used by the maintained shutdown control.
+    internal ControlRuntime(FileZoneSnapshotStore snapshots, ZonePublicationApplication publication)
     {
-        if (Publication is not null)
-            await Publication.DisposeAsync().ConfigureAwait(false);
-        client?.Dispose();
-        journal?.Dispose();
-        authenticator?.Dispose();
-        if (store is not null)
-            await store.DisposeAsync().ConfigureAwait(false);
+        this.snapshots = snapshots;
+        Publication = publication;
+    }
+
+    internal FileZoneSnapshotStore OpenSnapshots(string directory)
+    {
+        lock (disposalSync)
+        {
+            ObjectDisposedException.ThrowIf(disposal is not null, this);
+            if (snapshots is not null) throw new InvalidOperationException("SnapshotOwnershipAlreadyTransferred");
+            snapshots = new FileZoneSnapshotStore(directory);
+            return snapshots;
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        lock (disposalSync) return new ValueTask(disposal ??= CloseAsync());
+    }
+
+    private async Task CloseAsync()
+    {
+        List<Exception> failures = [];
+        // First join the entire publication continuation, not merely its last
+        // registered snapshot operation. Only then close snapshot admission.
+        await CaptureAsync(ClosePublicationAsync(), failures).ConfigureAwait(false);
+        await CaptureAsync(CloseSnapshotsAsync(), failures).ConfigureAwait(false);
+        await CaptureAsync(CloseTransportAsync(), failures).ConfigureAwait(false);
+        await CaptureAsync(CloseStoreAsync(), failures).ConfigureAwait(false);
         foreach (var key in dnssecKeys)
-            key.Dispose();
+            await CaptureAsync(CloseKeyAsync(key), failures).ConfigureAwait(false);
+        if (failures.Count == 1) ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures.Count > 1) throw new AggregateException(failures);
+    }
+
+    private async Task ClosePublicationAsync()
+    {
+        if (Publication is not null) await Publication.DisposeAsync().ConfigureAwait(false);
+    }
+
+    private async Task CloseSnapshotsAsync()
+    {
+        if (snapshots is not null) await snapshots.DisposeAsync().ConfigureAwait(false);
+    }
+
+    private async Task CloseStoreAsync()
+    {
+        if (store is not null) await store.DisposeAsync().ConfigureAwait(false);
+    }
+
+    private async Task CloseTransportAsync()
+    {
+        // Each independently acquired native owner is attempted even if another
+        // terminal disposal faults. Native keys retire after actual store drain.
+        List<Exception> failures = [];
+        await CaptureAsync(CloseClientAsync(), failures).ConfigureAwait(false);
+        await CaptureAsync(CloseJournalAsync(), failures).ConfigureAwait(false);
+        await CaptureAsync(CloseAuthenticatorAsync(), failures).ConfigureAwait(false);
+        if (failures.Count > 0) throw new AggregateException(failures);
+    }
+
+    private async Task CloseClientAsync() { await Task.CompletedTask.ConfigureAwait(false); client?.Dispose(); }
+    private async Task CloseJournalAsync() { await Task.CompletedTask.ConfigureAwait(false); journal?.Dispose(); }
+    private async Task CloseAuthenticatorAsync() { await Task.CompletedTask.ConfigureAwait(false); authenticator?.Dispose(); }
+    private static async Task CloseKeyAsync(EcdsaP256DnssecSigningKey key) { await Task.CompletedTask.ConfigureAwait(false); key.Dispose(); }
+
+    private static async Task CaptureAsync(Task task, List<Exception> failures)
+    {
+        try { await task.WaitAsync(CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception error) when (task.IsFaulted || task.IsCanceled)
+        {
+            if (task.Exception is { InnerExceptions.Count: 1 } single) failures.Add(single.InnerExceptions[0]);
+            else failures.Add(task.Exception ?? error);
+        }
     }
 }

@@ -259,19 +259,33 @@ public sealed class ControlPlaneTests(PostgresFixture postgres) : IClassFixture<
         Task<IControlTransaction>? queued)
     {
         var disposal = store.DisposeAsync().AsTask();
-        await TestTaskSettlement.RunAsync(() => transaction.DisposeAsync().AsTask(), async () =>
+        var observed = false;
+        await TestTaskSettlement.RunAsync(async () =>
+        {
+            // Keep the admitted SQL lock until cancellation of the queued call
+            // is observed. Releasing it first races cancellation with the final
+            // post-acquisition closed-owner fence and changes the refusal type.
+            await RetireQueuedAsync(queued?.WaitAsync(CancellationToken.None), guarded: true).ConfigureAwait(true);
+            observed = true;
+        }, async () => await TestTaskSettlement.RunAsync(() => transaction.DisposeAsync().AsTask(), async () =>
         {
             await TestTaskSettlement.RunAsync(async () =>
             {
-                if (queued is null) return;
-                try
-                {
-                    var unexpected = await queued.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
-                    await unexpected.DisposeAsync().ConfigureAwait(true);
-                }
-                catch (OperationCanceledException) when (queued.IsCanceled) { }
-            }, () => disposal.WaitAsync(TimeSpan.FromSeconds(10))).ConfigureAwait(true);
-        }).ConfigureAwait(true);
+                if (!observed) await RetireQueuedAsync(queued?.WaitAsync(CancellationToken.None), guarded: false).ConfigureAwait(true);
+            }, async () => await TestTaskSettlement.RunAsync(() => disposal.WaitAsync(TimeSpan.FromSeconds(10)),
+                () => disposal.WaitAsync(CancellationToken.None)).ConfigureAwait(true)).ConfigureAwait(true);
+        }).ConfigureAwait(true)).ConfigureAwait(true);
+    }
+
+    private static async Task RetireQueuedAsync(Task<IControlTransaction>? queued, bool guarded)
+    {
+        if (queued is null) return;
+        try
+        {
+            var unexpected = await (guarded ? queued.WaitAsync(TimeSpan.FromSeconds(10)) : queued.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+            await unexpected.DisposeAsync().ConfigureAwait(true);
+        }
+        catch (OperationCanceledException) when (queued.IsCanceled) { }
     }
 
     [Fact]

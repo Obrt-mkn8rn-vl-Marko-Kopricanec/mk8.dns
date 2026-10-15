@@ -33,8 +33,7 @@ var control = new ControlRuntime();
 await using var controlLifetime = control.ConfigureAwait(false);
 control.Prepare(settings, secrets);
 using var socket = new PrivateUnixSocket(settings.SocketPath);
-var snapshots = new FileZoneSnapshotStore(settings.StateDirectory);
-await using var snapshotLifetime = snapshots.ConfigureAwait(false);
+var snapshots = control.OpenSnapshots(settings.StateDirectory);
 await control.InitializeAsync(settings, snapshots, cookies, tsig, limiter).ConfigureAwait(false);
 AuthoritativeApplication? authority = control.Authority;
 if (settings.ZoneIds.Count != 0)

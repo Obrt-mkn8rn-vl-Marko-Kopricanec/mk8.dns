@@ -92,13 +92,23 @@ public sealed class QnameMinimisationLifetimeTests
         fixture.Delayed = (_, _) => new ValueTask<DnsUpstreamEvidence>(release.Task);
         using var cancellation = new CancellationTokenSource();
         var pending = fixture.Resolver().ResolveDnssecAsync(new DnsQuestion(DnsName.Parse("private.team.example."), 1, 1), cancellation.Token).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             Assert.Contains(fixture.Calls, call => call.Question.Type == 2);
             await cancellation.CancelAsync().ConfigureAwait(true); Assert.False(pending.IsCompleted);
-        }
-        finally { release.TrySetResult(null!); }
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
+        }, async () =>
+        {
+            await TestTaskSettlement.RunAsync(() => cancellation.CancelAsync(), async () =>
+            {
+                release.TrySetResult(null!);
+                await TestTaskSettlement.RunAsync(async () =>
+                    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None)).ConfigureAwait(true), async () =>
+                {
+                    var error = await Record.ExceptionAsync(() => pending.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+                    if (error is not OperationCanceledException) Assert.Null(error);
+                }).ConfigureAwait(true);
+            }).ConfigureAwait(true);
+        }).ConfigureAwait(true);
         Assert.DoesNotContain(fixture.Calls, call => call.Question.Type == 1);
     }
 }

@@ -36,7 +36,7 @@ public sealed class SignedPublicationTests(PostgresFixture postgres) : IClassFix
         time.Seconds = 2000;
         Assert.Equal(accepted, await management.ExecuteAsync(edit, CancellationToken.None).ConfigureAwait(true));
         Assert.Equal(calls, counter.Calls);
-        var replica = new ReplicaFixture(control);
+        var replica = await ReplicaFixture.CreateAsync(control).ConfigureAwait(true);
         await using var replicaLifetime = replica.ConfigureAwait(true);
         await replica.OpenSignedAsync(time).ConfigureAwait(true);
         var publisher = new OutboxPublisher(store, replica.Signer, replica.Publication!);
@@ -70,7 +70,7 @@ public sealed class SignedPublicationTests(PostgresFixture postgres) : IClassFix
         var time = new Clock();
         var management = new ZoneManagementApplication(store, control.Authorizer(), Codec(key, time), ControlFixture.Node);
         _ = await management.ExecuteAsync(control.Edit(), CancellationToken.None).ConfigureAwait(true);
-        var replica = new ReplicaFixture(control);
+        var replica = await ReplicaFixture.CreateAsync(control).ConfigureAwait(true);
         await using var replicaLifetime = replica.ConfigureAwait(true);
         await replica.OpenSignedAsync(time).ConfigureAwait(true);
         Assert.True(await new OutboxPublisher(store, replica.Signer, replica.Publication!).DispatchOneAsync(CancellationToken.None).ConfigureAwait(true));
@@ -97,7 +97,7 @@ public sealed class SignedPublicationTests(PostgresFixture postgres) : IClassFix
         var codec = Codec(key, time);
         var source = Source(control.Edit());
         var first = codec.Compile(control.Zone, 1, source);
-        var replica = new ReplicaFixture(control);
+        var replica = await ReplicaFixture.CreateAsync(control).ConfigureAwait(true);
         await using var replicaLifetime = replica.ConfigureAwait(true);
         await replica.OpenSignedAsync(time).ConfigureAwait(true);
         await PublishAsync(replica, first).ConfigureAwait(true);
@@ -157,7 +157,7 @@ public sealed class SignedPublicationTests(PostgresFixture postgres) : IClassFix
         using var key = EcdsaP256DnssecSigningKey.Create();
         var time = new Clock();
         var codec = Codec(key, time);
-        var replica = new ReplicaFixture(control);
+        var replica = await ReplicaFixture.CreateAsync(control).ConfigureAwait(true);
         await using var replicaLifetime = replica.ConfigureAwait(true);
         await replica.OpenSignedAsync(time).ConfigureAwait(true);
         var first = codec.Compile(control.Zone, 1, Source(control.Edit()));

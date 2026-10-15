@@ -17,7 +17,7 @@ public sealed class RrsetManagementTests(PostgresFixture postgres) : IClassFixtu
         var fixture = new RecordManagementFixture(await postgres.ResetDatabaseAsync().ConfigureAwait(true));
         await using var lifetime = fixture.ConfigureAwait(true);
         await fixture.InitializeAsync().ConfigureAwait(true);
-        var patch = fixture.Patch(1, RecordManagementFixture.Change("www.example.", 1, [new byte[] { 192, 0, 2, 99 }], replace: true)) with { Credential = fixture.RecordCredential };
+        var patch = fixture.Patch(1, RecordManagementFixture.Change("www.example.", 1, [[192, 0, 2, 99]], replace: true)) with { Credential = fixture.RecordCredential };
         var result = await fixture.Application.ExecuteAsync(patch, CancellationToken.None).ConfigureAwait(true);
         Assert.Equal(2L, result.Revision);
         Assert.Equal(2u, result.Serial);
@@ -49,7 +49,7 @@ public sealed class RrsetManagementTests(PostgresFixture postgres) : IClassFixtu
         Assert.Equal(2L, read.Revision);
         _ = await fixture.Application.ExecuteAsync(loser with { ExpectedRevision = read.Revision }, CancellationToken.None).ConfigureAwait(true);
         Assert.Equal(2, (await ReadChallengeAsync(fixture).ConfigureAwait(true)).Records.Count);
-        var cleanup = fixture.Patch(3, winner.Changes[0] with { Add = Array.Empty<ReadOnlyMemory<byte>>(), Remove = winner.Changes[0].Add }) with { Credential = fixture.AcmeCredential };
+        var cleanup = fixture.Patch(3, winner.Changes[0] with { Add = [], Remove = winner.Changes[0].Add }) with { Credential = fixture.AcmeCredential };
         var removed = await fixture.Application.ExecuteAsync(cleanup, CancellationToken.None).ConfigureAwait(true);
         var remaining = await ReadChallengeAsync(fixture).ConfigureAwait(true);
         Assert.Equal(4L, remaining.Revision);
@@ -94,10 +94,10 @@ public sealed class RrsetManagementTests(PostgresFixture postgres) : IClassFixtu
         {
             "edit" => fixture.Control.Edit(1) with { Credential = fixture.AcmeCredential },
             "other-read" => fixture.Read("www.example.", 1, fixture.AcmeCredential),
-            "other-patch" => fixture.Patch(1, RecordManagementFixture.Change("www.example.", 1, [new byte[] { 192, 0, 2, 99 }])) with { Credential = fixture.AcmeCredential },
-            "readonly-write" => fixture.Patch(1, RecordManagementFixture.Change("www.example.", 1, [new byte[] { 192, 0, 2, 99 }])) with { Credential = fixture.ReaderCredential },
+            "other-patch" => fixture.Patch(1, RecordManagementFixture.Change("www.example.", 1, [[192, 0, 2, 99]])) with { Credential = fixture.AcmeCredential },
+            "readonly-write" => fixture.Patch(1, RecordManagementFixture.Change("www.example.", 1, [[192, 0, 2, 99]])) with { Credential = fixture.ReaderCredential },
             "wrong-tenant" => fixture.Challenge(1) with { TenantId = Guid.NewGuid() },
-            _ => fixture.Control.Edit() with { Action = "status", OperationId = (await fixture.Store.ReadPendingAsync(CancellationToken.None).ConfigureAwait(true))!.OperationId, Credential = fixture.AcmeCredential, Records = Array.Empty<ZoneRecordData>() },
+            _ => fixture.Control.Edit() with { Action = "status", OperationId = (await fixture.Store.ReadPendingAsync(CancellationToken.None).ConfigureAwait(true))!.OperationId, Credential = fixture.AcmeCredential, Records = [] },
         };
         var original = await fixture.SnapshotAsync().ConfigureAwait(true);
         _ = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => fixture.Application.ExecuteAsync(request, CancellationToken.None).AsTask()).ConfigureAwait(true);
@@ -114,15 +114,15 @@ public sealed class RrsetManagementTests(PostgresFixture postgres) : IClassFixtu
         var request = fixture.Challenge(1);
         var accepted = await fixture.Application.ExecuteAsync(request, CancellationToken.None).ConfigureAwait(true);
         Assert.Equal("accepted", accepted.State);
-        Assert.Equal(accepted, await fixture.Application.ExecuteAsync(request with { Action = "status", Changes = Array.Empty<RrsetChange>() }, CancellationToken.None).ConfigureAwait(true));
-        var replica = new ReplicaFixture(fixture.Control);
+        Assert.Equal(accepted, await fixture.Application.ExecuteAsync(request with { Action = "status", Changes = [] }, CancellationToken.None).ConfigureAwait(true));
+        var replica = await ReplicaFixture.CreateAsync(fixture.Control).ConfigureAwait(true);
         await using var replicaLifetime = replica.ConfigureAwait(true);
         await replica.OpenAsync().ConfigureAwait(true);
         var publisher = new OutboxPublisher(fixture.Store, replica.Signer, replica.Publication!);
         Assert.True(await publisher.DispatchOneAsync(CancellationToken.None).ConfigureAwait(true));
         Assert.True(await publisher.DispatchOneAsync(CancellationToken.None).ConfigureAwait(true));
         Assert.False(await publisher.DispatchOneAsync(CancellationToken.None).ConfigureAwait(true));
-        var activated = await fixture.Application.ExecuteAsync(request with { Action = "status", Changes = Array.Empty<RrsetChange>() }, CancellationToken.None).ConfigureAwait(true);
+        var activated = await fixture.Application.ExecuteAsync(request with { Action = "status", Changes = [] }, CancellationToken.None).ConfigureAwait(true);
         Assert.Equal("activated", activated.State);
         Assert.Equal(accepted.ContentHash, activated.ContentHash);
         var active = await replica.Store.ReadActiveAsync(fixture.Control.Zone, CancellationToken.None).ConfigureAwait(true);
@@ -143,14 +143,14 @@ public sealed class RrsetManagementTests(PostgresFixture postgres) : IClassFixtu
         var fixture = new RecordManagementFixture(await postgres.ResetDatabaseAsync().ConfigureAwait(true));
         await using var lifetime = fixture.ConfigureAwait(true);
         await fixture.InitializeAsync().ConfigureAwait(true);
-        var good = RecordManagementFixture.Change("new.example.", 1, [new byte[] { 192, 0, 2, 43 }]);
+        var good = RecordManagementFixture.Change("new.example.", 1, [[192, 0, 2, 43]]);
         var bad = invalid switch
         {
             "soa" => RecordManagementFixture.Change("example.", 6, []),
             "duplicate-rdata" => RecordManagementFixture.Change("mail.example.", 15, [Mx("mx.example."), Mx("MX.EXAMPLE.")]),
             "duplicate-key" => good,
-            "add-remove" => RecordManagementFixture.Change("bad.example.", 1, [new byte[] { 192, 0, 2, 44 }], [new byte[] { 192, 0, 2, 44 }]),
-            "ttl" => RecordManagementFixture.Change("www.example.", 1, [new byte[] { 192, 0, 2, 99 }], ttl: 301),
+            "add-remove" => RecordManagementFixture.Change("bad.example.", 1, [[192, 0, 2, 44]], [[192, 0, 2, 44]]),
+            "ttl" => RecordManagementFixture.Change("www.example.", 1, [[192, 0, 2, 99]], ttl: 301),
             "alias" => RecordManagementFixture.Change("www.example.", 5, [DnsName.Parse("other.example.").ToWire()]),
             _ => RecordManagementFixture.Change("example.", 2, [], replace: true),
         };
@@ -186,7 +186,7 @@ public sealed class RrsetManagementTests(PostgresFixture postgres) : IClassFixtu
         await using var heldLifetime = held.ConfigureAwait(true);
         var value = RecordManagementFixture.Text('A');
         var owner = RecordManagementFixture.ChallengeName.ToWire();
-        var request = fixture.Patch(1, new RrsetChange(owner, 16, 300, new ReadOnlyMemory<byte>[] { value }, Array.Empty<ReadOnlyMemory<byte>>(), false)) with { Credential = fixture.AcmeCredential };
+        var request = fixture.Patch(1, new RrsetChange(owner, 16, 300, [value], [], Replace: false)) with { Credential = fixture.AcmeCredential };
         var pending = fixture.Application.ExecuteAsync(request, CancellationToken.None).AsTask();
         Assert.False(pending.IsCompleted);
         Array.Fill(value, (byte)'B');
@@ -207,7 +207,7 @@ public sealed class RrsetManagementTests(PostgresFixture postgres) : IClassFixtu
         await using var heldLifetime = held.ConfigureAwait(true);
         var mutation = fixture.Application.ExecuteAsync(fixture.Challenge(1), CancellationToken.None).AsTask();
         var read = ReadChallengeAsync(fixture);
-        var unknownStatus = fixture.Application.ExecuteAsync(fixture.Challenge(1) with { Action = "status", Changes = Array.Empty<RrsetChange>() }, CancellationToken.None).AsTask();
+        var unknownStatus = fixture.Application.ExecuteAsync(fixture.Challenge(1) with { Action = "status", Changes = [] }, CancellationToken.None).AsTask();
         Assert.False(mutation.IsCompleted);
         Assert.False(read.IsCompleted);
         Assert.False(unknownStatus.IsCompleted);
@@ -232,14 +232,14 @@ public sealed class RrsetManagementTests(PostgresFixture postgres) : IClassFixtu
         _ = await fixture.Application.ExecuteAsync(remove, CancellationToken.None).ConfigureAwait(true);
         Assert.Empty((await fixture.Application.ExecuteAsync(fixture.Read("mail.example.", 15), CancellationToken.None).ConfigureAwait(true)).Records);
         var read = fixture.Read("www.example.", 1);
-        _ = await Assert.ThrowsAsync<ArgumentException>(() => fixture.Application.ExecuteAsync(read with { Selection = read.Selection.Concat(read.Selection).ToArray() }, CancellationToken.None).AsTask()).ConfigureAwait(true);
-        _ = await Assert.ThrowsAsync<ArgumentException>(() => fixture.Application.ExecuteAsync(read with { Selection = Array.Empty<RrsetKey>() }, CancellationToken.None).AsTask()).ConfigureAwait(true);
+        _ = await Assert.ThrowsAsync<ArgumentException>(() => fixture.Application.ExecuteAsync(read with { Selection = [.. read.Selection, .. read.Selection] }, CancellationToken.None).AsTask()).ConfigureAwait(true);
+        _ = await Assert.ThrowsAsync<ArgumentException>(() => fixture.Application.ExecuteAsync(read with { Selection = [] }, CancellationToken.None).AsTask()).ConfigureAwait(true);
         _ = await Assert.ThrowsAsync<ArgumentException>(() => fixture.Application.ExecuteAsync(fixture.Read("outside.", 1), CancellationToken.None).AsTask()).ConfigureAwait(true);
         Assert.Equal(3L, (await fixture.SnapshotAsync().ConfigureAwait(true)).Revision);
     }
 
     private static Task<ManagementReply> ReadChallengeAsync(RecordManagementFixture fixture) => fixture.Application.ExecuteAsync(fixture.Read(RecordManagementFixture.ChallengeName.ToString(), 16, fixture.AcmeCredential), CancellationToken.None).AsTask();
-    private static byte[] Mx(string name) => new byte[] { 0, 10 }.Concat(DnsName.Parse(name).ToWire()).ToArray();
+    private static byte[] Mx(string name) => [0, 10, .. DnsName.Parse(name).ToWire()];
 
     private static async Task<bool> TryPatchAsync(RecordManagementFixture fixture, ManagementRequest request)
     {
