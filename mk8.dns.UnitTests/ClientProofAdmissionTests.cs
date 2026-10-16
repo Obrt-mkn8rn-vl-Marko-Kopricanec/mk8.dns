@@ -55,16 +55,15 @@ public sealed class ClientProofAdmissionTests
             return ValueTask.FromResult(fixture.Default(actual, server));
         };
         var operation = ClientProofFixture.Resolver(fixture).ResolveDnssecAsync(question, cancellation.Token).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None);
-            await cancellation.CancelAsync();
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
+            await cancellation.CancelAsync().ConfigureAwait(true);
             Assert.False(operation.IsCompleted);
-        }
-        finally
+        }, async () =>
         {
-            completion.TrySetResult(fixture.Default(ClientProofFixture.Question(), OnlineDnssecFixture.RootServer));
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None));
-        }
+            await TestTaskSettlement.CancelReleaseAndJoinAsync(cancellation, () => completion.TrySetResult(fixture.Default(ClientProofFixture.Question(), OnlineDnssecFixture.RootServer)),
+                operation.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+        }).ConfigureAwait(true);
     }
 }

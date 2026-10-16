@@ -43,19 +43,15 @@ public sealed class OnlineDnssecDnameBudgetTests
             ? new ValueTask<DnsUpstreamEvidence>(completion.Task)
             : ValueTask.FromResult(fixture.Zones.Transform!(fixture.Zones.Default(question, server)));
         var operation = fixture.Zones.Resolver().ResolveDnssecAsync(OnlineDnssecDnameFixture.Question(), cancellation.Token).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             Assert.Equal(3, fixture.Zones.Calls.Count);
-            await cancellation.CancelAsync();
+            await cancellation.CancelAsync().ConfigureAwait(true);
             Assert.False(operation.IsCompleted);
-        }
-        finally
+        }, async () =>
         {
-            completion.TrySetResult(fixture.Zones.Default(target, OnlineDnssecFixture.RootServer));
-            OperationCanceledException? terminal = null;
-            try { await operation.WaitAsync(TimeSpan.FromSeconds(5)); }
-            catch (OperationCanceledException error) { terminal = error; }
-            Assert.IsAssignableFrom<OperationCanceledException>(terminal);
-        }
+            await TestTaskSettlement.CancelReleaseAndJoinAsync(cancellation, () => completion.TrySetResult(fixture.Zones.Default(target, OnlineDnssecFixture.RootServer)),
+                operation.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+        }).ConfigureAwait(true);
     }
 }

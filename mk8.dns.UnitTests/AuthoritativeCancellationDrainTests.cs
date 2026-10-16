@@ -47,10 +47,12 @@ public sealed class AuthoritativeCancellationDrainTests
             exchange.Release.TrySetResult([]); exchange.TcpRelease.TrySetResult();
             await TestTaskSettlement.RunAsync(() => caller.CancelAsync(), async () =>
             {
-                var error = await Record.ExceptionAsync(() => run.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None)).ConfigureAwait(true);
-                if (error is not null and not AggregateException and not OperationCanceledException)
-                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
-                await exchange.DisposeAsync().ConfigureAwait(true);
+                await TestTaskSettlement.InOrderAsync(
+                    () => TestTaskSettlement.WaitAsync(run.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(5), error =>
+                        error is OperationCanceledException || (error is AggregateException aggregate
+                        && aggregate.Flatten().InnerExceptions.All(leaf => ReferenceEquals(leaf, exchange.Primary)
+                            || ReferenceEquals(leaf, exchange.CallbackFault) || leaf is OperationCanceledException))),
+                    async () => await exchange.DisposeAsync().ConfigureAwait(true)).ConfigureAwait(true);
             }).ConfigureAwait(true);
         }).ConfigureAwait(true);
     }

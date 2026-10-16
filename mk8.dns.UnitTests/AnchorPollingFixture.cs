@@ -33,20 +33,17 @@ internal sealed class AnchorPollingFixture : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Clock.DisposalReleased.TrySetResult();
-        try
-        {
-            foreach (var poller in pollers)
-            {
-                try { await poller.DisposeAsync().AsTask().WaitAsync(Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
-                catch (IOException) when (expectedFaults.Contains(poller)) { /* Separately asserted controlled fault. */ }
-                catch (InvalidDataException) when (expectedFaults.Contains(poller)) { /* Separately asserted ambiguous acknowledgement. */ }
-                catch (AggregateException) when (expectedFaults.Contains(poller)) { /* Separately asserted controlled fault. */ }
-                catch (OperationCanceledException) when (expectedFaults.Contains(poller)) { /* Separately asserted controlled fault. */ }
-                catch (InvalidOperationException) when (expectedFaults.Contains(poller)) { /* Separately asserted controlled fault. */ }
-            }
-        }
-        finally { await Refresher.DisposeAsync().ConfigureAwait(true); Source.Dispose(); }
+        await TestTaskSettlement.InOrderAsync(
+            () => TestTaskSettlement.AllAsync([.. pollers.Select(poller => (Func<Task>)(() =>
+                TestTaskSettlement.WaitAsync(poller.DisposeAsync().AsTask().WaitAsync(CancellationToken.None), Timeout,
+                    error => expectedFaults.Contains(poller) && ExpectedFault(error))))]),
+            async () => await Refresher.DisposeAsync().ConfigureAwait(true),
+            () => { Source.Dispose(); return Task.CompletedTask; }).ConfigureAwait(true);
     }
+
+    private static bool ExpectedFault(Exception error)
+        => error is AggregateException aggregate ? aggregate.Flatten().InnerExceptions.All(ExpectedFault)
+            : error is IOException or InvalidDataException or OperationCanceledException or InvalidOperationException;
 
     internal sealed class ClockProvider(DnssecChainFixture.ClockProvider source) : TimeProvider
     {
@@ -84,13 +81,18 @@ internal sealed class AnchorPollingFixture : IAsyncDisposable
             public void Dispose() => timer.Dispose();
             public async ValueTask DisposeAsync()
             {
-                if (hold)
+                await TestTaskSettlement.RunAsync(async () =>
                 {
-                    owner.DisposalEntered.TrySetResult();
-                    await owner.DisposalReleased.Task.WaitAsync(Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
-                }
-                await timer.DisposeAsync().ConfigureAwait(true);
-                if (fail) throw new IOException("Controlled timer disposal failure.");
+                    if (hold)
+                    {
+                        owner.DisposalEntered.TrySetResult();
+                        await owner.DisposalReleased.Task.WaitAsync(Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
+                    }
+                }, async () =>
+                {
+                    await timer.DisposeAsync().ConfigureAwait(true);
+                    if (fail) throw new IOException("Controlled timer disposal failure.");
+                }).ConfigureAwait(true);
             }
         }
     }

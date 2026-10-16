@@ -22,7 +22,7 @@ public sealed class OnlineDnssecLifetimeTests
     public async Task ZeroLifetimeDnskeyCannotBootstrap()
     {
         using var fixture = new OnlineDnssecFixture();
-        fixture.Transform = reply => OnlineDnssecFixture.Copy(reply, answers: reply.Answers.Select(record => record.WithTtl(0)).ToArray());
+        fixture.Transform = reply => OnlineDnssecFixture.Copy(reply, answers: [.. reply.Answers.Select(record => record.WithTtl(0))]);
         var result = await fixture.Resolver().ResolveDnssecAsync(Question(), CancellationToken.None);
         Assert.Equal(DnssecResolutionOutcome.Failure, result.Outcome);
         Assert.Single(fixture.Calls);
@@ -88,7 +88,10 @@ public sealed class OnlineDnssecLifetimeTests
         using var fixture = new OnlineDnssecFixture();
         fixture.Transform = reply =>
         {
-            if (reply.Question.Type == 48) fixture.Clock.Advance(10);
+            if (reply.Question.Type == 48)
+            {
+                fixture.Clock.Advance(10);
+            }
             else { fixture.Clock.SetMonotonic(0); fixture.Clock.SetWall(100); }
             return reply;
         };
@@ -105,20 +108,16 @@ public sealed class OnlineDnssecLifetimeTests
         var completion = new TaskCompletionSource<DnsUpstreamEvidence>(TaskCreationOptions.RunContinuationsAsynchronously);
         fixture.Override = (_, _, _) => new ValueTask<DnsUpstreamEvidence>(completion.Task);
         var operation = fixture.Resolver().ResolveDnssecAsync(Question(), cancellation.Token).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             Assert.Single(fixture.Calls);
-            await cancellation.CancelAsync();
+            await cancellation.CancelAsync().ConfigureAwait(true);
             Assert.False(operation.IsCompleted);
-        }
-        finally
+        }, async () =>
         {
-            completion.TrySetResult(fixture.Default(new DnsQuestion(fixture.Root, 48, 1), OnlineDnssecFixture.RootServer));
-            OperationCanceledException? terminal = null;
-            try { await operation.WaitAsync(TimeSpan.FromSeconds(5)); }
-            catch (OperationCanceledException error) { terminal = error; }
-            Assert.IsAssignableFrom<OperationCanceledException>(terminal);
-        }
+            await TestTaskSettlement.CancelReleaseAndJoinAsync(cancellation, () => completion.TrySetResult(fixture.Default(new DnsQuestion(fixture.Root, 48, 1), OnlineDnssecFixture.RootServer)),
+                operation.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+        }).ConfigureAwait(true);
         Assert.Single(fixture.Calls);
     }
 

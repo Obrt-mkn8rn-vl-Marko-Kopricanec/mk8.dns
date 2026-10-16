@@ -54,12 +54,10 @@ internal sealed class NativeClientListenerFixture : IAsyncDisposable
     {
         var stopped = Listener.DisposeAsync().AsTask();
         foreach (var (Held, Reply) in held) Held.TrySetResult(Reply);
-        try { await stopped.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
-        catch (Exception error) when (ExpectedFailure is not null && OnlyExpected(error, ExpectedFailure)) { }
-        finally
-        {
-            await Processor.DisposeAsync().ConfigureAwait(true);
-            await Epoch.DisposeAsync().ConfigureAwait(true);
-        }
+        await TestTaskSettlement.InOrderAsync(
+            () => TestTaskSettlement.WaitAsync(stopped.WaitAsync(CancellationToken.None), AnchorRefreshFixture.Timeout,
+                error => ExpectedFailure is not null && OnlyExpected(error, ExpectedFailure)),
+            async () => await Processor.DisposeAsync().ConfigureAwait(true),
+            async () => await Epoch.DisposeAsync().ConfigureAwait(true)).ConfigureAwait(true);
     }
 }
