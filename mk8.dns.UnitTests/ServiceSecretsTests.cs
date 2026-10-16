@@ -32,6 +32,85 @@ public sealed class ServiceSecretsTests
         Assert.False(File.Exists(Path.Combine(fixture.Root, ".installation.key")));
     }
 
+    [Theory]
+    [InlineData("Application", false)]
+    [InlineData("Application", true)]
+    [InlineData("Gateway", false)]
+    [InlineData("Gateway", true)]
+    [InlineData("Operator", false)]
+    [InlineData("Operator", true)]
+    public async Task MissingOrEmptyActiveCannotAcquireAnIndependentValidTemplate(string role, bool empty)
+    {
+        using var fixture = new SecretsFixture();
+        var active = Path.Combine(fixture.Root, ".env");
+        if (empty) await File.WriteAllBytesAsync(active, [], CancellationToken.None);
+        var template = SupprocomSecretDocument.Serialize([new(role + ":Settings", "[\"template-sentinel\"]")]);
+        Assert.Single(SupprocomSecretDocument.Parse(template).Settings);
+        var templatePath = Path.Combine(fixture.Root, ".env.template");
+        await File.WriteAllTextAsync(templatePath, template, CancellationToken.None);
+        var key = Enumerable.Repeat((byte)42, 32).ToArray(); // NONPRODUCTION installation fixture key.
+        var keyPath = Path.Combine(fixture.Root, ".installation.key");
+        await File.WriteAllBytesAsync(keyPath, key, CancellationToken.None);
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => DnsServiceSecrets.LoadDirectoryAsync(role, fixture.Root, CancellationToken.None));
+        Assert.Equal(empty ? "SecretLoadFailed:InvalidTemplate" : "SecretDocumentMissing", error.Message);
+        Assert.Equal(empty, File.Exists(active));
+        if (empty) Assert.Empty(await File.ReadAllBytesAsync(active, CancellationToken.None));
+        Assert.Equal(template, await File.ReadAllTextAsync(templatePath, CancellationToken.None));
+        Assert.Equal(key, await File.ReadAllBytesAsync(keyPath, CancellationToken.None));
+        Assert.Null(error.InnerException);
+    }
+
+    [Theory]
+    [InlineData("Application")]
+    [InlineData("Gateway")]
+    [InlineData("Operator")]
+    public async Task ValidActiveValuesRemainAuthoritativeBesideAnIndependentTemplate(string role)
+    {
+        using var fixture = new SecretsFixture();
+        fixture.Write([new(role + ":Settings", "[\"active-sentinel\"]")]);
+        var template = SupprocomSecretDocument.Serialize([new(role + ":Settings", "[\"template-sentinel\"]")]);
+        var path = Path.Combine(fixture.Root, ".env.template");
+        await File.WriteAllTextAsync(path, template, CancellationToken.None);
+        var snapshot = await DnsServiceSecrets.LoadDirectoryAsync(role, fixture.Root, CancellationToken.None);
+        Assert.Equal(["active-sentinel"], snapshot.Arguments("Settings"));
+        Assert.Equal(template, await File.ReadAllTextAsync(path, CancellationToken.None));
+        Assert.Equal(SecretFileProtectionState.Protected, await fixture.Store().GetStateAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task LostActiveAtBuiltinAcquisitionReturnsNoValuesOrSynthesis()
+    {
+        using var fixture = new SecretsFixture();
+        fixture.Write([new("Gateway:Settings", "[\"active\"]")]);
+        var store = DnsServiceSecrets.CreateActiveStore(fixture.Root);
+        var template = SupprocomSecretDocument.Serialize([new("Gateway:Settings", "[\"template\"]")]);
+        var path = Path.Combine(fixture.Root, ".env.template");
+        await File.WriteAllTextAsync(path, template, CancellationToken.None);
+        File.Delete(Path.Combine(fixture.Root, ".env"));
+        Assert.Empty(await store.LoadAsync(CancellationToken.None));
+        Assert.False(File.Exists(Path.Combine(fixture.Root, ".env")));
+        Assert.False(File.Exists(Path.Combine(fixture.Root, ".installation.key")));
+        Assert.Equal(template, await File.ReadAllTextAsync(path, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task LostActiveIsRefusedBeforeTheDnsSnapshotCanBePublished()
+    {
+        using var fixture = new SecretsFixture();
+        fixture.Write([new("Gateway:Settings", "[\"active\"]")]);
+        var store = DnsServiceSecrets.CreateActiveStore(fixture.Root);
+        var template = SupprocomSecretDocument.Serialize([new("Gateway:Settings", "[\"template\"]")]);
+        var path = Path.Combine(fixture.Root, ".env.template");
+        await File.WriteAllTextAsync(path, template, CancellationToken.None);
+        File.Delete(Path.Combine(fixture.Root, ".env"));
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => DnsServiceSecrets.AcquireSnapshotAsync("Gateway", store, CancellationToken.None));
+        Assert.Equal("SecretSchemaBounds", error.Message);
+        Assert.Null(error.InnerException);
+        Assert.False(File.Exists(Path.Combine(fixture.Root, ".env")));
+        Assert.False(File.Exists(Path.Combine(fixture.Root, ".installation.key")));
+        Assert.Equal(template, await File.ReadAllTextAsync(path, CancellationToken.None));
+    }
+
     [Fact]
     public async Task ProductionIgnoresDevelopmentDocumentsAndPreservesRoleIsolation()
     {

@@ -234,7 +234,7 @@ public sealed class PublicationTests
         Task<PublicationReply>? queued = null;
         await TestTaskSettlement.RunAsync(async () =>
         {
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10), TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             queued = publisher.ExecuteAsync(prepared, CancellationToken.None).AsTask();
             var disposal = publisher.DisposeAsync().AsTask();
             Assert.False(disposal.IsCompleted);
@@ -248,13 +248,15 @@ public sealed class PublicationTests
             resume.TrySetResult();
             // Begin closure even when the first entry observer failed.
             var disposal = publisher.DisposeAsync().AsTask();
-            await activation.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
-            if (queued is not null)
-            {
-                try { await queued.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true); }
-                catch (ObjectDisposedException) when (queued.IsFaulted) { }
-            }
-            await disposal.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+            await TestTaskSettlement.AllAsync(
+                () => TestTaskSettlement.WaitAsync(activation.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(10)),
+                async () =>
+                {
+                    if (queued is null) return;
+                    try { await TestTaskSettlement.WaitAsync(queued.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(10)).ConfigureAwait(true); }
+                    catch (ObjectDisposedException) when (queued.IsFaulted) { }
+                },
+                () => TestTaskSettlement.WaitAsync(disposal.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(10))).ConfigureAwait(true);
         }).ConfigureAwait(true);
     }
 

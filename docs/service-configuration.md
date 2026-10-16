@@ -12,8 +12,14 @@ The loader explicitly selects Production, `FileOverridesProcessEnvironment=true`
 `Import=None`, `Recovery=None`, and `InstallationBoundAesGcm` with the built-in
 `.installation.key`. It does not add process environment, default host settings,
 appsettings files, legacy JSON files, external pointers/manifests/adapters or
-credential/key files as service-value authorities. An absent active document
-fails before any template can supply values. Web hosts use the empty builder with explicit Kestrel/routing and Production;
+credential/key files as service-value authorities. The builtin active and template
+names are both fixed to `.env`: a separate `.env.template` is never an acquisition
+source, including when active input is empty or lost. Initially absent active input
+is refused before builtin acquisition; empty active input is refused by the pinned
+builtin template validation against that same empty active path. The package still
+owns its normal protection/key writes for valid active input. This is not a
+certificate against arbitrary concurrent filesystem replacement or compromised
+installation custody. Web hosts use the empty builder with explicit Kestrel/routing and Production;
 no default JSON/environment providers are constructed. The single in-memory
 framework source holds the fixed hosting-startup prevention guard only;
 service values are consumed exclusively from the typed package snapshot. Publishing copies nonsecret

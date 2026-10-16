@@ -14,7 +14,7 @@ public sealed class AnchorPollingCommitTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         fixture.Source.Store.AfterCommit = () => { entered.TrySetResult(); if (!release.Wait(AnchorPollingFixture.Timeout)) throw new TimeoutException(); };
         var poller = fixture.Create(); await fixture.Clock.NextTimerAsync().ConfigureAwait(true); fixture.Clock.Set(7200);
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             await entered.Task.WaitAsync(AnchorPollingFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             Assert.Equal(2, fixture.Source.Store.State.Revision); Assert.Equal(1, fixture.Refresher.Current.Revision);
@@ -22,8 +22,11 @@ public sealed class AnchorPollingCommitTests
             await close.WaitAsync(AnchorPollingFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             Assert.Equal(1, poller.Statistics.Applied); Assert.Equal(2, fixture.Refresher.Current.Revision);
             Assert.Equal(1, fixture.Source.Upstream.Calls); Assert.True(poller.Statistics.Completed);
-        }
-        finally { release.Set(); }
+        }, async () =>
+        {
+            release.Set();
+            await TestTaskSettlement.WaitAsync(poller.DisposeAsync().AsTask().WaitAsync(CancellationToken.None), AnchorPollingFixture.Timeout).ConfigureAwait(true);
+        }).ConfigureAwait(true);
     }
 
     [Fact]
@@ -35,7 +38,7 @@ public sealed class AnchorPollingCommitTests
         fixture.Source.Store.BeforeCommit = () => { entered.TrySetResult(); if (!release.Wait(AnchorPollingFixture.Timeout)) throw new TimeoutException(); };
         var poller = fixture.Create(); fixture.ExpectFault(poller);
         await fixture.Clock.NextTimerAsync().ConfigureAwait(true); fixture.Clock.Set(7200);
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             await entered.Task.WaitAsync(AnchorPollingFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             var close = poller.DisposeAsync().AsTask(); Assert.False(close.IsCompleted); release.Set();
@@ -44,8 +47,13 @@ public sealed class AnchorPollingCommitTests
             Assert.Contains(error.InnerExceptions, exception => exception is IOException);
             Assert.Throws<IOException>(() => fixture.Refresher.Current);
             Assert.Equal(0, fixture.Source.Store.Commits); Assert.Equal(0, poller.Statistics.Applied);
-        }
-        finally { release.Set(); }
+        }, async () =>
+        {
+            release.Set();
+            var actual = poller.DisposeAsync().AsTask();
+            try { await TestTaskSettlement.WaitAsync(actual.WaitAsync(CancellationToken.None), AnchorPollingFixture.Timeout).ConfigureAwait(true); }
+            catch (AggregateException error) when (actual.IsFaulted && error.Flatten().InnerExceptions.All(e => e is IOException or OperationCanceledException)) { }
+        }).ConfigureAwait(true);
     }
 
     [Fact]
@@ -64,6 +72,6 @@ public sealed class AnchorPollingCommitTests
             Assert.Equal(1, poller.Statistics.Busy); Assert.Equal(1, poller.Statistics.Attempts); Assert.False(external.IsCompleted);
             Assert.Equal(1, fixture.Source.Upstream.Calls); Assert.Equal(0, fixture.Source.Store.Commits);
         }
-        finally { held.TrySetResult(fixture.Source.Reply()); await external.WaitAsync(AnchorPollingFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
+        finally { held.TrySetResult(fixture.Source.Reply()); await TestTaskSettlement.WaitAsync(external.WaitAsync(CancellationToken.None), AnchorPollingFixture.Timeout).ConfigureAwait(true); }
     }
 }

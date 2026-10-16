@@ -29,7 +29,7 @@ public sealed class DnssecCacheLifecycleTests
         finally
         {
             held.TrySetResult(fixture.Default(new DnsQuestion(fixture.Root, 48, 1), OnlineDnssecFixture.RootServer));
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request.WaitAsync(TimeSpan.FromSeconds(5))).ConfigureAwait(true);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
         }
         Assert.Equal(0, cache.Statistics.ActiveRequests);
         Assert.Equal(0, cache.Statistics.Entries);
@@ -48,22 +48,31 @@ public sealed class DnssecCacheLifecycleTests
         var operation = cache.ResolveDnssecAsync(DnssecCacheResolutionTests.Question(), CancellationToken.None).AsTask();
         var first = cache.DisposeAsync().AsTask();
         var second = cache.DisposeAsync().AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             Assert.Same(first, second);
             Assert.False(first.IsCompleted);
             Assert.Equal(1, cache.Statistics.ActiveRequests);
-            await Assert.ThrowsAsync<ObjectDisposedException>(() => cache.ResolveDnssecAsync(DnssecCacheResolutionTests.Question(), CancellationToken.None).AsTask());
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => cache.ResolveDnssecAsync(DnssecCacheResolutionTests.Question(), CancellationToken.None).AsTask()).ConfigureAwait(true);
             Assert.Throws<ObjectDisposedException>(cache.Clear);
-        }
-        finally
+        }, async () =>
         {
             if (fault) held.TrySetException(new InvalidOperationException("Controlled provider failure."));
             else held.TrySetResult(fixture.Default(new DnsQuestion(fixture.Root, 48, 1), OnlineDnssecFixture.RootServer));
-            if (fault) await Assert.ThrowsAsync<InvalidOperationException>(() => operation.WaitAsync(TimeSpan.FromSeconds(5))).ConfigureAwait(true);
-            else Assert.Equal(DnssecResolutionOutcome.Authenticated, (await operation.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true)).Outcome);
-            await first.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true);
-        }
+            await TestTaskSettlement.AllAsync(async () =>
+            {
+                await TestTaskSettlement.RunAsync(async () =>
+                {
+                    if (fault) await Assert.ThrowsAsync<InvalidOperationException>(() => operation.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
+                    else Assert.Equal(DnssecResolutionOutcome.Authenticated, (await operation.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None).ConfigureAwait(true)).Outcome);
+                }, async () =>
+                {
+                    var error = await Record.ExceptionAsync(() => operation.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+                    if (fault) Assert.IsType<InvalidOperationException>(error);
+                    else Assert.Null(error);
+                }).ConfigureAwait(true);
+            }, () => TestTaskSettlement.WaitAsync(first.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(5))).ConfigureAwait(true);
+        }).ConfigureAwait(true);
         Assert.Equal(0, cache.Statistics.ActiveRequests);
         Assert.Equal(0, cache.Statistics.Entries);
     }
@@ -86,7 +95,7 @@ public sealed class DnssecCacheLifecycleTests
             Assert.Equal(1, cache.Statistics.ActiveRequests);
         }
         finally { held.TrySetResult(fixture.Default(new DnsQuestion(fixture.Root, 48, 1), OnlineDnssecFixture.RootServer)); }
-        Assert.Equal(DnssecResolutionOutcome.Authenticated, (await operation.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true)).Outcome);
+        Assert.Equal(DnssecResolutionOutcome.Authenticated, (await operation.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None).ConfigureAwait(true)).Outcome);
         Assert.Equal(0, cache.Statistics.Entries);
         await cache.ResolveDnssecAsync(question, CancellationToken.None);
         Assert.Equal(4, fixture.Calls.Count);

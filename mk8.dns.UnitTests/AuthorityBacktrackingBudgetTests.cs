@@ -48,13 +48,19 @@ public sealed class AuthorityBacktrackingBudgetTests
         TaskCompletionSource<DnsUpstreamEvidence> release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         fixture.BadReply = (_, _) => new ValueTask<DnsUpstreamEvidence>(release.Task);
         var task = fixture.Resolver().ResolveDnssecAsync(AuthorityBacktrackingFixture.Question, cancel.Token).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             Assert.Equal(5, fixture.Calls.Count);
-            await cancel.CancelAsync(); Assert.False(task.IsCompleted);
-        }
-        finally { release.TrySetResult(null!); }
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task.WaitAsync(CancellationToken.None));
+            await cancel.CancelAsync().ConfigureAwait(true); Assert.False(task.IsCompleted);
+        }, async () =>
+        {
+            await TestTaskSettlement.RunAsync(() => cancel.CancelAsync(), async () =>
+            {
+                release.TrySetResult(null!);
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+            }).ConfigureAwait(true);
+        }).ConfigureAwait(true);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
         Assert.DoesNotContain(fixture.Calls, call => call.Server.Equals(AuthorityBacktrackingFixture.AlternateRoot));
     }
 }

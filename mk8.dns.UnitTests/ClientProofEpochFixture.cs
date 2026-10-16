@@ -68,12 +68,13 @@ internal sealed class ClientProofEpochFixture : IAsyncDisposable
         Clock.BeforeTimestamp = null;
         var closing = Resolver.DisposeAsync().AsTask();
         foreach (var (Held, Reply) in held) Held.TrySetResult(Reply);
-        try { await closing.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
-        finally
-        {
-            await Refresh.DisposeAsync().ConfigureAwait(true);
-            Anchors.Dispose();
-        }
+        await TestTaskSettlement.RunAsync(
+            () => TestTaskSettlement.WaitAsync(closing.WaitAsync(CancellationToken.None), AnchorRefreshFixture.Timeout),
+            () => TestTaskSettlement.RunAsync(async () => await Refresh.DisposeAsync().ConfigureAwait(true), () =>
+            {
+                Anchors.Dispose();
+                return Task.CompletedTask;
+            })).ConfigureAwait(true);
     }
 
     private sealed class Source(ClientProofEpochFixture owner) : IDnssecUpstream

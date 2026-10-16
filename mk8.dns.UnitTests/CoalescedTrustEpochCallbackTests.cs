@@ -33,7 +33,7 @@ public sealed class CoalescedTrustEpochCallbackTests
         };
         using var caller = new CancellationTokenSource();
         var pending = f.Resolver.ResolveDnssecAsync(f.Question, caller.Token).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             await registered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             await caller.CancelAsync().ConfigureAwait(true);
@@ -41,13 +41,14 @@ public sealed class CoalescedTrustEpochCallbackTests
             await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             Assert.Equal(1, f.Resolver.ActiveWorkers); Assert.Equal(0, f.Resolver.Statistics.ActiveRequests);
             await AssertHalfDrainAsync(f, callbackFirst, release, exited, held, keys).ConfigureAwait(true);
-        }
-        finally
+        }, async () =>
         {
             release.Set(); held.TrySetResult(f.Default(keys, AnchorRefreshFixture.Server));
-            await CoalescedTrustEpochFixture.WaitUntilAsync(() => f.Resolver.ActiveWorkers == 0).ConfigureAwait(true);
-            await registration.DisposeAsync().ConfigureAwait(true);
-        }
+            await TestTaskSettlement.AllAsync(
+                async () => await TestTaskSettlement.ObserveAsync(pending.WaitAsync(CancellationToken.None), error => error is OperationCanceledException).ConfigureAwait(true),
+                async () => await registration.DisposeAsync().ConfigureAwait(true),
+                () => CoalescedTrustEpochFixture.WaitUntilAsync(() => f.Resolver.ActiveWorkers == 0)).ConfigureAwait(true);
+        }).ConfigureAwait(true);
         Assert.Equal(0, f.Clock.ActiveTimers); Assert.Equal(0, f.Resolver.Statistics.SourceRequests);
     }
     private static async Task AssertHalfDrainAsync(CoalescedTrustEpochFixture f, bool callbackFirst,

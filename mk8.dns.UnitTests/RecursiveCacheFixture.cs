@@ -19,7 +19,14 @@ internal sealed class RecursiveCacheFixture : IAsyncDisposable
     {
         var drain = Cache.DisposeAsync().AsTask();
         Source.ReleaseAll();
-        await drain.WaitAsync(Timeout).ConfigureAwait(true);
+        await drain.WaitAsync(Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
+    }
+
+    internal static async Task WaitForRetirementAsync(CachingRecursiveResolver cache)
+    {
+        using var guard = new CancellationTokenSource(Timeout);
+        while (cache.Statistics.ActiveFlights != 0)
+            await Task.Delay(1, guard.Token).ConfigureAwait(true);
     }
 
     internal sealed class ControlledResolver : IDnsResolver
@@ -35,11 +42,11 @@ internal sealed class RecursiveCacheFixture : IAsyncDisposable
             started.Writer.TryWrite(call);
             return new ValueTask<DnsAnswer>(call.Completion.Task);
         }
-        internal async Task<Call> NextAsync() => await started.Reader.ReadAsync().AsTask().WaitAsync(Timeout).ConfigureAwait(true);
+        internal async Task<Call> NextAsync() => await started.Reader.ReadAsync().AsTask().WaitAsync(Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
         internal void ReleaseAll()
         {
             lock (gate)
-                foreach (var call in calls) call.Completion.TrySetResult(new DnsAnswer(2, false, [], [], []));
+                foreach (var call in calls) call.Completion.TrySetResult(new DnsAnswer(2, authoritative: false, [], [], []));
         }
     }
 

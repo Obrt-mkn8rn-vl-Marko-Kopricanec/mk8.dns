@@ -5,6 +5,7 @@ internal sealed class DnssecWorkTimerClock : TimeProvider
     private readonly RecursiveCacheClock clock = new();
     internal TaskCompletionSource DisposalEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource DisposalReleased { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal int ActiveTimers => clock.ActiveTimers;
     public override long TimestampFrequency => clock.TimestampFrequency;
     public override long GetTimestamp() => clock.GetTimestamp();
     public override DateTimeOffset GetUtcNow() => clock.GetUtcNow();
@@ -19,8 +20,9 @@ internal sealed class DnssecWorkTimerClock : TimeProvider
         public async ValueTask DisposeAsync()
         {
             entered.TrySetResult();
-            await released.Task.WaitAsync(DnssecWorkFixture.Timeout).ConfigureAwait(true);
-            await timer.DisposeAsync().ConfigureAwait(true);
+            await TestTaskSettlement.RunAsync(
+                () => released.Task.WaitAsync(DnssecWorkFixture.Timeout, TimeProvider.System, CancellationToken.None),
+                async () => await timer.DisposeAsync().ConfigureAwait(true)).ConfigureAwait(true);
         }
     }
 }
