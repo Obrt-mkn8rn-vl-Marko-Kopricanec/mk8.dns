@@ -48,9 +48,11 @@ internal sealed class CoalescedTrustEpochFixture : IAsyncDisposable
         Clock.DisposalReleased.TrySetResult();
         var closing = Resolver.DisposeAsync().AsTask();
         foreach (var (Held, Reply) in held) Held.TrySetResult(Reply);
-        try { await closing.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
-        catch (Exception error) when (ReferenceEquals(error, ExpectedDisposalFailure)) { }
-        finally { await Data.DisposeAsync().ConfigureAwait(true); }
+        await TestTaskSettlement.RunAsync(async () =>
+        {
+            try { await TestTaskSettlement.WaitAsync(closing.WaitAsync(CancellationToken.None), AnchorRefreshFixture.Timeout).ConfigureAwait(true); }
+            catch (Exception error) when (ReferenceEquals(error, ExpectedDisposalFailure)) { }
+        }, async () => await Data.DisposeAsync().ConfigureAwait(true)).ConfigureAwait(true);
     }
 
     private sealed class Source(CoalescedTrustEpochFixture owner) : IDnssecUpstream
@@ -92,13 +94,18 @@ internal sealed class CoalescedTrustEpochFixture : IAsyncDisposable
             public void Dispose() => timer.Dispose();
             public async ValueTask DisposeAsync()
             {
-                if (hold)
+                await TestTaskSettlement.RunAsync(async () =>
                 {
-                    owner.DisposalEntered.TrySetResult();
-                    await owner.DisposalReleased.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
-                }
-                await timer.DisposeAsync().ConfigureAwait(true);
-                if (owner.DisposalFailure is not null) throw owner.DisposalFailure;
+                    if (hold)
+                    {
+                        owner.DisposalEntered.TrySetResult();
+                        await owner.DisposalReleased.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
+                    }
+                }, async () =>
+                {
+                    await timer.DisposeAsync().ConfigureAwait(true);
+                    if (owner.DisposalFailure is not null) throw owner.DisposalFailure;
+                }).ConfigureAwait(true);
             }
         }
     }

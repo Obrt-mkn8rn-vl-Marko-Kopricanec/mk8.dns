@@ -156,18 +156,22 @@ public sealed class SignatureRenewalTests(PostgresFixture postgres) : IClassFixt
         time.Seconds = 4000;
         var edit = management.ExecuteAsync(control.Edit(1, 99), CancellationToken.None).AsTask();
         var renew = Job(store, codec, time, control).ResignAsync(control.Zone, CancellationToken.None).AsTask();
-        await gate.DisposeAsync().ConfigureAwait(true);
-        var results = await Task.WhenAll(ObserveAsync(edit), ObserveRenewalAsync(renew)).ConfigureAwait(true);
-        var transaction = await store.BeginAsync(CancellationToken.None).ConfigureAwait(true);
-        await using (transaction.ConfigureAwait(true))
+        await TestTaskSettlement.RunAsync(async () =>
         {
-            var current = (await transaction.ReadZoneAsync(control.Tenant, control.Zone, CancellationToken.None).ConfigureAwait(true))!;
-            Assert.Equal(2L, current.Revision);
-            var expectedAddress = results[0] ? 99 : 42;
-            Assert.Equal(expectedAddress, codec.Decode(current).GetRecords(DnsName.Parse("www.example.")).Single().GetData()[3]);
-            Assert.True(results[0] || results[1]);
-        }
-        Assert.NotNull(await store.ReadPendingAsync(CancellationToken.None).ConfigureAwait(true));
+            await gate.DisposeAsync().ConfigureAwait(true);
+            var results = await Task.WhenAll(ObserveAsync(edit.WaitAsync(CancellationToken.None)), ObserveRenewalAsync(renew.WaitAsync(CancellationToken.None))).ConfigureAwait(true);
+            var transaction = await store.BeginAsync(CancellationToken.None).ConfigureAwait(true);
+            await using (transaction.ConfigureAwait(true))
+            {
+                var current = (await transaction.ReadZoneAsync(control.Tenant, control.Zone, CancellationToken.None).ConfigureAwait(true))!;
+                Assert.Equal(2L, current.Revision);
+                var expectedAddress = results[0] ? 99 : 42;
+                Assert.Equal(expectedAddress, codec.Decode(current).GetRecords(DnsName.Parse("www.example.")).Single().GetData()[3]);
+                Assert.True(results[0] || results[1]);
+            }
+            Assert.NotNull(await store.ReadPendingAsync(CancellationToken.None).ConfigureAwait(true));
+        }, () => TestTaskSettlement.RunAsync(async () => await gate.DisposeAsync().ConfigureAwait(true),
+            () => TestTaskSettlement.AllAsync(async () => await TestTaskSettlement.ObserveAsync(edit.WaitAsync(CancellationToken.None), error => error is InvalidOperationException).ConfigureAwait(true), async () => await renew.WaitAsync(CancellationToken.None).ConfigureAwait(true)))).ConfigureAwait(true);
     }
 
     [Theory]
@@ -255,7 +259,7 @@ public sealed class SignatureRenewalTests(PostgresFixture postgres) : IClassFixt
     {
         try
         {
-            await operation.WaitAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(true);
+            await operation.WaitAsync(TimeSpan.FromSeconds(20), TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             return true;
         }
         catch (InvalidOperationException)
@@ -264,7 +268,7 @@ public sealed class SignatureRenewalTests(PostgresFixture postgres) : IClassFixt
         }
     }
 
-    private static async Task<bool> ObserveRenewalAsync(Task<bool> operation) => await operation.WaitAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(true);
+    private static async Task<bool> ObserveRenewalAsync(Task<bool> operation) => await operation.WaitAsync(TimeSpan.FromSeconds(20), TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
 
     private sealed class Clock : TimeProvider
     {

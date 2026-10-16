@@ -36,7 +36,7 @@ public sealed class RecursiveCacheTests
     {
         var wire = DnsName.Parse("www.example.").ToWire(); wire[1] = (byte)'W';
         byte[] raw = [0xc0, 12, 255];
-        var source = new RecursiveCacheFixture.ImmediateResolver(_ => new DnsAnswer(0, false, [new DnsRecord(wire, 65280, 40, raw)], [], []));
+        var source = new RecursiveCacheFixture.ImmediateResolver(_ => new DnsAnswer(0, authoritative: false, [new DnsRecord(wire, 65280, 40, raw)], [], []));
         await using var sourceLifetime = source.ConfigureAwait(true);
         var cache = new CachingRecursiveResolver(source);
         await using var cacheLifetime = cache.ConfigureAwait(true);
@@ -54,8 +54,8 @@ public sealed class RecursiveCacheTests
     {
         var clock = new RecursiveCacheClock();
         var target = DnsName.Parse("target.other.");
-        var source = new RecursiveCacheFixture.ImmediateResolver(_ => new DnsAnswer(0, false,
-            [new DnsRecord(Question.Name, 5, 2, target.ToWire()), new DnsRecord(target, 1, 30, new byte[] { 192, 0, 2, 42 })], [], []));
+        var source = new RecursiveCacheFixture.ImmediateResolver(_ => new DnsAnswer(0, authoritative: false,
+            [new DnsRecord(Question.Name, 5, 2, target.ToWire()), new DnsRecord(target, 1, 30, [192, 0, 2, 42])], [], []));
         await using var sourceLifetime = source.ConfigureAwait(true);
         var cache = new CachingRecursiveResolver(source, time: clock);
         await using var cacheLifetime = cache.ConfigureAwait(true);
@@ -97,8 +97,8 @@ public sealed class RecursiveCacheTests
     {
         var target = DnsName.Parse("missing.other.");
         var source = new RecursiveCacheFixture.ImmediateResolver(q => q.Type == 5
-            ? new DnsAnswer(0, false, [new DnsRecord(q.Name, 5, 30, target.ToWire())], [], [])
-            : new DnsAnswer((byte)code, false, [new DnsRecord(q.Name, 5, 30, target.ToWire())], [Soa("other.", 30, 30)], []));
+            ? new DnsAnswer(0, authoritative: false, [new DnsRecord(q.Name, 5, 30, target.ToWire())], [], [])
+            : new DnsAnswer((byte)code, authoritative: false, [new DnsRecord(q.Name, 5, 30, target.ToWire())], [Soa("other.", 30, 30)], []));
         await using var sourceLifetime = source.ConfigureAwait(true);
         var cache = new CachingRecursiveResolver(source);
         await using var cacheLifetime = cache.ConfigureAwait(true);
@@ -117,7 +117,7 @@ public sealed class RecursiveCacheTests
         var clock = new RecursiveCacheClock();
         var question = Query("www.sub.example.", 39);
         var terminal = DnsName.Parse("www.other.");
-        var source = new RecursiveCacheFixture.ImmediateResolver(_ => new DnsAnswer(0, false,
+        var source = new RecursiveCacheFixture.ImmediateResolver(_ => new DnsAnswer(0, authoritative: false,
             [new DnsRecord(DnsName.Parse("sub.example."), 39, 40, DnsName.Parse("other.").ToWire()),
              new DnsRecord(question.Name, 5, 40, terminal.ToWire())], [Soa("other.", 5, 5)], []));
         await using var sourceLifetime = source.ConfigureAwait(true);
@@ -140,7 +140,7 @@ public sealed class RecursiveCacheTests
     [InlineData(6)]
     public async Task IncompleteAndFailureRepliesAreNeverRetained(int code)
     {
-        var source = new RecursiveCacheFixture.ImmediateResolver(_ => new DnsAnswer((byte)code, false, [], [], []));
+        var source = new RecursiveCacheFixture.ImmediateResolver(_ => new DnsAnswer((byte)code, authoritative: false, [], [], []));
         await using var sourceLifetime = source.ConfigureAwait(true);
         var cache = new CachingRecursiveResolver(source);
         await using var cacheLifetime = cache.ConfigureAwait(true);
@@ -168,8 +168,8 @@ public sealed class RecursiveCacheTests
     [Fact]
     public async Task RrsetMinimumAndPositiveCapApplyOnFirstDelivery()
     {
-        var source = new RecursiveCacheFixture.ImmediateResolver(q => new DnsAnswer(0, false,
-            [new DnsRecord(q.Name, 1, 70, new byte[] { 192, 0, 2, 41 }), new DnsRecord(q.Name, 1, 50, new byte[] { 192, 0, 2, 42 })], [], []));
+        var source = new RecursiveCacheFixture.ImmediateResolver(q => new DnsAnswer(0, authoritative: false,
+            [new DnsRecord(q.Name, 1, 70, [192, 0, 2, 41]), new DnsRecord(q.Name, 1, 50, [192, 0, 2, 42])], [], []));
         await using var sourceLifetime = source.ConfigureAwait(true);
         var cache = new CachingRecursiveResolver(source, maximumPositiveTtl: 40, maximumNegativeTtl: 30, time: new RecursiveCacheClock());
         await using var cacheLifetime = cache.ConfigureAwait(true);
@@ -215,8 +215,8 @@ public sealed class RecursiveCacheTests
     public async Task OversizedWholeAnswersAreReturnedButNotCached(bool records)
     {
         var source = new RecursiveCacheFixture.ImmediateResolver(q => records
-            ? new DnsAnswer(0, false, Enumerable.Range(0, 513).Select(_ => new DnsRecord(q.Name, 1, 30, new byte[] { 192, 0, 2, 42 })), [], [])
-            : new DnsAnswer(0, false, [new DnsRecord(q.Name, 65280, 30, new byte[65535])], [], []));
+            ? new DnsAnswer(0, authoritative: false, Enumerable.Range(0, 513).Select(_ => new DnsRecord(q.Name, 1, 30, [192, 0, 2, 42])), [], [])
+            : new DnsAnswer(0, authoritative: false, [new DnsRecord(q.Name, 65280, 30, new byte[65535])], [], []));
         await using var sourceLifetime = source.ConfigureAwait(true);
         var cache = new CachingRecursiveResolver(source);
         await using var cacheLifetime = cache.ConfigureAwait(true);
@@ -233,11 +233,12 @@ public sealed class RecursiveCacheTests
     public async Task InvalidProviderRoleOrAdditionalDataFailsWithoutCaching(bool additional)
     {
         var source = new RecursiveCacheFixture.ImmediateResolver(q => new DnsAnswer(0, !additional,
-            [new DnsRecord(q.Name, 1, 30, new byte[] { 192, 0, 2, 42 })], [], additional ? new[] { Soa("example.", 30, 30) } : []));
+            [new DnsRecord(q.Name, 1, 30, [192, 0, 2, 42])], [], additional ? new[] { Soa("example.", 30, 30) } : []));
         await using var sourceLifetime = source.ConfigureAwait(true);
         var cache = new CachingRecursiveResolver(source);
         await using var cacheLifetime = cache.ConfigureAwait(true);
         await Assert.ThrowsAsync<InvalidOperationException>(() => cache.ResolveAsync(Question, CancellationToken.None).AsTask()).ConfigureAwait(true);
+        await RecursiveCacheFixture.WaitForRetirementAsync(cache).ConfigureAwait(true);
         Assert.Equal(0, cache.Statistics.ActiveFlights);
         Assert.Equal(0, cache.Statistics.Entries);
     }
@@ -291,9 +292,9 @@ public sealed class RecursiveCacheTests
     }
 
     internal static DnsQuestion Query(string name, ushort type = 1) => new(DnsName.Parse(name), type, 1);
-    internal static DnsAnswer Positive(DnsQuestion question, uint ttl, byte value = 42) => new(0, false,
-        [new DnsRecord(question.Name, 1, ttl, new byte[] { 192, 0, 2, value })], [], []);
-    internal static DnsAnswer Negative(byte code, uint ttl, uint minimum) => new(code, false, [], [Soa("example.", ttl, minimum)], []);
+    internal static DnsAnswer Positive(DnsQuestion question, uint ttl, byte value = 42) => new(0, authoritative: false,
+        [new DnsRecord(question.Name, 1, ttl, [192, 0, 2, value])], [], []);
+    internal static DnsAnswer Negative(byte code, uint ttl, uint minimum) => new(code, authoritative: false, [], [Soa("example.", ttl, minimum)], []);
     internal static DnsRecord Soa(string origin, uint ttl, uint minimum)
     {
         var numbers = new byte[20];

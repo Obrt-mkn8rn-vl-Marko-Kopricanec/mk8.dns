@@ -106,12 +106,36 @@ public sealed class DnssecUpstreamDeadlineTests
         Assert.Equal(0, clock.ActiveTimers);
     }
 
+    [Fact]
+    public void FailedUdpBindRetiresTheAcquiredClient()
+    {
+        using var occupied = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+        var endpoint = Assert.IsType<IPEndPoint>(occupied.Client.LocalEndPoint);
+        SafeSocketHandle? handle = null;
+        _ = Assert.Throws<SocketException>(() => Bind(endpoint, socket => handle = socket.SafeHandle));
+        Assert.NotNull(handle); Assert.True(handle.IsClosed);
+    }
+
     private static UdpClient Bind(bool ipv6)
     {
-        var udp = new UdpClient(ipv6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork);
-        if (ipv6) udp.Client.DualMode = false;
-        udp.Client.Bind(new IPEndPoint(ipv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback, 0));
-        return udp;
+        return Bind(new IPEndPoint(ipv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback, 0));
+    }
+
+    private static UdpClient Bind(IPEndPoint endpoint, Action<Socket>? opened = null)
+    {
+        var udp = new UdpClient(endpoint.AddressFamily);
+        try
+        {
+            opened?.Invoke(udp.Client);
+            if (endpoint.AddressFamily == AddressFamily.InterNetworkV6) udp.Client.DualMode = false;
+            udp.Client.Bind(endpoint);
+            return udp;
+        }
+        catch
+        {
+            udp.Dispose();
+            throw;
+        }
     }
 
     private static int QuestionEnd(byte[] bytes)

@@ -170,8 +170,10 @@ public sealed class NativeClientListenerLifetimeTests
         catch (IOException) { }
     }
 
-    [Fact]
-    public async Task OneAcceptedIdleConnectionRetainsItsSlotUntilActualEof()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OneAcceptedIdleConnectionRetainsItsSlotUntilActualEof(bool observerFailure)
     {
         var f = new NativeClientListenerFixture(connections: 1, messages: 1); await using var lifetime = f.ConfigureAwait(true);
         using var deadline = new CancellationTokenSource(AnchorRefreshFixture.Timeout);
@@ -182,10 +184,31 @@ public sealed class NativeClientListenerLifetimeTests
         var stream = second.GetStream(); await using var streamLifetime = stream.ConfigureAwait(true);
         await stream.WriteAsync(TcpSessionFixture.Frame(ClientRequestFixture.Request()), deadline.Token).ConfigureAwait(true);
         var reply = NativeClientListenerFixture.ReadFrameAsync(stream, deadline.Token);
-        Assert.False(reply.IsCompleted); Assert.Empty(f.Epoch.Calls); Assert.Equal(1, f.Listener.ActiveTcpConnections);
-        first.Dispose();
-        Assert.True((await reply.ConfigureAwait(true)).Length >= 12);
-        await CoalescedTrustEpochFixture.WaitUntilAsync(() => f.Listener.ActiveTcpConnections == 0).ConfigureAwait(true);
-        Assert.Equal(2, f.Epoch.Calls.Count);
+        var handle = second.Client.SafeHandle;
+        var observer = new IOException("Controlled queued TCP reply observer failure.");
+        var observed = await Record.ExceptionAsync(() => TestTaskSettlement.RunAsync(async () =>
+        {
+            Assert.False(reply.IsCompleted); Assert.Empty(f.Epoch.Calls); Assert.Equal(1, f.Listener.ActiveTcpConnections);
+            if (observerFailure) throw observer;
+            first.Dispose();
+            Assert.True((await reply.WaitAsync(CancellationToken.None).ConfigureAwait(true)).Length >= 12);
+            await CoalescedTrustEpochFixture.WaitUntilAsync(() => f.Listener.ActiveTcpConnections == 0).ConfigureAwait(true);
+            Assert.Equal(2, f.Epoch.Calls.Count);
+        }, async () =>
+        {
+            first.Dispose();
+            await TestTaskSettlement.AllAsync(
+                () => TestTaskSettlement.RunAsync(() => deadline.CancelAsync(), async () =>
+                {
+                    await TestTaskSettlement.RunAsync(
+                        () => TestTaskSettlement.ObserveAsync(reply.WaitAsync(CancellationToken.None), error => error is OperationCanceledException or IOException),
+                        () => { second.Dispose(); return Task.CompletedTask; }).ConfigureAwait(true);
+                }),
+                () => TestTaskSettlement.WaitAsync(f.Listener.DisposeAsync().AsTask().WaitAsync(CancellationToken.None), AnchorRefreshFixture.Timeout)).ConfigureAwait(true);
+        })).ConfigureAwait(true);
+        if (observerFailure) Assert.Same(observer, observed);
+        else Assert.Null(observed);
+        Assert.True(reply.IsCompleted); Assert.True(handle.IsClosed);
+        Assert.Equal(0, f.Listener.ActiveTcpConnections);
     }
 }

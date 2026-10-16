@@ -9,10 +9,12 @@ internal sealed class RecursiveCacheCallbackFixture : IAsyncDisposable
     {
         if (!holdTimer) TimerRelease.SetResult();
         TimerFailure = failTimer ? new IOException("Owned timer disposal failure.") : null;
+        TimerProvider = new ObservedClock(this);
         Cache = new CachingRecursiveResolver(Source, maximumFlights: 1,
-            resolutionTimeout: TimeSpan.FromSeconds(1), time: new ObservedClock(this));
+            resolutionTimeout: TimeSpan.FromSeconds(1), time: TimerProvider);
     }
 
+    internal TimeProvider TimerProvider { get; }
     internal BlockingResolver Source { get; } = new();
     internal RecursiveCacheClock Clock { get; } = new();
     internal TaskCompletionSource TimerDisposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -97,10 +99,14 @@ internal sealed class RecursiveCacheCallbackFixture : IAsyncDisposable
         public async ValueTask DisposeAsync()
         {
             fixture.TimerDisposing.TrySetResult();
-            await fixture.TimerRelease.Task.WaitAsync(RecursiveCacheFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
-            await timer.DisposeAsync().ConfigureAwait(true);
-            fixture.TimerDisposed.TrySetResult();
-            if (fixture.TimerFailure is not null) throw fixture.TimerFailure;
+            await TestTaskSettlement.RunAsync(
+                () => fixture.TimerRelease.Task.WaitAsync(RecursiveCacheFixture.Timeout, TimeProvider.System, CancellationToken.None),
+                async () =>
+                {
+                    await timer.DisposeAsync().ConfigureAwait(true);
+                    fixture.TimerDisposed.TrySetResult();
+                    if (fixture.TimerFailure is not null) throw fixture.TimerFailure;
+                }).ConfigureAwait(true);
         }
     }
 }

@@ -34,6 +34,13 @@ public sealed class ControlAdmissionTests
         else
             builder.Services.AddZoneManagement(source);
         var host = builder.Build();
+        var handlers = new ConcurrentQueue<Task>();
+        host.Use((context, next) =>
+        {
+            var actual = next(context);
+            handlers.Enqueue(actual);
+            return actual.WaitAsync(CancellationToken.None);
+        });
         await using var hostLifetime = host.ConfigureAwait(true);
         try
         {
@@ -43,7 +50,7 @@ public sealed class ControlAdmissionTests
                 host.MapZoneManagement();
             await host.StartAsync(timeout.Token).ConfigureAwait(true);
             socket.SetSocketPermissions();
-            await CheckShutdownAsync(host, socket.Path, source, errors, publication, timeout.Token).ConfigureAwait(true);
+            await CheckShutdownAsync(host, socket.Path, source, errors, handlers, publication, timeout.Token).ConfigureAwait(true);
         }
         finally
         {
@@ -54,28 +61,40 @@ public sealed class ControlAdmissionTests
         }
     }
 
-    private static async Task CheckShutdownAsync(WebApplication host, string socketPath, BlockingPort source, ExceptionLog errors, bool publication, CancellationToken token)
+    private static async Task CheckShutdownAsync(WebApplication host, string socketPath, BlockingPort source, ExceptionLog errors, ConcurrentQueue<Task> handlers, bool publication, CancellationToken token)
     {
         using var client = new UnixControlClient(socketPath);
         IZoneManagement managementPort = client;
         IZonePublication publicationPort = client;
         var calls = Enumerable.Range(0, 4).Select(_ => CallAsync(managementPort, publicationPort, publication, token)).ToArray();
-        await source.Entered.Task.WaitAsync(token).ConfigureAwait(true);
-        var rejected = await Assert.ThrowsAsync<RpcException>(() => CallAsync(managementPort, publicationPort, publication, token)).ConfigureAwait(true);
-        Assert.Equal(StatusCode.ResourceExhausted, rejected.StatusCode);
-        using var shutdown = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
-        await host.StopAsync(shutdown.Token).ConfigureAwait(true);
-        await host.DisposeAsync().ConfigureAwait(true);
-        source.Resume.SetResult();
-        await source.Returned.Task.WaitAsync(token).ConfigureAwait(true);
-        foreach (var call in calls)
+        await TestTaskSettlement.RunAsync(async () =>
         {
-            try { await call.WaitAsync(token).ConfigureAwait(true); }
-            catch (RpcException) { }
-        }
-        // Let the server finish reporting the abandoned responses after the controlled ports return.
-        await Task.Delay(TimeSpan.FromMilliseconds(200), token).ConfigureAwait(true);
-        Assert.DoesNotContain(errors.Exceptions, error => error.ToString().Contains(nameof(SemaphoreSlim), StringComparison.Ordinal));
+            await source.Entered.Task.WaitAsync(token).ConfigureAwait(true);
+            var rejected = await Assert.ThrowsAsync<RpcException>(() => CallAsync(managementPort, publicationPort, publication, token)).ConfigureAwait(true);
+            Assert.Equal(StatusCode.ResourceExhausted, rejected.StatusCode);
+            using var shutdown = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+            await host.StopAsync(shutdown.Token).ConfigureAwait(true);
+            await host.DisposeAsync().ConfigureAwait(true);
+            source.Resume.SetResult();
+            await source.Returned.Task.WaitAsync(token).ConfigureAwait(true);
+            foreach (var call in calls)
+            {
+                try { await call.WaitAsync(token).ConfigureAwait(true); }
+                catch (RpcException) { }
+            }
+            var actualHandlers = Task.WhenAll(handlers);
+            await TestTaskSettlement.RunAsync(() => actualHandlers.WaitAsync(token),
+                () => actualHandlers.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+            Assert.DoesNotContain(errors.Exceptions, error => error.ToString().Contains(nameof(SemaphoreSlim), StringComparison.Ordinal));
+        }, async () =>
+        {
+            source.Resume.TrySetResult();
+            await TestTaskSettlement.RunAsync(async () => await host.DisposeAsync().ConfigureAwait(true),
+                () => TestTaskSettlement.AllAsync(
+                    () => TestTaskSettlement.AllAsync([.. calls.Select(call => (Func<Task>)(() =>
+                        TestTaskSettlement.ObserveAsync(call.WaitAsync(CancellationToken.None), error => error is RpcException)))]),
+                    () => Task.WhenAll(handlers).WaitAsync(CancellationToken.None))).ConfigureAwait(true);
+        }).ConfigureAwait(true);
     }
 
     private static async Task CallAsync(IZoneManagement management, IZonePublication publisher, bool publication, CancellationToken token)
@@ -83,7 +102,7 @@ public sealed class ControlAdmissionTests
         if (publication)
             _ = await publisher.ExecuteAsync(new PublicationRequest("prepare", ReadOnlyMemory<byte>.Empty, ReadOnlyMemory<byte>.Empty, new string('0', 64)), token).ConfigureAwait(true);
         else
-            _ = await management.ExecuteAsync(new ManagementRequest("edit", Guid.Empty, Guid.Empty, Guid.Empty, 0, ReadOnlyMemory<byte>.Empty, Array.Empty<ZoneRecordData>(), ReadOnlyMemory<byte>.Empty), token).ConfigureAwait(true);
+            _ = await management.ExecuteAsync(new ManagementRequest("edit", Guid.Empty, Guid.Empty, Guid.Empty, 0, ReadOnlyMemory<byte>.Empty, [], ReadOnlyMemory<byte>.Empty), token).ConfigureAwait(true);
     }
 
     private sealed class BlockingPort : IZoneManagement, IZonePublication

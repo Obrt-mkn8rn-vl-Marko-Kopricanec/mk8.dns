@@ -32,7 +32,7 @@ public sealed class ClientProofEpochRetirementTests
             registered.TrySetResult(); return new(held.Task);
         };
         var pending = f.Resolver.ResolveDnssecAsync(f.Question, CancellationToken.None).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             await registered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             Assert.Equal(DnssecAnchorRefreshOutcome.Applied, await f.Refresh.RefreshAsync(CancellationToken.None).ConfigureAwait(true));
@@ -41,16 +41,15 @@ public sealed class ClientProofEpochRetirementTests
             Assert.Equal(2, f.Resolver.Statistics.Revision);
             await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             Assert.Equal(1, f.Resolver.ActiveWorkers); Assert.False(pending.IsCompleted);
-            await AssertHalfDrainAsync(f, callbackFirst, release, exited, held, keys, pending).ConfigureAwait(true);
-        }
-        finally
+            await AssertHalfDrainAsync(f, callbackFirst, release, exited, held, keys, pending.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+        }, async () =>
         {
             release.Set(); held.TrySetResult(f.Default(keys, AnchorRefreshFixture.Server));
-            try { await pending.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
-            catch (OperationCanceledException) { }
-            await CoalescedTrustEpochFixture.WaitUntilAsync(() => f.Resolver.ActiveWorkers == 0).ConfigureAwait(true);
-            await registration.DisposeAsync().ConfigureAwait(true);
-        }
+            await TestTaskSettlement.AllAsync(
+                async () => await TestTaskSettlement.ObserveAsync(pending.WaitAsync(CancellationToken.None), error => error is OperationCanceledException).ConfigureAwait(true),
+                async () => await registration.DisposeAsync().ConfigureAwait(true),
+                () => CoalescedTrustEpochFixture.WaitUntilAsync(() => f.Resolver.ActiveWorkers == 0)).ConfigureAwait(true);
+        }).ConfigureAwait(true);
         Assert.True(pending.IsCanceled);
         f.Override = null;
         Assert.NotNull((await f.Resolver.ResolveDnssecAsync(f.Question, CancellationToken.None).ConfigureAwait(true)).ClientProof);

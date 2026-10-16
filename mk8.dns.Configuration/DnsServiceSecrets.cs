@@ -40,16 +40,11 @@ public sealed class DnsServiceSecrets
         // Refuse missing active input; publishing a placeholder template cannot
         // silently synthesize usable settings or a trust/security-state floor.
         if (!File.Exists(Path.Combine(directory, ".env"))) throw new InvalidDataException("SecretDocumentMissing");
-        var options = new SupprocomSecretsOptions
-        {
-            EnvironmentName = "Production",
-            FileOverridesProcessEnvironment = true,
-        };
-        options.File.Directory = directory;
-        options.File.Import = SecretFileImport.None;
-        options.File.Recovery = SecretFileRecovery.None;
-        options.File.Protection = SecretFileProtection.InstallationBoundAesGcm;
-        var store = new SupprocomSecretFileStore(options);
+        return await AcquireSnapshotAsync(role, CreateActiveStore(directory), token).ConfigureAwait(false);
+    }
+
+    internal static async Task<DnsServiceSecrets> AcquireSnapshotAsync(string role, SupprocomSecretFileStore store, CancellationToken token)
+    {
         IReadOnlyDictionary<string, string>? snapshot = null;
         string? refusal = null;
         try { snapshot = await store.LoadAsync(token).ConfigureAwait(false); }
@@ -59,6 +54,24 @@ public sealed class DnsServiceSecrets
         if (refusal is not null) throw new InvalidDataException("SecretLoadFailed:" + refusal);
         token.ThrowIfCancellationRequested();
         return new DnsServiceSecrets(role, snapshot ?? throw new InvalidDataException("SecretSnapshotMissing"));
+    }
+
+    internal static SupprocomSecretFileStore CreateActiveStore(string directory)
+    {
+        var options = new SupprocomSecretsOptions
+        {
+            EnvironmentName = "Production",
+            FileOverridesProcessEnvironment = true,
+        };
+        options.File.Directory = directory;
+        // The builtin must never acquire values from a separate template, even
+        // when its active-file check sees an empty or lost document.
+        options.File.ActiveName = ".env";
+        options.File.TemplateName = options.File.ActiveName;
+        options.File.Import = SecretFileImport.None;
+        options.File.Recovery = SecretFileRecovery.None;
+        options.File.Protection = SecretFileProtection.InstallationBoundAesGcm;
+        return new SupprocomSecretFileStore(options);
     }
 
     public string Text(string name, int maximumBytes = 65536)

@@ -27,7 +27,7 @@ public sealed class DnssecFailureCacheLifecycleTests
             Assert.Equal(2, fixture.Calls.Count);
         }
         finally { held.TrySetException(new TimeoutException()); }
-        await other.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+        await other.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class DnssecFailureCacheLifecycleTests
         finally
         {
             held.TrySetResult(fixture.Default(new DnsQuestion(fixture.Root, 48, 1), OnlineDnssecFixture.RootServer));
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation.WaitAsync(TimeSpan.FromSeconds(5))).ConfigureAwait(true);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
         }
         Assert.Equal(0, cache.Statistics.ActiveRequests);
         Assert.Equal(0, cache.FailureStatistics.Entries);
@@ -71,22 +71,27 @@ public sealed class DnssecFailureCacheLifecycleTests
         var held = new TaskCompletionSource<DnsUpstreamEvidence>(TaskCreationOptions.RunContinuationsAsynchronously);
         fixture.Override = (_, _, _) => new ValueTask<DnsUpstreamEvidence>(held.Task);
         var cache = CachingDnssecResolver.CreateWithFailureCache(fixture.Resolver(), new DnssecFailureCachePolicy());
+        await using var cacheLifetime = cache.ConfigureAwait(true);
         var operation = cache.ResolveDnssecAsync(DnssecCacheResolutionTests.Question(), CancellationToken.None).AsTask();
         Task? closure = null;
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             if (dispose) closure = cache.DisposeAsync().AsTask();
             else cache.Clear();
             Assert.False(operation.IsCompleted);
             Assert.Equal(1, cache.Statistics.ActiveRequests);
             if (closure is not null) Assert.False(closure.IsCompleted);
-        }
-        finally
+        }, async () =>
         {
             held.TrySetException(new TimeoutException());
-            DnssecFailureCacheTests.AssertFailure(await operation.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true));
-            await cache.DisposeAsync().ConfigureAwait(true);
-        }
+            var actualClose = closure ?? cache.DisposeAsync().AsTask();
+            await TestTaskSettlement.AllAsync(async () =>
+            {
+                await TestTaskSettlement.RunAsync(async () =>
+                    DnssecFailureCacheTests.AssertFailure(await operation.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None).ConfigureAwait(true)),
+                    async () => await operation.WaitAsync(CancellationToken.None).ConfigureAwait(true)).ConfigureAwait(true);
+            }, () => TestTaskSettlement.WaitAsync(actualClose.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(5))).ConfigureAwait(true);
+        }).ConfigureAwait(true);
         Assert.Equal(0, cache.Statistics.ActiveRequests);
         Assert.Equal(0, cache.FailureStatistics.Entries);
         Assert.Equal(0, cache.FailureStatistics.Stores);
@@ -125,7 +130,7 @@ public sealed class DnssecFailureCacheLifecycleTests
             fixture.Clock.Advance(1);
         }
         finally { held.TrySetException(new TimeoutException()); }
-        DnssecFailureCacheTests.AssertFailure(await older.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true));
+        DnssecFailureCacheTests.AssertFailure(await older.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None).ConfigureAwait(true));
         var calls = fixture.Calls.Count;
         await cache.ResolveDnssecAsync(question, CancellationToken.None);
         Assert.Equal(calls, fixture.Calls.Count);
@@ -151,7 +156,7 @@ public sealed class DnssecFailureCacheLifecycleTests
             Assert.Equal(DnssecResolutionOutcome.Authenticated, (await cache.ResolveDnssecAsync(question with { Type = 28 }, CancellationToken.None)).Outcome);
         }
         finally { held.TrySetException(new TimeoutException()); }
-        await earlier.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+        await earlier.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
         var calls = fixture.Calls.Count;
         DnssecFailureCacheTests.AssertFailure(await cache.ResolveDnssecAsync(question, CancellationToken.None));
         Assert.Equal(calls, fixture.Calls.Count);

@@ -26,9 +26,9 @@ public sealed class TrustEpochOwnershipTests
         };
         var pending1 = resolver.ResolveDnssecAsync(firstQuestion, CancellationToken.None).AsTask();
         var pending2 = resolver.ResolveDnssecAsync(secondQuestion, CancellationToken.None).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
-            await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true);
+            await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             await f.Refresh.RefreshAsync(CancellationToken.None).ConfigureAwait(true);
             Assert.Equal(DnssecResolutionOutcome.Failure, (await resolver.ResolveDnssecAsync(firstQuestion, CancellationToken.None).ConfigureAwait(true)).Outcome);
             if (fault) held1.TrySetException(new ObjectDisposedException(typeof(CachingDnssecResolver).FullName));
@@ -37,14 +37,27 @@ public sealed class TrustEpochOwnershipTests
             await WaitForSourceSettlementAsync(resolver).ConfigureAwait(true);
             AssertHeldRetirement(resolver, pending1, pending2);
             var closing = resolver.DisposeAsync().AsTask(); Assert.False(closing.IsCompleted);
-        }
-        finally { held1.TrySetResult(firstReply); held2.TrySetResult(secondReply); }
-        if (fault) await Assert.ThrowsAsync<ObjectDisposedException>(() => pending1.WaitAsync(AnchorRefreshFixture.Timeout)).ConfigureAwait(true);
-        else Assert.Equal(DnssecResolutionOutcome.Failure, (await pending1.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true)).Outcome);
-        Assert.Equal(DnssecResolutionOutcome.Failure, (await pending2.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true)).Outcome);
+        }, async () =>
+        {
+            held1.TrySetResult(firstReply); held2.TrySetResult(secondReply);
+            await JoinRetiredCallsAsync(pending1.WaitAsync(CancellationToken.None), pending2.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+        }).ConfigureAwait(true);
+        if (fault) await Assert.ThrowsAsync<ObjectDisposedException>(() => pending1.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
+        else Assert.Equal(DnssecResolutionOutcome.Failure, (await pending1.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true)).Outcome);
+        Assert.Equal(DnssecResolutionOutcome.Failure, (await pending2.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true)).Outcome);
         await resolver.DisposeAsync().ConfigureAwait(true);
         Assert.Equal(0, resolver.Statistics.ActiveRequests); Assert.Equal(0, resolver.Statistics.OwnedProfiles);
     }
+
+    private static Task JoinRetiredCallsAsync(Task first, Task second)
+        => TestTaskSettlement.AllAsync(
+            () => TestTaskSettlement.ObserveAsync(first.WaitAsync(CancellationToken.None), error => error is ObjectDisposedException),
+            () => second.WaitAsync(CancellationToken.None));
+
+    private static Task RetireOldCallAsync(Task pending, Task? closing, bool fail)
+        => TestTaskSettlement.AllAsync(
+            () => TestTaskSettlement.ObserveAsync(pending.WaitAsync(CancellationToken.None), error => fail && error is InvalidOperationException),
+            async () => { if (closing is not null) await TestTaskSettlement.WaitAsync(closing.WaitAsync(CancellationToken.None), AnchorRefreshFixture.Timeout).ConfigureAwait(true); });
 
     private static async Task WaitForSourceSettlementAsync(DnssecTrustEpochResolver resolver)
     {
@@ -76,20 +89,25 @@ public sealed class TrustEpochOwnershipTests
             secondEntered.TrySetResult(); return new(second.Task);
         };
         var pending1 = resolver.ResolveDnssecAsync(f.Question, CancellationToken.None).AsTask(); Task<DnssecResolutionResult>? pending2 = null;
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
-            await firstEntered.Task.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true);
+            await firstEntered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             await f.Refresh.RefreshAsync(CancellationToken.None).ConfigureAwait(true);
             pending2 = resolver.ResolveDnssecAsync(new(DnsName.Parse("second.example."), 1, 1), CancellationToken.None).AsTask();
-            await secondEntered.Task.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true);
+            await secondEntered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             await f.Refresh.RefreshAsync(CancellationToken.None).ConfigureAwait(true);
             Assert.Equal(DnssecResolutionOutcome.Failure, (await resolver.ResolveDnssecAsync(f.Question, CancellationToken.None).ConfigureAwait(true)).Outcome);
             Assert.Equal(2, resolver.Statistics.ActiveRequests); Assert.Equal(2, resolver.Statistics.RetiredProfiles);
             Assert.Equal(3, resolver.Statistics.OwnedProfiles); Assert.Equal(2, f.Calls.Count);
-        }
-        finally { first.TrySetResult(keys); second.TrySetResult(keys); }
-        Assert.Equal(DnssecResolutionOutcome.Failure, (await pending1.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true)).Outcome);
-        Assert.Equal(DnssecResolutionOutcome.Failure, (await pending2!.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true)).Outcome);
+        }, async () =>
+        {
+            first.TrySetResult(keys); second.TrySetResult(keys);
+            await TestTaskSettlement.AllAsync(
+                async () => await pending1.WaitAsync(CancellationToken.None).ConfigureAwait(true),
+                async () => { if (pending2 is not null) await pending2.WaitAsync(CancellationToken.None).ConfigureAwait(true); }).ConfigureAwait(true);
+        }).ConfigureAwait(true);
+        Assert.Equal(DnssecResolutionOutcome.Failure, (await pending1.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true)).Outcome);
+        Assert.Equal(DnssecResolutionOutcome.Failure, (await pending2!.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true)).Outcome);
         Assert.Equal(0, resolver.Statistics.ActiveRequests); Assert.Equal(1, resolver.Statistics.OwnedProfiles);
     }
 
@@ -109,9 +127,9 @@ public sealed class TrustEpochOwnershipTests
         };
         var pending = resolver.ResolveDnssecAsync(f.Question, CancellationToken.None).AsTask();
         Task? closing = null;
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
-            await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true);
+            await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             await f.Refresh.RefreshAsync(CancellationToken.None).ConfigureAwait(true);
             var rejected = await resolver.ResolveDnssecAsync(new(DnsName.Parse("other.example."), 1, 1), CancellationToken.None).ConfigureAwait(true);
             Assert.Equal(DnssecResolutionOutcome.Failure, rejected.Outcome);
@@ -119,22 +137,22 @@ public sealed class TrustEpochOwnershipTests
             Assert.Equal(1, resolver.Statistics.ActiveRequests); Assert.False(pending.IsCompleted);
             closing = resolver.DisposeAsync().AsTask();
             Assert.False(closing.IsCompleted); Assert.Same(closing, resolver.DisposeAsync().AsTask());
-        }
-        finally
+        }, async () =>
         {
             if (fail) held.TrySetException(new InvalidOperationException("Controlled actual old provider fault."));
             else held.TrySetResult(old);
-        }
+            await RetireOldCallAsync(pending.WaitAsync(CancellationToken.None), closing?.WaitAsync(CancellationToken.None), fail).ConfigureAwait(true);
+        }).ConfigureAwait(true);
         if (fail)
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => pending.WaitAsync(AnchorRefreshFixture.Timeout)).ConfigureAwait(true);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => pending.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
         }
         else
         {
-            var result = await pending.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true);
+            var result = await pending.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             Assert.Equal(DnssecResolutionOutcome.Failure, result.Outcome); Assert.Empty(result.Answers);
         }
-        await closing!.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true);
+        await closing!.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
         Assert.Equal(0, resolver.Statistics.ActiveRequests); Assert.Equal(0, resolver.Statistics.OwnedProfiles);
         Assert.Equal(2, f.Refresh.Current.Revision); // Caller-owned source remains usable.
     }
@@ -152,13 +170,16 @@ public sealed class TrustEpochOwnershipTests
             entered.TrySetResult(); return new(held.Task);
         };
         var pending = resolver.ResolveDnssecAsync(f.Question, CancellationToken.None).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
-            await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true);
+            await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             await f.Refresh.RefreshAsync(CancellationToken.None).ConfigureAwait(true);
-        }
-        finally { held.TrySetResult(original); }
-        var stale = await pending.WaitAsync(AnchorRefreshFixture.Timeout).ConfigureAwait(true);
+        }, async () =>
+        {
+            held.TrySetResult(original);
+            await pending.WaitAsync(CancellationToken.None).ConfigureAwait(true);
+        }).ConfigureAwait(true);
+        var stale = await pending.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
         Assert.Equal(DnssecResolutionOutcome.Failure, stale.Outcome); Assert.Empty(stale.Answers);
         f.Override = null; f.LastOctet = 2;
         var fresh = await resolver.ResolveDnssecAsync(f.Question, CancellationToken.None).ConfigureAwait(true);
@@ -176,15 +197,18 @@ public sealed class TrustEpochOwnershipTests
         f.Override = (_, _, _) => { entered.TrySetResult(); return new(held.Task); };
         using var caller = new CancellationTokenSource();
         var pending = resolver.ResolveDnssecAsync(f.Question, caller.Token).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             await entered.Task.WaitAsync(AnchorRefreshFixture.Timeout, CancellationToken.None).ConfigureAwait(true);
             await caller.CancelAsync().ConfigureAwait(true);
             Assert.False(pending.IsCompleted); Assert.Equal(1, resolver.Statistics.ActiveRequests);
             Assert.Equal(DnssecResolutionOutcome.Failure, (await resolver.ResolveDnssecAsync(f.Question, CancellationToken.None).ConfigureAwait(true)).Outcome);
             Assert.Single(f.Calls); Assert.Equal(0, resolver.Statistics.FailureEntries);
-        }
-        finally { held.TrySetResult(f.Default(new(f.Anchors.Keys.Origin, 48, 1), AnchorRefreshFixture.Server)); }
+        }, async () =>
+        {
+            held.TrySetResult(f.Default(new(f.Anchors.Keys.Origin, 48, 1), AnchorRefreshFixture.Server));
+            await TestTaskSettlement.ObserveAsync(pending.WaitAsync(CancellationToken.None), error => error is OperationCanceledException).ConfigureAwait(true);
+        }).ConfigureAwait(true);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(AnchorRefreshFixture.Timeout, CancellationToken.None)).ConfigureAwait(true);
         Assert.Equal(0, resolver.Statistics.ActiveRequests); Assert.Equal(0, resolver.Statistics.FailureEntries);
     }
