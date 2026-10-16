@@ -55,19 +55,15 @@ public sealed class NameserverDnssecLifetimeTests
             return ValueTask.FromResult(fixture.Default(question, server));
         };
         var resolving = fixture.Resolver().ResolveDnssecAsync(NameserverDnssecFixture.Question, cancellation.Token).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
-            await admitted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+            await admitted.Task.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
             await cancellation.CancelAsync().ConfigureAwait(true); Assert.False(resolving.IsCompleted);
-        }
-        finally
+        }, async () =>
         {
-            finish.TrySetResult(fixture.Default(new DnsQuestion(fixture.Target, 1, 1), NameserverDnssecFixture.ProviderServer));
-            OperationCanceledException? terminal = null;
-            try { await resolving.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true); }
-            catch (OperationCanceledException error) { terminal = error; }
-            Assert.IsAssignableFrom<OperationCanceledException>(terminal);
-        }
+            await TestTaskSettlement.CancelReleaseAndJoinAsync(cancellation, () => finish.TrySetResult(fixture.Default(new DnsQuestion(fixture.Target, 1, 1), NameserverDnssecFixture.ProviderServer)),
+                resolving.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+        }).ConfigureAwait(true);
         Assert.DoesNotContain(fixture.Calls, call => call.Server.Equals(fixture.ChildServer));
     }
 }

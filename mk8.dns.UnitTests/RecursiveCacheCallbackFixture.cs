@@ -27,12 +27,17 @@ internal sealed class RecursiveCacheCallbackFixture : IAsyncDisposable
     {
         var drain = Cache.DisposeAsync().AsTask();
         TimerRelease.TrySetResult();
-        Source.FinishProvider();
-        Source.ReleaseCallback();
-        try { await drain.WaitAsync(RecursiveCacheFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
-        catch (InvalidOperationException) when (TimerFailure is not null && drain.IsFaulted) { }
-        finally { await Source.DisposeAsync().ConfigureAwait(true); }
+        Source.FinishProvider(); Source.ReleaseCallback();
+        await TestTaskSettlement.InOrderAsync(
+            () => TestTaskSettlement.WaitAsync(drain.WaitAsync(CancellationToken.None), RecursiveCacheFixture.Timeout,
+                error => TimerFailure is not null && error is InvalidOperationException wrapper
+                    && wrapper.InnerException is { } inner && ExpectedCleanup(inner)),
+            async () => await Source.DisposeAsync().ConfigureAwait(true)).ConfigureAwait(true);
     }
+
+    private bool ExpectedCleanup(Exception error)
+        => error is AggregateException aggregate ? aggregate.Flatten().InnerExceptions.All(ExpectedCleanup)
+            : ReferenceEquals(error, TimerFailure) || ReferenceEquals(error, Source.CallbackFailure);
 
     internal sealed class BlockingResolver : IDnsResolver, IAsyncDisposable
     {

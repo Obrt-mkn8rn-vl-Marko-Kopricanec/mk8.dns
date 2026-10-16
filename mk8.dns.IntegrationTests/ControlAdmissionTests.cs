@@ -34,13 +34,8 @@ public sealed class ControlAdmissionTests
         else
             builder.Services.AddZoneManagement(source);
         var host = builder.Build();
-        var handlers = new ConcurrentQueue<Task>();
-        host.Use((context, next) =>
-        {
-            var actual = next(context);
-            handlers.Enqueue(actual);
-            return actual.WaitAsync(CancellationToken.None);
-        });
+        var handlers = new HandlerTaskOwners();
+        host.Use((context, next) => handlers.InvokeAsync(() => next(context)));
         await using var hostLifetime = host.ConfigureAwait(true);
         try
         {
@@ -61,7 +56,7 @@ public sealed class ControlAdmissionTests
         }
     }
 
-    private static async Task CheckShutdownAsync(WebApplication host, string socketPath, BlockingPort source, ExceptionLog errors, ConcurrentQueue<Task> handlers, bool publication, CancellationToken token)
+    private static async Task CheckShutdownAsync(WebApplication host, string socketPath, BlockingPort source, ExceptionLog errors, HandlerTaskOwners handlers, bool publication, CancellationToken token)
     {
         using var client = new UnixControlClient(socketPath);
         IZoneManagement managementPort = client;
@@ -82,7 +77,7 @@ public sealed class ControlAdmissionTests
                 try { await call.WaitAsync(token).ConfigureAwait(true); }
                 catch (RpcException) { }
             }
-            var actualHandlers = Task.WhenAll(handlers);
+            var actualHandlers = handlers.SealAsync();
             await TestTaskSettlement.RunAsync(() => actualHandlers.WaitAsync(token),
                 () => actualHandlers.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
             Assert.DoesNotContain(errors.Exceptions, error => error.ToString().Contains(nameof(SemaphoreSlim), StringComparison.Ordinal));
@@ -93,7 +88,7 @@ public sealed class ControlAdmissionTests
                 () => TestTaskSettlement.AllAsync(
                     () => TestTaskSettlement.AllAsync([.. calls.Select(call => (Func<Task>)(() =>
                         TestTaskSettlement.ObserveAsync(call.WaitAsync(CancellationToken.None), error => error is RpcException)))]),
-                    () => Task.WhenAll(handlers).WaitAsync(CancellationToken.None))).ConfigureAwait(true);
+                    () => handlers.SealAsync().WaitAsync(CancellationToken.None))).ConfigureAwait(true);
         }).ConfigureAwait(true);
     }
 

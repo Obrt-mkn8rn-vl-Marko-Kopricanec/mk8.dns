@@ -27,7 +27,8 @@ internal static class TcpSessionFixture
 
     internal static async Task SettleAsync(DnssecClientTcpSession session, Type? expected = null)
     {
-        try { await session.DisposeAsync().AsTask().WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
-        catch (Exception error) when (expected?.IsInstanceOfType(error) == true) { }
+        var actual = session.DisposeAsync().AsTask();
+        await TestTaskSettlement.WaitAsync(actual.WaitAsync(CancellationToken.None), AnchorRefreshFixture.Timeout,
+            error => expected?.IsInstanceOfType(error) == true).ConfigureAwait(true);
     }
 }

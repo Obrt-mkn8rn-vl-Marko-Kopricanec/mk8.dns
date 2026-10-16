@@ -33,7 +33,9 @@ internal sealed class DnssecWorkFixture : IAsyncDisposable
     {
         var drain = Resolver.DisposeAsync().AsTask();
         Release();
-        try { await drain.WaitAsync(Timeout).ConfigureAwait(true); }
-        finally { await Cache.DisposeAsync().ConfigureAwait(true); Source.Dispose(); }
+        await TestTaskSettlement.InOrderAsync(
+            () => TestTaskSettlement.WaitAsync(drain.WaitAsync(CancellationToken.None), Timeout),
+            async () => await Cache.DisposeAsync().ConfigureAwait(true),
+            () => { Source.Dispose(); return Task.CompletedTask; }).ConfigureAwait(true);
     }
 }

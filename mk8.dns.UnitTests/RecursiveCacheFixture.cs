@@ -19,7 +19,7 @@ internal sealed class RecursiveCacheFixture : IAsyncDisposable
     {
         var drain = Cache.DisposeAsync().AsTask();
         Source.ReleaseAll();
-        await drain.WaitAsync(Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
+        await TestTaskSettlement.WaitAsync(drain.WaitAsync(CancellationToken.None), Timeout).ConfigureAwait(true);
     }
 
     internal static async Task WaitForRetirementAsync(CachingRecursiveResolver cache)

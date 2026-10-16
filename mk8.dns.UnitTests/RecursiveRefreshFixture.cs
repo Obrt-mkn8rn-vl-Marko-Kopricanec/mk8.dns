@@ -26,14 +26,16 @@ internal sealed class RecursiveRefreshFixture : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         var closing = source.Host is null ? Task.CompletedTask : source.Host.DisposeAsync().AsTask();
-        try
-        {
-            var joining = execution is null ? closing : Task.WhenAll(execution, closing);
-            try { await joining.WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
-            catch (Exception error) when (IsExpected(error)) { /* Independently asserted terminal disposition. */ }
-        }
-        finally { await source.DisposeAsync().ConfigureAwait(true); }
+        List<Exception> failures = [];
+        await TestTaskSettlement.CaptureAsync(TestTaskSettlement.AllAsync(
+            () => TestTaskSettlement.WaitAsync(closing.WaitAsync(CancellationToken.None), AnchorRefreshFixture.Timeout, IsExpected),
+            () => execution is null ? Task.CompletedTask : TestTaskSettlement.WaitAsync(execution.WaitAsync(CancellationToken.None),
+                AnchorRefreshFixture.Timeout, IsExpected)), failures).ConfigureAwait(true);
+        await TestTaskSettlement.CaptureAsync(CloseSourceAsync(), failures).ConfigureAwait(true);
+        TestTaskSettlement.ThrowFailures(failures);
     }
+
+    private async Task CloseSourceAsync() => await source.DisposeAsync().ConfigureAwait(true);
 
     private bool IsExpected(Exception error)
     {

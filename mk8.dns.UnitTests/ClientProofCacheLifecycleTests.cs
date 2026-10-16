@@ -48,22 +48,25 @@ public sealed class ClientProofCacheLifecycleTests
         var operation = cache.ResolveDnssecAsync(DnssecCacheResolutionTests.Question(), CancellationToken.None).AsTask();
         var first = cache.DisposeAsync().AsTask();
         var second = cache.DisposeAsync().AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             Assert.Same(first, second);
             Assert.False(first.IsCompleted);
             Assert.Equal(1, cache.Statistics.ActiveRequests);
-            await Assert.ThrowsAsync<ObjectDisposedException>(() => cache.ResolveDnssecAsync(DnssecCacheResolutionTests.Question(), CancellationToken.None).AsTask());
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => cache.ResolveDnssecAsync(DnssecCacheResolutionTests.Question(), CancellationToken.None).AsTask()).ConfigureAwait(true);
             Assert.Throws<ObjectDisposedException>(cache.Clear);
-        }
-        finally
+        }, async () =>
         {
             if (fault) held.TrySetException(new InvalidOperationException("Controlled provider failure."));
             else held.TrySetResult(fixture.Default(new DnsQuestion(fixture.Root, 48, 1), OnlineDnssecFixture.RootServer));
-            if (fault) await Assert.ThrowsAsync<InvalidOperationException>(() => operation.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
-            else Assert.Equal(DnssecResolutionOutcome.Authenticated, (await operation.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None).ConfigureAwait(true)).Outcome);
-            await first.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None).ConfigureAwait(true);
-        }
+            await TestTaskSettlement.AllAsync(
+                () => TestTaskSettlement.RunAsync(async () =>
+                {
+                    if (fault) await Assert.ThrowsAsync<InvalidOperationException>(() => operation.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
+                    else Assert.Equal(DnssecResolutionOutcome.Authenticated, (await operation.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System, CancellationToken.None).ConfigureAwait(true)).Outcome);
+                }, () => TestTaskSettlement.ObserveAsync(operation.WaitAsync(CancellationToken.None), error => fault && error is InvalidOperationException)),
+                () => TestTaskSettlement.WaitAsync(first.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(5))).ConfigureAwait(true);
+        }).ConfigureAwait(true);
         Assert.Equal(0, cache.Statistics.ActiveRequests);
         Assert.Equal(0, cache.Statistics.Entries);
     }

@@ -25,15 +25,15 @@ internal sealed class NativeClientHostFixture : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Inputs.Clock.BeforeTimestamp = null;
-        try
+        await TestTaskSettlement.InOrderAsync(async () =>
         {
             if (Host is not null)
             {
-                try { await Host.DisposeAsync().AsTask().WaitAsync(AnchorRefreshFixture.Timeout, TimeProvider.System, CancellationToken.None).ConfigureAwait(true); }
-                catch (Exception error) when (ExpectedFailure is not null && NativeClientListenerFixture.OnlyExpected(error, ExpectedFailure)) { }
+                await TestTaskSettlement.WaitAsync(Host.DisposeAsync().AsTask().WaitAsync(CancellationToken.None),
+                    AnchorRefreshFixture.Timeout, error => ExpectedFailure is not null
+                        && NativeClientListenerFixture.OnlyExpected(error, ExpectedFailure)).ConfigureAwait(true);
             }
-        }
-        finally { await Inputs.DisposeAsync().ConfigureAwait(true); }
+        }, async () => await Inputs.DisposeAsync().ConfigureAwait(true)).ConfigureAwait(true);
     }
 
     private sealed class Source(ClientProofEpochFixture inputs) : IDnssecUpstream

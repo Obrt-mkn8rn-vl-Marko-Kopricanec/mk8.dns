@@ -20,7 +20,7 @@ internal sealed class DnssecWorkCallbackFixture : IAsyncDisposable
                 CallbackEntered.TrySetResult();
                 try
                 {
-                    if (!released.Wait(DnssecWorkFixture.Timeout)) throw new TimeoutException("The controlled DNSSEC callback was not released.");
+                    if (!released.Wait(DnssecWorkFixture.Timeout, CancellationToken.None)) throw new TimeoutException("The controlled DNSSEC callback was not released.");
                 }
                 finally { CallbackExited.TrySetResult(); }
             });
@@ -49,14 +49,19 @@ internal sealed class DnssecWorkCallbackFixture : IAsyncDisposable
     {
         var drain = Resolver.DisposeAsync().AsTask();
         FinishProvider(); ReleaseCallback();
-        try { await drain.WaitAsync(DnssecWorkFixture.Timeout).ConfigureAwait(true); }
-        finally
-        {
-            await registration.DisposeAsync().ConfigureAwait(true);
-            await Cache.DisposeAsync().ConfigureAwait(true);
-            released.Dispose(); Source.Dispose();
-        }
+        List<Exception> failures = [];
+        await TestTaskSettlement.CaptureAsync(TestTaskSettlement.InOrderAsync(
+            () => TestTaskSettlement.WaitAsync(drain.WaitAsync(CancellationToken.None), DnssecWorkFixture.Timeout),
+            async () => await registration.DisposeAsync().ConfigureAwait(true),
+            async () => await Cache.DisposeAsync().ConfigureAwait(true)), failures).ConfigureAwait(true);
+        await TestTaskSettlement.CaptureAsync(CloseEventAsync(), failures).ConfigureAwait(true);
+        await TestTaskSettlement.CaptureAsync(CloseSourceAsync(), failures).ConfigureAwait(true);
+        TestTaskSettlement.ThrowFailures(failures);
     }
+
+    private async Task CloseEventAsync() { await Task.CompletedTask.ConfigureAwait(true); released.Dispose(); }
+
+    private async Task CloseSourceAsync() { await Task.CompletedTask.ConfigureAwait(true); Source.Dispose(); }
 
     private sealed class ObservedClock(RecursiveCacheClock clock, TaskCompletionSource disposed) : TimeProvider
     {

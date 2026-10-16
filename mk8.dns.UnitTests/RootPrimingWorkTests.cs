@@ -51,17 +51,16 @@ public sealed class RootPrimingWorkTests
         var held = new TaskCompletionSource<DnsUpstreamEvidence>(TaskCreationOptions.RunContinuationsAsynchronously);
         fixture.Override = (_, _, _) => new ValueTask<DnsUpstreamEvidence>(held.Task);
         var operation = fixture.Primer().PrimeAsync(cancellation.Token).AsTask();
-        try
+        await TestTaskSettlement.RunAsync(async () =>
         {
             Assert.Single(fixture.Calls);
             await cancellation.CancelAsync().ConfigureAwait(true);
             Assert.False(operation.IsCompleted);
-        }
-        finally
+        }, async () =>
         {
-            held.TrySetResult(fixture.Default(new DnsQuestion(RootPrimingFixture.Root, 48, 1), RootPrimingFixture.Server));
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation.WaitAsync(TimeSpan.FromSeconds(5))).ConfigureAwait(true);
-        }
+            await TestTaskSettlement.CancelReleaseAndJoinAsync(cancellation, () => held.TrySetResult(fixture.Default(new DnsQuestion(RootPrimingFixture.Root, 48, 1), RootPrimingFixture.Server)),
+                operation.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(5)).ConfigureAwait(true);
+        }).ConfigureAwait(true);
         Assert.Single(fixture.Calls);
     }
 
@@ -78,14 +77,19 @@ public sealed class RootPrimingWorkTests
     {
         using var fixture = new RootPrimingFixture();
         if (invalid < 5)
+        {
             Assert.Throws<ArgumentOutOfRangeException>(() => new DnssecRootPrimer(fixture, DnssecFixture.Verifier,
-                new DnssecTrustAnchor(fixture.Dnskey), [RootPrimingFixture.Server], authorityPort: invalid == 0 ? (ushort)0 : (ushort)53,
-                maximumExchanges: invalid == 1 ? 0 : invalid == 2 ? 257 : 128,
-                maximumVerificationAttempts: invalid == 3 ? 0 : invalid == 4 ? 4097 : 512));
+                        new DnssecTrustAnchor(fixture.Dnskey), [RootPrimingFixture.Server], authorityPort: invalid == 0 ? (ushort)0 : (ushort)53,
+                        maximumExchanges: invalid == 1 ? 0 : invalid == 2 ? 257 : 128,
+                        maximumVerificationAttempts: invalid == 3 ? 0 : invalid == 4 ? 4097 : 512));
+        }
         else
+        {
             Assert.Throws<ArgumentException>(() => fixture.Primer(bootstrap: invalid == 5 ? [] : invalid == 6
-                ? [RootPrimingFixture.Server, RootPrimingFixture.Server]
-                : Enumerable.Range(1, 33).Select(index => new DnsServerEndpoint([127, 0, 0, (byte)index], 5300)).ToArray()));
+                        ? [RootPrimingFixture.Server, RootPrimingFixture.Server]
+                        : [.. Enumerable.Range(1, 33).Select(index => new DnsServerEndpoint([127, 0, 0, (byte)index], 5300))]));
+        }
+
         Assert.Empty(fixture.Calls);
     }
 

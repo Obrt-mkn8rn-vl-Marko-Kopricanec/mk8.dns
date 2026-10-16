@@ -58,18 +58,36 @@ internal sealed class ManagementHttpFixture : IAsyncDisposable
 
     internal async Task StartAsync()
     {
-        await app.StartAsync().ConfigureAwait(true);
+        await app.StartAsync(CancellationToken.None).ConfigureAwait(true);
         lease.SetSocketPermissions();
     }
 
-    public async ValueTask DisposeAsync()
+    private readonly Lock disposalGate = new();
+    private Task? disposal;
+
+    public ValueTask DisposeAsync()
     {
-        await Api.DisposeAsync().ConfigureAwait(true);
-        await app.StopAsync().ConfigureAwait(true);
-        await app.DisposeAsync().ConfigureAwait(true);
-        Client.Dispose();
-        handler.Dispose();
-        lease.Dispose();
-        directory.Dispose();
+        lock (disposalGate) return new ValueTask(disposal ??= CloseAsync());
     }
+
+    private async Task CloseAsync()
+    {
+        List<Exception> failures = [];
+        await TestTaskSettlement.CaptureAsync(CloseApiAsync(), failures).ConfigureAwait(true);
+        await TestTaskSettlement.CaptureAsync(StopHostAsync(), failures).ConfigureAwait(true);
+        await TestTaskSettlement.CaptureAsync(CloseHostAsync(), failures).ConfigureAwait(true);
+        await TestTaskSettlement.CaptureAsync(CloseClientAsync(), failures).ConfigureAwait(true);
+        await TestTaskSettlement.CaptureAsync(CloseHandlerAsync(), failures).ConfigureAwait(true);
+        await TestTaskSettlement.CaptureAsync(CloseLeaseAsync(), failures).ConfigureAwait(true);
+        await TestTaskSettlement.CaptureAsync(CloseDirectoryAsync(), failures).ConfigureAwait(true);
+        TestTaskSettlement.ThrowFailures(failures);
+    }
+
+    private async Task CloseApiAsync() => await Api.DisposeAsync().ConfigureAwait(true);
+    private async Task StopHostAsync() => await app.StopAsync(CancellationToken.None).ConfigureAwait(true);
+    private async Task CloseHostAsync() => await app.DisposeAsync().ConfigureAwait(true);
+    private async Task CloseClientAsync() { await Task.CompletedTask.ConfigureAwait(true); Client.Dispose(); }
+    private async Task CloseHandlerAsync() { await Task.CompletedTask.ConfigureAwait(true); handler.Dispose(); }
+    private async Task CloseLeaseAsync() { await Task.CompletedTask.ConfigureAwait(true); lease.Dispose(); }
+    private async Task CloseDirectoryAsync() { await Task.CompletedTask.ConfigureAwait(true); directory.Dispose(); }
 }

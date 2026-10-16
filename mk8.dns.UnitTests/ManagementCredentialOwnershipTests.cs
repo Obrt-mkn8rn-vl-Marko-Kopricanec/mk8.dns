@@ -12,9 +12,11 @@ namespace Mk8.Dns.UnitTests;
 public sealed class ManagementCredentialOwnershipTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task OwnedCredentialSurvivesTransactionDrainThenClearsWithoutMutatingIngress(bool found)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task OwnedCredentialSurvivesTransactionDrainThenClearsWithoutMutatingIngress(bool found, bool observerFailure)
     {
         byte[] ingress = [.. Enumerable.Repeat((byte)123, 32)];
         var authorizer = new Authorizer();
@@ -26,13 +28,15 @@ public sealed class ManagementCredentialOwnershipTests
         if (found) transaction.Operation = new ZoneOperation(request.TenantId, request.OperationId, "unused", "actor", "node", snapshot, Activated: false);
         var application = new ZoneManagementApplication(new Store(transaction), authorizer, new ZoneBundleAdapter(), "node");
         var operation = application.ExecuteAsync(request, CancellationToken.None).AsTask();
-        await TestTaskSettlement.RunAsync(async () =>
+        var observer = new InvalidOperationException("Controlled credential observer failure.");
+        var observed = await Record.ExceptionAsync(() => TestTaskSettlement.RunAsync(async () =>
         {
             await transaction.Disposing.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true);
             Assert.False(operation.IsCompleted);
             Assert.True(MemoryMarshal.TryGetArray(authorizer.Credential, out var owned));
             Assert.NotSame(ingress, owned.Array);
             Assert.Equal(ingress, authorizer.Credential.ToArray());
+            if (observerFailure) throw observer;
             transaction.Release.TrySetResult();
             if (found) Assert.Equal("accepted", (await operation.WaitAsync(CancellationToken.None).ConfigureAwait(true)).State);
             else await Assert.ThrowsAsync<KeyNotFoundException>(() => operation.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
@@ -41,9 +45,13 @@ public sealed class ManagementCredentialOwnershipTests
         }, async () =>
         {
             transaction.Release.TrySetResult();
-            try { await operation.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(true); }
-            catch (KeyNotFoundException) when (!found && operation.IsFaulted) { }
-        }).ConfigureAwait(true);
+            await TestTaskSettlement.WaitAsync(operation.WaitAsync(CancellationToken.None), TimeSpan.FromSeconds(5),
+                error => !found && error is KeyNotFoundException).ConfigureAwait(true);
+        })).ConfigureAwait(true);
+        if (observerFailure) Assert.Same(observer, observed); else Assert.Null(observed);
+        Assert.True(operation.IsCompleted);
+        Assert.All(authorizer.Credential.ToArray(), value => Assert.Equal(0, value));
+        Assert.All(ingress, value => Assert.Equal(123, value));
     }
 
     [Theory]
