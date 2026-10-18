@@ -17,10 +17,10 @@ internal static class ManagementGatewayHost
         using var status = new UnixApplicationClient(settings.SocketPath);
         var builder = CreateBuilder(lease, policy);
         var gateway = builder.Build();
-        await using (gateway.ConfigureAwait(false))
+        await ServiceExecution.RunAsync(async () =>
         {
             var api = new ManagementHttpApi(client);
-            await using (api.ConfigureAwait(false))
+            await ServiceExecution.RunAsync(async () =>
             {
                 api.Map(gateway);
                 gateway.MapGet("/health/live", () => Results.StatusCode(200));
@@ -38,20 +38,19 @@ internal static class ManagementGatewayHost
                 });
                 var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var stop = gateway.Lifetime.ApplicationStopping.Register(() => stopped.TrySetResult());
-                await using var stopLifetime = stop.ConfigureAwait(false);
-                try
+                await ServiceExecution.RunAsync(async () =>
                 {
                     await gateway.StartAsync(CancellationToken.None).ConfigureAwait(false);
                     lease.SetSocketPermissions();
-                    await stopped.Task.ConfigureAwait(false);
-                }
-                finally
-                {
-                    await api.DisposeAsync().ConfigureAwait(false);
-                    await gateway.StopAsync(CancellationToken.None).ConfigureAwait(false);
-                }
-            }
-        }
+                    await stopped.Task.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                }, () => stop.DisposeAsync().AsTask()).ConfigureAwait(false);
+            }, async () =>
+            {
+                var admission = ServiceExecution.CaptureAsync(() => api.DisposeAsync().AsTask(), CancellationToken.None);
+                var stopping = ServiceExecution.CaptureAsync(() => gateway.StopAsync(CancellationToken.None), CancellationToken.None);
+                ServiceExecution.ThrowFailures([await admission.ConfigureAwait(false), await stopping.ConfigureAwait(false)]);
+            }).ConfigureAwait(false);
+        }, () => gateway.DisposeAsync().AsTask()).ConfigureAwait(false);
     }
     private static WebApplicationBuilder CreateBuilder(PrivateUnixSocket lease, ServiceHostPolicy policy)
     {

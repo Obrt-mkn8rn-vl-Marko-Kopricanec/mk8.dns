@@ -3,6 +3,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="mk8.dns.Application" />
+    <InternalsVisibleTo Include="mk8.dns.Gateway" />
     <InternalsVisibleTo Include="mk8.dns.IntegrationTests" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Grpc.AspNetCore" />

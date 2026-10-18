@@ -9,9 +9,10 @@ internal sealed partial record RecursiveStartupConfiguration
     private static DnssecAnchorPollingPolicy Refresh(JsonElement value)
     {
         RequireFields(value, ["refreshIntervalSeconds", "retryIntervalSeconds", "maximumAttempts"]);
-        return new DnssecAnchorPollingPolicy(
-            TimeSpan.FromSeconds(Number(value, "refreshIntervalSeconds", 3600, 1296000)),
-            TimeSpan.FromSeconds(Number(value, "retryIntervalSeconds", 3600, 86400)),
+        var interval = Number(value, "refreshIntervalSeconds", 3600, 1296000);
+        var retry = Number(value, "retryIntervalSeconds", 3600, 86400);
+        if (retry > interval) throw new InvalidDataException("SecretRecursiveRetryIntervalBounds");
+        return new DnssecAnchorPollingPolicy(TimeSpan.FromSeconds(interval), TimeSpan.FromSeconds(retry),
             (int)Number(value, "maximumAttempts", 1, 256));
     }
 

@@ -11,11 +11,11 @@ namespace Mk8.Dns.Application;
 internal static class RecursiveStartup
 {
     internal static Task RunAsync(DnsServiceSecrets secrets, string mode)
-        => RunCoreAsync(secrets, mode is "recursive-refresh", mode is "recursive-checking-disabled");
+        => RunCoreAsync(secrets, mode);
 
-    private static async Task RunCoreAsync(DnsServiceSecrets secrets, bool authenticatedRefresh, bool checkingDisabled)
+    private static async Task RunCoreAsync(DnsServiceSecrets secrets, string mode)
     {
-        var settings = RecursiveStartupConfiguration.FromSecrets(secrets, authenticatedRefresh, checkingDisabled);
+        var settings = RecursiveStartupConfiguration.FromSecrets(secrets, mode);
         secrets.RequireOnly(["Mode", "Recursive", settings.KeySecret]);
         var verifier = new DnssecSignatureVerifier();
         var time = TimeProvider.System;

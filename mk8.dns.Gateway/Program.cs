@@ -39,7 +39,7 @@ builder.WebHost.ConfigureKestrel(options =>
 });
 
 var gateway = builder.Build();
-await using (gateway.ConfigureAwait(false))
+await ServiceExecution.RunAsync(async () =>
 {
     gateway.MapGet("/health/live", () => Results.StatusCode(StatusCodes.Status200OK));
     gateway.MapGet("/health/ready", async (CancellationToken cancellationToken) =>
@@ -75,35 +75,6 @@ await using (gateway.ConfigureAwait(false))
             return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
     });
-    if (settings.DnsEndpoint is null)
-        await gateway.RunAsync().ConfigureAwait(false);
-    else
-        await RunDnsGatewayAsync(gateway, settings, queries).ConfigureAwait(false);
-}
-
-static async Task RunDnsGatewayAsync(WebApplication gateway, GatewaySettings settings, IDnsExchange queries)
-{
-    using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(gateway.Lifetime.ApplicationStopping);
-    var listener = new AuthoritativeListener(settings.DnsEndpoint!, queries);
-    var dns = listener.RunAsync(lifetime.Token);
-    try
-    {
-        if (dns.IsCompleted)
-            await dns.ConfigureAwait(false);
-        await gateway.StartAsync(CancellationToken.None).ConfigureAwait(false);
-        var shutdown = gateway.WaitForShutdownAsync(CancellationToken.None);
-        var finished = await Task.WhenAny(dns, shutdown).ConfigureAwait(false);
-        await finished.ConfigureAwait(false);
-    }
-    catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
-    finally
-    {
-        await lifetime.CancelAsync().ConfigureAwait(false);
-        await gateway.StopAsync(CancellationToken.None).ConfigureAwait(false);
-        try
-        {
-            await dns.ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
-    }
-}
+    var listener = settings.DnsEndpoint is null ? null : new AuthoritativeListener(settings.DnsEndpoint, queries);
+    await QueryHostExecution.RunAsync(gateway, listener is null ? null : listener.RunAsync).ConfigureAwait(false);
+}, () => gateway.DisposeAsync().AsTask()).ConfigureAwait(false);

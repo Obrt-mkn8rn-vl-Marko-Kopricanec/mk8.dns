@@ -19,14 +19,32 @@ public sealed class NativeCheckingDisabledStartupTests
     [InlineData(true, true, false)]
     [InlineData(true, true, true)]
     public async Task ExplicitExecutableProfilesServeOutsideAnchorScopeWithoutAdAndSignalReleasesJournal(bool material, bool dnssecOk, bool tcp)
+        => await RunProfileAsync(material, dnssecOk, tcp, refresh: false).ConfigureAwait(true);
+
+    [Fact]
+    public async Task CheckingDisabledExecutableCanOwnFiniteRefreshAndReleaseTheJournalOnSignal()
+        => await RunProfileAsync(material: true, dnssecOk: true, tcp: true, refresh: true).ConfigureAwait(true);
+
+    private static async Task RunProfileAsync(bool material, bool dnssecOk, bool tcp, bool refresh)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         using var upstream = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
         var upstreamEndpoint = Assert.IsType<IPEndPoint>(upstream.Client.LocalEndPoint);
         var port = RecursiveStartupFixture.VacantPair();
         using var fixture = new RecursiveStartupFixture(port, upstreamEndpoint.Port);
-        fixture.Configuration["checkingDisabledDnssecMaterial"] = material; fixture.Write();
-        var host = new HostProcess("mk8.dns.Application", ["--recursive-checking-disabled-config", fixture.ConfigurationPath], 0);
+        fixture.Configuration["checkingDisabledDnssecMaterial"] = material;
+        if (refresh)
+        {
+            fixture.Configuration["refreshPolicy"] = new System.Text.Json.Nodes.JsonObject
+            {
+                ["refreshIntervalSeconds"] = 3600,
+                ["retryIntervalSeconds"] = 3600,
+                ["maximumAttempts"] = 1,
+            };
+        }
+        fixture.Write();
+        var profile = refresh ? "--recursive-refresh-checking-disabled-config" : "--recursive-checking-disabled-config";
+        var host = new HostProcess("mk8.dns.Application", [profile, fixture.ConfigurationPath], 0);
         await using var lifetime = host.ConfigureAwait(true);
         using var peer = await ConnectAsync(port, host, deadline.Token).ConfigureAwait(true);
         var question = new DnsQuestion(DnsName.Parse("outside.invalid."), 1, 1);
@@ -78,18 +96,15 @@ public sealed class NativeCheckingDisabledStartupTests
     {
         using var work = CancellationTokenSource.CreateLinkedTokenSource(token);
         var answering = AnswerAsync(upstream, question, material, dnssecOk, work.Token);
-        byte[] reply;
-        try
+        byte[]? reply = null;
+        await TestTaskSettlement.RunAsync(async () =>
         {
             reply = await QueryAsync(peer, port, request, tcp, token).ConfigureAwait(true);
-            await answering.ConfigureAwait(true);
-        }
-        finally
-        {
-            await work.CancelAsync().ConfigureAwait(true);
-            await answering.ConfigureAwait(true);
-        }
-        return reply;
+            await answering.WaitAsync(CancellationToken.None).ConfigureAwait(true);
+        }, () => TestTaskSettlement.AllAsync(work.CancelAsync,
+            () => TestTaskSettlement.ObserveAsync(answering.WaitAsync(CancellationToken.None),
+                error => answering.IsCanceled && work.IsCancellationRequested && error is OperationCanceledException))).ConfigureAwait(true);
+        return reply!;
     }
 
     private static async Task AnswerAsync(UdpClient upstream, DnsQuestion question, bool material, bool dnssecOk, CancellationToken token)

@@ -14,7 +14,28 @@ internal sealed partial record RecursiveStartupConfiguration(string StoreDirecto
     ushort AuthorityPort, DnssecWorkPolicy Work, int MaximumRequests, int UdpWorkers,
     int MaximumTcpConnections, int MaximumTcpMessages, TimeSpan UpstreamTimeout, DnssecAnchorPollingPolicy? RefreshPolicy, bool? CheckingDisabledDnssecMaterial)
 {
-    internal static RecursiveStartupConfiguration FromSecrets(DnsServiceSecrets secrets, bool authenticatedRefresh, bool checkingDisabled)
+    internal static RecursiveStartupConfiguration FromSecrets(DnsServiceSecrets secrets, string mode)
+    {
+        var (refresh, checkingDisabled) = mode switch
+        {
+            "recursive" => (false, false),
+            "recursive-refresh" => (true, false),
+            "recursive-checking-disabled" => (false, true),
+            "recursive-refresh-checking-disabled" => (true, true),
+            _ => throw new InvalidDataException("SecretModeInvalid"),
+        };
+        RecursiveStartupConfiguration? settings = null;
+        try { settings = Parse(secrets, refresh, checkingDisabled); }
+        catch (Exception error) when (error is JsonException or ArgumentException or FormatException
+            or InvalidOperationException or KeyNotFoundException or OverflowException)
+        {
+            // Parser/type/path diagnostics may contain protected input. Do not
+            // retain their inner graph at the executable configuration boundary.
+        }
+        return settings ?? throw new InvalidDataException("SecretRecursiveInvalid");
+    }
+
+    private static RecursiveStartupConfiguration Parse(DnsServiceSecrets secrets, bool authenticatedRefresh, bool checkingDisabled)
     {
         using var document = JsonDocument.Parse(secrets.Text("Recursive", 65536), new JsonDocumentOptions { MaxDepth = 8 });
         var values = document.RootElement;
@@ -22,8 +43,9 @@ internal sealed partial record RecursiveStartupConfiguration(string StoreDirecto
             "listen", "roots", "refreshServer", "clientNetworks", "allowAuthenticatedData", "egressNetworks", "authorityPort",
             "maximumRequests", "udpWorkers", "maximumTcpConnections", "maximumTcpMessages", "maximumWorkers",
             "maximumWaiters", "resolutionTimeoutMilliseconds", "upstreamTimeoutMilliseconds"];
-        RequireFields(values, authenticatedRefresh ? [.. fields, "refreshPolicy"]
-            : checkingDisabled ? [.. fields, "checkingDisabledDnssecMaterial"] : fields);
+        if (authenticatedRefresh) fields = [.. fields, "refreshPolicy"];
+        if (checkingDisabled) fields = [.. fields, "checkingDisabledDnssecMaterial"];
+        RequireFields(values, fields);
         bool? uncheckedMaterial = checkingDisabled ? values.GetProperty("checkingDisabledDnssecMaterial").GetBoolean() : null;
         var refreshPolicy = authenticatedRefresh ? Refresh(values.GetProperty("refreshPolicy")) : null;
         var roots = values.GetProperty("roots").EnumerateArray().Select(Endpoint).Take(17).ToArray();
