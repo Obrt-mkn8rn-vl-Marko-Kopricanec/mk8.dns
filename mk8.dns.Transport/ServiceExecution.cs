@@ -17,8 +17,11 @@ internal static class ServiceExecution
         }
         catch (Exception error) when (actual is null or { IsFaulted: true } or { IsCanceled: true })
         {
-            if (actual?.IsCanceled == true && expectedCancellation.IsCancellationRequested && error is OperationCanceledException)
+            if (actual?.IsCanceled == true && expectedCancellation.IsCancellationRequested
+                && error is OperationCanceledException canceled && canceled.CancellationToken == expectedCancellation)
+            {
                 return null;
+            }
             if (actual?.Exception is { InnerExceptions.Count: 1 } single) return single.InnerExceptions[0];
             return actual?.Exception ?? error;
         }

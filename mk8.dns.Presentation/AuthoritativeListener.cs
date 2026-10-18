@@ -36,7 +36,19 @@ public sealed class AuthoritativeListener
         udp.Bind(endpoint);
         tcp.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, optionValue: true);
         tcp.Start(16);
-        await RunServersAsync(udp, tcp, lifetime).ConfigureAwait(false);
+        await PropagateCancellationAsync(RunServersAsync(udp, tcp, lifetime), cancellationToken, lifetime.Token).ConfigureAwait(false);
+    }
+
+    private static async Task PropagateCancellationAsync(Task actual, CancellationToken owner, CancellationToken linked)
+    {
+        try { await actual.WaitAsync(CancellationToken.None).ConfigureAwait(false); }
+        catch (OperationCanceledException error) when (actual.IsCanceled && owner.IsCancellationRequested
+            && linked.IsCancellationRequested && error.CancellationToken == linked)
+        {
+            // Retire the linked source only after its real operation settles.
+            // Expose the requesting owner's token, retaining the inner outcome.
+            throw new OperationCanceledException("Authoritative listener stopped.", error, owner);
+        }
     }
 
     private async Task RunServersAsync(Socket udp, TcpListener tcp, CancellationTokenSource lifetime)
@@ -61,8 +73,11 @@ public sealed class AuthoritativeListener
         // A failed dispatcher must not skip a still-live server or connection.
         await CaptureAsync(stopping, errors).ConfigureAwait(false);
         foreach (var task in tasks) await CaptureAsync(task, errors).ConfigureAwait(false);
-        if (errors.Count == 1 || (errors.Count != 0 && errors.TrueForAll(error => error is OperationCanceledException)))
+        if (errors.Count == 1 || (errors.Count != 0 && lifetime.IsCancellationRequested
+            && errors.TrueForAll(error => error is OperationCanceledException canceled && canceled.CancellationToken == lifetime.Token)))
+        {
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(errors[0]).Throw();
+        }
         if (errors.Count != 0) throw new AggregateException(errors);
     }
 
@@ -100,7 +115,7 @@ public sealed class AuthoritativeListener
     {
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(token);
         using var admission = new SemaphoreSlim(16, 16);
-        await AcceptConnectionsAsync(listener, admission, lifetime).ConfigureAwait(false);
+        await PropagateCancellationAsync(AcceptConnectionsAsync(listener, admission, lifetime), token, lifetime.Token).ConfigureAwait(false);
     }
 
     private async Task AcceptConnectionsAsync(TcpListener listener, SemaphoreSlim admission, CancellationTokenSource lifetime)
