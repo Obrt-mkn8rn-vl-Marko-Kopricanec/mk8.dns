@@ -35,13 +35,13 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
 
     internal PostgresControlPlaneStore(string connectionString, Func<ValueTask>? afterLeaseRelease)
     {
-        ValidateLocalConnectionString(connectionString);
+        var settings = LocalPostgresConnection.Create(connectionString);
         writerId = Guid.NewGuid();
         this.afterLeaseRelease = afterLeaseRelease;
-        var settings = new NpgsqlConnectionStringBuilder(connectionString) { Pooling = false };
-        source = NpgsqlDataSource.Create(connectionString);
+        source = NpgsqlDataSource.Create(settings.ConnectionString);
         try
         {
+            settings.Pooling = false;
             lease = new NpgsqlConnection(settings.ConnectionString);
         }
         catch
@@ -55,10 +55,7 @@ public sealed class PostgresControlPlaneStore : IControlPlaneStore, IZoneResigni
     // state or IPC owners. This validates syntax/scope only, never database I/O.
     public static void ValidateLocalConnectionString(string connectionString)
     {
-        ArgumentException.ThrowIfNullOrEmpty(connectionString);
-        var configured = new NpgsqlConnectionStringBuilder(connectionString);
-        if (configured.Host is null || !Path.IsPathFullyQualified(configured.Host) || configured.Host.Contains(',', StringComparison.Ordinal))
-            throw new ArgumentException("This controller profile requires one local PostgreSQL Unix socket directory.", nameof(connectionString));
+        _ = LocalPostgresConnection.Create(connectionString);
     }
 
     public async ValueTask InitializeAsync(Guid epoch, CancellationToken cancellationToken)
