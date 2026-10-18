@@ -10,17 +10,33 @@ public sealed class AuthoritativeListener
 {
     private readonly IPEndPoint endpoint;
     private readonly IDnsExchange exchange;
+    private readonly int maximumTcpConnections;
+    private readonly int maximumTcpMessages;
+    private readonly TimeSpan frameTimeout;
 
     public AuthoritativeListener(IPEndPoint endpoint, IDnsExchange exchange)
+        : this(endpoint, exchange, 16, 100, TimeSpan.FromSeconds(2)) { }
+
+    public AuthoritativeListener(IPEndPoint endpoint, IDnsExchange exchange,
+        int maximumTcpConnections, int maximumTcpMessages, TimeSpan frameTimeout)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentNullException.ThrowIfNull(exchange);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumTcpConnections, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumTcpConnections, 16);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumTcpMessages, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumTcpMessages, 100);
+        ArgumentOutOfRangeException.ThrowIfLessThan(frameTimeout, TimeSpan.FromMilliseconds(1));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(frameTimeout, TimeSpan.FromSeconds(2));
         if (endpoint.Port == 0)
             throw new ArgumentException("An explicit DNS port is required.", nameof(endpoint));
         if (endpoint.Address.GetAddressBytes().AsSpan().IndexOfAnyExcept((byte)0) < 0 || (endpoint.Address.IsIPv4MappedToIPv6 && endpoint.Address.MapToIPv4().Equals(IPAddress.Any)))
             throw new ArgumentException("DNS requires a specific bind address to preserve UDP reply source identity.", nameof(endpoint));
         this.endpoint = new IPEndPoint(endpoint.Address, endpoint.Port);
         this.exchange = exchange;
+        this.maximumTcpConnections = maximumTcpConnections;
+        this.maximumTcpMessages = maximumTcpMessages;
+        this.frameTimeout = frameTimeout;
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -35,7 +51,7 @@ public sealed class AuthoritativeListener
         }
         udp.Bind(endpoint);
         tcp.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, optionValue: true);
-        tcp.Start(16);
+        tcp.Start(maximumTcpConnections);
         await PropagateCancellationAsync(RunServersAsync(udp, tcp, lifetime), cancellationToken, lifetime.Token).ConfigureAwait(false);
     }
 
@@ -114,7 +130,7 @@ public sealed class AuthoritativeListener
     private async Task AcceptTcpAsync(TcpListener listener, CancellationToken token)
     {
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(token);
-        using var admission = new SemaphoreSlim(16, 16);
+        using var admission = new SemaphoreSlim(maximumTcpConnections, maximumTcpConnections);
         await PropagateCancellationAsync(AcceptConnectionsAsync(listener, admission, lifetime), token, lifetime.Token).ConfigureAwait(false);
     }
 
@@ -172,10 +188,10 @@ public sealed class AuthoritativeListener
             await using var streamLifetime = stream.ConfigureAwait(false);
             var peer = ((IPEndPoint)socket.RemoteEndPoint!).Address.GetAddressBytes();
             var prefix = new byte[2];
-            for (var count = 0; count < 100; count++)
+            for (var count = 0; count < maximumTcpMessages; count++)
             {
                 using var frame = CancellationTokenSource.CreateLinkedTokenSource(token);
-                frame.CancelAfter(TimeSpan.FromSeconds(2));
+                frame.CancelAfter(frameTimeout);
                 await stream.ReadExactlyAsync(prefix, frame.Token).ConfigureAwait(false);
                 var length = BinaryPrimitives.ReadUInt16BigEndian(prefix);
                 if (length == 0)

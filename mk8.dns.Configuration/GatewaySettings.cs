@@ -14,8 +14,10 @@ public sealed record GatewaySettings(string SocketPath, int HealthPort)
         ArgumentNullException.ThrowIfNull(secrets);
         var arguments = secrets.Arguments("Settings");
         if (!arguments.Contains("--role", StringComparer.Ordinal)) throw new InvalidDataException("SecretRoleMissing");
-        secrets.RequireOnly(["Settings", "HostPolicy"]);
-        return Parse(arguments);
+        var settings = Parse(arguments);
+        secrets.RequireOnly(settings.Role == GatewayRole.Query && settings.DnsEndpoint is not null
+            ? ["Settings", "HostPolicy", "DnsPolicy"] : ["Settings", "HostPolicy"]);
+        return settings;
     }
 
     public static GatewaySettings Parse(string[] args)

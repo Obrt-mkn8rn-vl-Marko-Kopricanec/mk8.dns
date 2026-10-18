@@ -10,6 +10,7 @@ if (args.Length != 0) throw new ArgumentException("ServiceArgumentsForbidden", n
 var secrets = await DnsServiceSecrets.LoadAsync("Gateway", CancellationToken.None).ConfigureAwait(false);
 var settings = GatewaySettings.FromSecrets(secrets);
 var policy = ServiceHostPolicy.FromSecrets(secrets);
+var dnsPolicy = GatewayDnsPolicy.FromSecrets(secrets);
 if (settings.Role == GatewayRole.Management)
 {
     await ManagementGatewayHost.RunAsync(settings, policy).ConfigureAwait(false);
@@ -75,6 +76,7 @@ await ServiceExecution.RunAsync(async () =>
             return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
     });
-    var listener = settings.DnsEndpoint is null ? null : new AuthoritativeListener(settings.DnsEndpoint, queries);
+    var listener = settings.DnsEndpoint is null ? null : new AuthoritativeListener(settings.DnsEndpoint, queries,
+        dnsPolicy.TcpConnections, dnsPolicy.MessagesPerConnection, TimeSpan.FromMilliseconds(dnsPolicy.FrameTimeoutMilliseconds));
     await QueryHostExecution.RunAsync(gateway, listener is null ? null : listener.RunAsync).ConfigureAwait(false);
 }, () => gateway.DisposeAsync().AsTask()).ConfigureAwait(false);

@@ -11,7 +11,7 @@ using Xunit;
 
 namespace Mk8.Dns.IntegrationTests;
 
-public sealed class NativeDnsTests
+public sealed partial class NativeDnsTests
 {
     [Fact]
     public async Task NativeUdpTcpAndRestartUseDurableLocalZonesAcrossSeparateHosts()
@@ -48,7 +48,7 @@ public sealed class NativeDnsTests
             await using (gateway.ConfigureAwait(true))
             {
                 using var handler = new SocketsHttpHandler { UseProxy = false };
-                using var http = new HttpClient(handler) { BaseAddress = new Uri(FormattableString.Invariant($"http://127.0.0.1:{health}")) };
+                using var http = new HttpClient(handler) { BaseAddress = new Uri(string.Create(CultureInfo.InvariantCulture, $"http://127.0.0.1:{health}")) };
                 await HealthyAsync(http, application, gateway, token).ConfigureAwait(true);
                 await AssertQueryProtocolRejectedAsync(endpoint, token).ConfigureAwait(true);
                 await AssertQueriesAsync(dns, token).ConfigureAwait(true);
@@ -164,7 +164,8 @@ public sealed class NativeDnsTests
         AssertAnswer(datagram.Buffer, query);
         using var tcp = new TcpClient(AddressFamily.InterNetwork);
         await tcp.ConnectAsync(IPAddress.Loopback, port, token).ConfigureAwait(true);
-        using var stream = tcp.GetStream();
+        var stream = tcp.GetStream();
+        await using var streamLifetime = stream.ConfigureAwait(true);
         var frame = new byte[query.Length + 2];
         BinaryPrimitives.WriteUInt16BigEndian(frame, (ushort)query.Length);
         query.CopyTo(frame, 2);

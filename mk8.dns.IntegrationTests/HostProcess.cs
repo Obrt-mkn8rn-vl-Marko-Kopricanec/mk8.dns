@@ -13,7 +13,7 @@ internal sealed class HostProcess : IAsyncDisposable
     private readonly DateTimeOffset startedAt = DateTimeOffset.UtcNow;
     private bool diagnosticsSaved;
 
-    internal HostProcess(string host, string[] arguments, int injectedPort, string[]? forbiddenArguments = null)
+    internal HostProcess(string host, string[] arguments, int injectedPort, string[]? forbiddenArguments = null, string? dnsPolicy = null)
     {
         var diagnostics = Environment.GetEnvironmentVariable("MK8_DNS_TEST_HOST_LOGS");
         if (!string.IsNullOrEmpty(diagnostics))
@@ -29,7 +29,7 @@ internal sealed class HostProcess : IAsyncDisposable
             RedirectStandardError = true,
             WorkingDirectory = RepositoryPaths.Root,
         };
-        installation = new HostInstallationFixture(host, arguments);
+        installation = new HostInstallationFixture(host, arguments, dnsPolicy);
         start.ArgumentList.Add(installation.AssemblyPath);
         if (forbiddenArguments is not null)
             foreach (var argument in forbiddenArguments) start.ArgumentList.Add(argument);

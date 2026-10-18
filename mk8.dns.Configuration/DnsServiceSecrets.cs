@@ -151,6 +151,8 @@ public sealed class DnsServiceSecrets
         if (values.Keys.Any(name => !allowed.Contains(name))) throw new InvalidDataException("SecretSettingUnknown");
     }
 
+    internal bool Contains(string name) => values.ContainsKey(name);
+
     public static void ValidateName(string name)
     {
         ArgumentNullException.ThrowIfNull(name);

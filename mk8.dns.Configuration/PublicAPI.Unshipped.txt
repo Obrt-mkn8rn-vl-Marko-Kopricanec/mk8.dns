@@ -126,3 +126,8 @@ Mk8.Dns.Configuration.DnsServiceSecrets.JsonText(string! name, int maximumBytes 
 Mk8.Dns.Configuration.DnsServiceSecrets.Arguments(string! name) -> string![]!
 Mk8.Dns.Configuration.DnsServiceSecrets.RequireOnly(System.Collections.Generic.IEnumerable<string!>! names) -> void
 static Mk8.Dns.Configuration.DnsServiceSecrets.ValidateName(string! name) -> void
+Mk8.Dns.Configuration.GatewayDnsPolicy
+Mk8.Dns.Configuration.GatewayDnsPolicy.TcpConnections.get -> int
+Mk8.Dns.Configuration.GatewayDnsPolicy.MessagesPerConnection.get -> int
+Mk8.Dns.Configuration.GatewayDnsPolicy.FrameTimeoutMilliseconds.get -> int
+static Mk8.Dns.Configuration.GatewayDnsPolicy.FromSecrets(Mk8.Dns.Configuration.DnsServiceSecrets! secrets) -> Mk8.Dns.Configuration.GatewayDnsPolicy!

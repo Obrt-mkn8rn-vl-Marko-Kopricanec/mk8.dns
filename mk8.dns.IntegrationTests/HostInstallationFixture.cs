@@ -14,7 +14,7 @@ internal sealed class HostInstallationFixture : IDisposable
     internal string AssemblyPath { get; }
     internal IReadOnlyDictionary<string, string> AssemblyHashes { get; }
 
-    internal HostInstallationFixture(string host, string[] fixtureArguments)
+    internal HostInstallationFixture(string host, string[] fixtureArguments, string? dnsPolicy = null)
     {
         root = Path.Combine(Path.GetTempPath(), "m8-install-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -43,6 +43,11 @@ internal sealed class HostInstallationFixture : IDisposable
                 values.Add("HostPolicy", HostPolicy());
             }
             if (!values.ContainsKey("Recursive")) values.Add("Settings", JsonSerializer.Serialize(arguments));
+            if (dnsPolicy is not null)
+            {
+                if (role is not "Gateway") throw new InvalidOperationException("FixtureDnsPolicyRoleInvalid");
+                values.Add("DnsPolicy", dnsPolicy);
+            }
             var directory = Path.Combine(root, "Environment");
             Directory.CreateDirectory(directory);
             var text = SupprocomSecretDocument.Serialize(values.Select(pair => new SupprocomSecretSetting(role + ":" + pair.Key, pair.Value)));
