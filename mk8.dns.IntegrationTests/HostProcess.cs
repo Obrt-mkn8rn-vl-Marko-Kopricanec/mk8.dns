@@ -3,12 +3,13 @@ using System.Text.Json;
 
 namespace Mk8.Dns.IntegrationTests;
 
-internal sealed class HostProcess : IAsyncDisposable
+internal sealed partial class HostProcess : IAsyncDisposable
 {
     private readonly Process process;
     private readonly HostInstallationFixture installation;
     private readonly Task<string> output;
     private readonly Task<string> errors;
+    private readonly Task exit;
     private readonly string? diagnosticPrefix;
     private readonly DateTimeOffset startedAt = DateTimeOffset.UtcNow;
     private bool diagnosticsSaved;
@@ -43,13 +44,15 @@ internal sealed class HostProcess : IAsyncDisposable
         catch { installation.Dispose(); throw; }
         output = process.StandardOutput.ReadToEndAsync();
         errors = process.StandardError.ReadToEndAsync();
+        exit = process.WaitForExitAsync(CancellationToken.None);
     }
 
     internal bool HasExited => process.HasExited;
     internal int ExitCode => process.ExitCode;
+    internal Task? LastSignalExit { get; private set; }
 
     internal Task WaitForExitAsync(CancellationToken cancellationToken)
-        => process.WaitForExitAsync(cancellationToken);
+        => exit.WaitAsync(cancellationToken);
 
     internal async Task StopAsync(CancellationToken cancellationToken)
     {
@@ -59,17 +62,23 @@ internal sealed class HostProcess : IAsyncDisposable
             start.ArgumentList.Add("-TERM");
             start.ArgumentList.Add(process.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
             using var signal = Process.Start(start) ?? throw new InvalidOperationException("Cannot terminate the owned host.");
-            await signal.WaitForExitAsync(cancellationToken).ConfigureAwait(true);
+            var signaled = signal.WaitForExitAsync(CancellationToken.None);
+            LastSignalExit = signaled;
+            await TestTaskSettlement.WaitAsync(signaled, cancellationToken).ConfigureAwait(true);
         }
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(true);
+        await exit.WaitAsync(cancellationToken).ConfigureAwait(true);
     }
 
     internal async Task KillAsync(CancellationToken cancellationToken)
     {
-        if (!process.HasExited)
-            process.Kill(entireProcessTree: true);
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(true);
+        RequestKill();
+        await exit.WaitAsync(cancellationToken).ConfigureAwait(true);
         _ = await ReadLogsAsync(cancellationToken).ConfigureAwait(true);
+        await SaveDiagnosticsAsync(cancellationToken).ConfigureAwait(true);
+    }
+
+    private async Task SaveDiagnosticsAsync(CancellationToken cancellationToken)
+    {
         if (diagnosticPrefix is not null && !diagnosticsSaved)
         {
             await File.WriteAllTextAsync(diagnosticPrefix + ".stdout.log", await output.WaitAsync(cancellationToken).ConfigureAwait(true), cancellationToken).ConfigureAwait(true);
@@ -93,17 +102,4 @@ internal sealed class HostProcess : IAsyncDisposable
         return await output.WaitAsync(cancellationToken).ConfigureAwait(true) + await errors.WaitAsync(cancellationToken).ConfigureAwait(true);
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        try
-        {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            await KillAsync(timeout.Token).ConfigureAwait(true);
-            installation.Dispose();
-        }
-        finally
-        {
-            process.Dispose();
-        }
-    }
 }

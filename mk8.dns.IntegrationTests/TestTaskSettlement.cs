@@ -25,6 +25,22 @@ internal static class TestTaskSettlement
     {
         var observer = await Record.ExceptionAsync(() => operation.WaitAsync(timeout, TimeProvider.System, CancellationToken.None)).ConfigureAwait(true);
         var terminal = await Record.ExceptionAsync(() => operation.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+        ThrowObservationErrors(operation, observer, terminal);
+    }
+
+    internal static async Task WaitAsync(Task operation, CancellationToken observationToken)
+    {
+        var observer = await Record.ExceptionAsync(async () =>
+        {
+            observationToken.ThrowIfCancellationRequested();
+            await operation.WaitAsync(observationToken).ConfigureAwait(true);
+        }).ConfigureAwait(true);
+        var terminal = await Record.ExceptionAsync(() => operation.WaitAsync(CancellationToken.None)).ConfigureAwait(true);
+        ThrowObservationErrors(operation, observer, terminal);
+    }
+
+    private static void ThrowObservationErrors(Task operation, Exception? observer, Exception? terminal)
+    {
         var sameCancellation = operation.IsCanceled && observer is OperationCanceledException first
             && terminal is OperationCanceledException second && first.CancellationToken == second.CancellationToken;
         if (observer is not null && terminal is not null && !ReferenceEquals(observer, terminal) && !sameCancellation)
