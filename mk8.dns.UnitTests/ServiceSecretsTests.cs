@@ -136,7 +136,7 @@ public sealed class ServiceSecretsTests
     [Theory]
     [InlineData("{\"a\":1,\"A\":2}", "SecretJsonDuplicate")]
     [InlineData("{\"a\":1e999}", "SecretJsonNumberInvalid")]
-    [InlineData("{\"a\":", "SecretJsonInvalid:Settings")]
+    [InlineData("{\"a\":", "SecretJsonInvalid")]
     public async Task StructuredValuesRefuseAmbiguousOrInvalidInputsWithoutValueDiagnostics(string input, string reason)
     {
         using var fixture = new SecretsFixture(); fixture.Write([new("Gateway:Settings", input)]);
@@ -152,8 +152,45 @@ public sealed class ServiceSecretsTests
         fixture.Write([new("Gateway:HostPolicy", "{}"), new("Gateway:Credential", "not-base64")]);
         var snapshot = await DnsServiceSecrets.LoadDirectoryAsync("Gateway", fixture.Root, CancellationToken.None);
         Assert.Equal("SecretHostPolicyInvalid", Assert.Throws<InvalidDataException>(() => ServiceHostPolicy.FromSecrets(snapshot)).Message);
-        Assert.Equal("SecretEncodingInvalid:Credential", Assert.Throws<InvalidDataException>(() => snapshot.Bytes("Credential", 32)).Message);
+        Assert.Equal("SecretEncodingInvalid", Assert.Throws<InvalidDataException>(() => snapshot.Bytes("Credential", 32)).Message);
         Assert.Equal("SecretSettingUnknown", Assert.Throws<InvalidDataException>(() => snapshot.RequireOnly(["HostPolicy"])).Message);
+    }
+
+    [Theory]
+    [InlineData("missing", "SecretValueMissingOrOversized")]
+    [InlineData("oversized", "SecretValueMissingOrOversized")]
+    [InlineData("encoding", "SecretEncodingInvalid")]
+    [InlineData("decoded-size", "SecretBytesInvalid")]
+    [InlineData("json", "SecretJsonInvalid")]
+    [InlineData("arguments", "SecretSettingsInvalid")]
+    public async Task LookupRefusalsOmitProtectedNamesValuesAndInnerDiagnostics(string shape, string reason)
+    {
+        const string name = "PROTECTED_LOOKUP_SENTINEL";
+        const string value = "PROTECTED_VALUE_SENTINEL";
+        using var fixture = new SecretsFixture();
+        var input = shape switch
+        {
+            "decoded-size" => "AQI=",
+            "json" => "{\"" + value + "\":}",
+            "arguments" => "{\"" + value + "\":true}",
+            _ => value,
+        };
+        fixture.Write([new("Gateway:" + (shape is "missing" ? "Other" : name), input)]);
+        var snapshot = await DnsServiceSecrets.LoadDirectoryAsync("Gateway", fixture.Root, CancellationToken.None);
+        Action read = shape switch
+        {
+            "oversized" => () => snapshot.Text(name, 1),
+            "encoding" => () => snapshot.Bytes(name, 32),
+            "decoded-size" => () => snapshot.Bytes(name, 1),
+            "json" => () => snapshot.JsonText(name),
+            "arguments" => () => snapshot.Arguments(name),
+            _ => () => snapshot.Text(name),
+        };
+        var error = Assert.Throws<InvalidDataException>(read);
+        Assert.Equal(reason, error.Message);
+        Assert.DoesNotContain(name, error.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(value, error.ToString(), StringComparison.Ordinal);
+        Assert.Null(error.InnerException);
     }
 
     [Fact]

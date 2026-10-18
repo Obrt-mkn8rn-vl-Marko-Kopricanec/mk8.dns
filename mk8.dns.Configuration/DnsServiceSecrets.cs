@@ -78,7 +78,7 @@ public sealed class DnsServiceSecrets
     {
         ValidateName(name);
         if (!values.TryGetValue(name, out var value) || value.Length == 0 || Encoding.UTF8.GetByteCount(value) > maximumBytes)
-            throw new InvalidDataException("SecretValueMissingOrOversized:" + name);
+            throw new InvalidDataException("SecretValueMissingOrOversized");
         return value;
     }
 
@@ -88,11 +88,11 @@ public sealed class DnsServiceSecrets
         byte[]? bytes = null;
         try { bytes = Convert.FromBase64String(value); }
         catch (FormatException) { /* Public refusal below intentionally omits secret-bearing diagnostics. */ }
-        if (bytes is null) throw new InvalidDataException("SecretEncodingInvalid:" + name);
+        if (bytes is null) throw new InvalidDataException("SecretEncodingInvalid");
         if (bytes.Length is 0 || bytes.Length > maximumBytes)
         {
             System.Security.Cryptography.CryptographicOperations.ZeroMemory(bytes);
-            throw new InvalidDataException("SecretBytesInvalid:" + name);
+            throw new InvalidDataException("SecretBytesInvalid");
         }
         return bytes;
     }
@@ -108,7 +108,7 @@ public sealed class DnsServiceSecrets
             valid = true;
         }
         catch (JsonException) { /* Json diagnostics are not a permitted secret-output channel. */ }
-        if (!valid) throw new InvalidDataException("SecretJsonInvalid:" + name);
+        if (!valid) throw new InvalidDataException("SecretJsonInvalid");
         return text;
     }
 
@@ -140,7 +140,7 @@ public sealed class DnsServiceSecrets
         try { arguments = JsonSerializer.Deserialize<string[]>(text); }
         catch (JsonException) { /* Missing result below is a value-free schema refusal. */ }
         if (arguments is null || arguments.Length is 0 or > 128 || arguments.Any(string.IsNullOrEmpty))
-            throw new InvalidDataException("SecretSettingsInvalid:" + name);
+            throw new InvalidDataException("SecretSettingsInvalid");
         return arguments;
     }
 

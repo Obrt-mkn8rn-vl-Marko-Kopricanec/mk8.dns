@@ -20,6 +20,8 @@ if (mode is "recursive" or "recursive-refresh" or "recursive-checking-disabled" 
 }
 if (mode is not "authority") throw new InvalidDataException("SecretModeInvalid");
 var settings = ApplicationSettings.FromSecrets(secrets);
+PrivateUnixSocket.ValidatePath(settings.SocketPath);
+if (settings.PublicationSocket is { } publicationPath) PrivateUnixSocket.ValidatePath(publicationPath);
 var policy = ServiceHostPolicy.FromSecrets(secrets);
 var limits = settings.UdpResponseLimits;
 var limiter = string.Equals(settings.Role, "authoritative-replica", StringComparison.Ordinal)

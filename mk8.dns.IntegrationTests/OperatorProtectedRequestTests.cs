@@ -4,6 +4,31 @@ namespace Mk8.Dns.IntegrationTests;
 
 public sealed class OperatorProtectedRequestTests
 {
+    [Fact]
+    public async Task MissingRequestReferenceRefusesWithoutEchoingItsProtectedName()
+    {
+        const string sentinel = "PROTECTED_REQUEST_LOOKUP_SENTINEL";
+        var root = Path.Combine(Path.GetTempPath(), "m8op-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            await HostProcessScope.RunAsync(() => new HostProcess("mk8.dns.Operator",
+                ["--socket", Path.Combine(root, "absent.sock"), "--request-secret", sentinel,
+                    "--credential-secret", "Credential"], 0), async child =>
+            {
+                await child.WaitForExitAsync(guard.Token).ConfigureAwait(true);
+                Assert.NotEqual(0, child.ExitCode);
+                var logs = await child.ReadLogsAsync(guard.Token).ConfigureAwait(true);
+                Assert.Contains("SecretValueMissingOrOversized", logs, StringComparison.Ordinal);
+                Assert.DoesNotContain("SecretValueMissingOrOversized:", logs, StringComparison.Ordinal);
+                Assert.DoesNotContain(sentinel, logs, StringComparison.Ordinal);
+                Assert.DoesNotContain("JsonException", logs, StringComparison.Ordinal);
+            }).ConfigureAwait(true);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     [Theory]
     [InlineData("unknown")]
     [InlineData("guid")]
