@@ -16,6 +16,7 @@ if (settings.Length != 6 || settings[0] is not ("--socket" or "--gateway-socket"
 
 DnsServiceSecrets.ValidateName(settings[3]); DnsServiceSecrets.ValidateName(settings[5]);
 secrets.RequireOnly(["Settings", settings[3], settings[5]]);
+PrivateUnixSocket.ValidatePath(settings[1]);
 ManagementRequest? request = null;
 try { request = JsonSerializer.Deserialize(secrets.JsonText(settings[3], ControlHostingExtensions.MaximumManagementBytes), OperatorJsonContext.Default.ManagementRequest); }
 catch (JsonException) { /* Typed JSON paths and member names may themselves be confidential. */ }

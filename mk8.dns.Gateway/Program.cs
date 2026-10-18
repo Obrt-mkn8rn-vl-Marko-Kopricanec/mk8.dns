@@ -9,6 +9,8 @@ using Mk8.Dns.Transport;
 if (args.Length != 0) throw new ArgumentException("ServiceArgumentsForbidden", nameof(args));
 var secrets = await DnsServiceSecrets.LoadAsync("Gateway", CancellationToken.None).ConfigureAwait(false);
 var settings = GatewaySettings.FromSecrets(secrets);
+PrivateUnixSocket.ValidatePath(settings.SocketPath);
+if (settings.ManagementSocketPath is { } managementPath) PrivateUnixSocket.ValidatePath(managementPath);
 var policy = ServiceHostPolicy.FromSecrets(secrets);
 var dnsPolicy = GatewayDnsPolicy.FromSecrets(secrets);
 if (settings.Role == GatewayRole.Management)
