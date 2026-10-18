@@ -12,7 +12,7 @@ using Xunit;
 
 namespace Mk8.Dns.IntegrationTests;
 
-public sealed class RecursiveStartupTransportTests
+public sealed partial class RecursiveStartupTransportTests
 {
     [Theory]
     [InlineData(false)]

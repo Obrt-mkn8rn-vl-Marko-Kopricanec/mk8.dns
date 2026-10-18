@@ -13,7 +13,7 @@ internal sealed partial record RecursiveStartupConfiguration(string StoreDirecto
     DnsServerEndpoint RefreshServer, DnssecClientAccessPolicy Access, DnssecClientNetwork[] Egress,
     ushort AuthorityPort, DnssecWorkPolicy Work, int MaximumRequests, int UdpWorkers,
     int MaximumTcpConnections, int MaximumTcpMessages, TimeSpan UpstreamTimeout, DnssecAnchorPollingPolicy? RefreshPolicy,
-    bool? CheckingDisabledDnssecMaterial, DnsQnameMinimisationPolicy? Minimisation)
+    bool? CheckingDisabledDnssecMaterial, DnssecTrustEpochPolicy EpochPolicy)
 {
     internal static RecursiveStartupConfiguration FromSecrets(DnsServiceSecrets secrets, string mode)
     {
@@ -46,8 +46,8 @@ internal sealed partial record RecursiveStartupConfiguration(string StoreDirecto
             "maximumWaiters", "resolutionTimeoutMilliseconds", "upstreamTimeoutMilliseconds"];
         if (authenticatedRefresh) fields = [.. fields, "refreshPolicy"];
         if (checkingDisabled) fields = [.. fields, "checkingDisabledDnssecMaterial"];
-        var hasMinimisation = values.TryGetProperty("qnameMinimisation", out var minimisation);
-        if (hasMinimisation) fields = [.. fields, "qnameMinimisation"];
+        foreach (var name in new[] { "qnameMinimisation", "cachePolicy", "iterationPolicy" })
+            if (values.TryGetProperty(name, out _)) fields = [.. fields, name];
         RequireFields(values, fields);
         bool? uncheckedMaterial = checkingDisabled ? values.GetProperty("checkingDisabledDnssecMaterial").GetBoolean() : null;
         var refreshPolicy = authenticatedRefresh ? Refresh(values.GetProperty("refreshPolicy")) : null;
@@ -68,6 +68,7 @@ internal sealed partial record RecursiveStartupConfiguration(string StoreDirecto
         if (identity == Guid.Empty) throw new InvalidDataException("Store identity must be nonempty.");
         var retention = values.GetProperty("retention").GetBoolean();
         var minimum = Number(values, "minimumRevision", 1, retention ? long.MaxValue : FileAnchorCheckpointStore.MaximumGenerations);
+        var maximumRequests = (int)Number(values, "maximumRequests", 1, 256);
         return new RecursiveStartupConfiguration(AbsolutePath(values, "storeDirectory"), SecretName(values, "keySecret"),
             identity, DnsName.Parse(Text(values, "origin")), minimum,
             retention, new IPEndPoint(address, (int)Number(listen, "port", 1, ushort.MaxValue)),
@@ -75,16 +76,10 @@ internal sealed partial record RecursiveStartupConfiguration(string StoreDirecto
                 values.GetProperty("allowAuthenticatedData").GetBoolean()), egress, port,
             new DnssecWorkPolicy((int)Number(values, "maximumWorkers", 1, 256), (int)Number(values, "maximumWaiters", 1, 65536),
                 TimeSpan.FromMilliseconds(Number(values, "resolutionTimeoutMilliseconds", 50, 120000))),
-            (int)Number(values, "maximumRequests", 1, 256), (int)Number(values, "udpWorkers", 1, 16),
+            maximumRequests, (int)Number(values, "udpWorkers", 1, 16),
             (int)Number(values, "maximumTcpConnections", 1, 64), (int)Number(values, "maximumTcpMessages", 1, 256),
             TimeSpan.FromMilliseconds(Number(values, "upstreamTimeoutMilliseconds", 50, 10000)), refreshPolicy, uncheckedMaterial,
-            hasMinimisation ? MinimisationPolicy(minimisation) : null);
-    }
-
-    private static DnsQnameMinimisationPolicy MinimisationPolicy(JsonElement value)
-    {
-        RequireFields(value, ["maximumSteps"]);
-        return new DnsQnameMinimisationPolicy((int)Number(value, "maximumSteps", 1, 128));
+            ValidationPolicy(values, maximumRequests));
     }
 
     internal static bool Permits(DnsServerEndpoint endpoint, DnssecClientNetwork[] networks, ushort port)

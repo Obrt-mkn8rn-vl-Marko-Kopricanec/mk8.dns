@@ -55,10 +55,9 @@ internal static class RecursiveStartup
     private static ValueTask<DnssecClientHost> CreateHostAsync(RecursiveStartupConfiguration settings,
         DnssecAnchorRefresher refresher, DnssecUpstreamClient upstream, DnssecSignatureVerifier verifier, TimeProvider time)
     {
-        var epochPolicy = new DnssecTrustEpochPolicy(maximumActiveRequests: settings.MaximumRequests, minimisation: settings.Minimisation);
         if (settings.CheckingDisabledDnssecMaterial is not { } material)
         {
-            return DnssecClientHost.CreateAsync(refresher, upstream, verifier, settings.Roots, epochPolicy,
+            return DnssecClientHost.CreateAsync(refresher, upstream, verifier, settings.Roots, settings.EpochPolicy,
                 settings.Access, settings.Binding, settings.Work, time, settings.AuthorityPort, settings.MaximumRequests,
                 settings.UdpWorkers, settings.MaximumTcpConnections, settings.MaximumTcpMessages);
         }
@@ -70,7 +69,7 @@ internal static class RecursiveStartup
                 endpoint => RecursiveStartupConfiguration.Permits(endpoint, settings.Egress, settings.AuthorityPort),
                 settings.UpstreamTimeout), settings.Roots, settings.AuthorityPort, time: time);
         return DnssecClientHost.CreateWithCheckingDisabledSourceAsync(refresher, upstream, verifier, settings.Roots,
-            ordinary, epochPolicy, settings.Access, settings.Binding, settings.Work, time, settings.AuthorityPort,
+            ordinary, settings.EpochPolicy, settings.Access, settings.Binding, settings.Work, time, settings.AuthorityPort,
             settings.MaximumRequests, settings.UdpWorkers, settings.MaximumTcpConnections, settings.MaximumTcpMessages);
     }
 
