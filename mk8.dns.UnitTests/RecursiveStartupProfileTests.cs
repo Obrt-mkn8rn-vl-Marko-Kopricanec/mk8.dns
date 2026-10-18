@@ -20,9 +20,49 @@ public sealed class RecursiveStartupProfileTests
         var settings = RecursiveStartupConfiguration.FromSecrets(snapshot, mode);
         Assert.Equal(refresh, settings.RefreshPolicy is not null);
         Assert.Equal(checkingDisabled, settings.CheckingDisabledDnssecMaterial is not null);
+        Assert.Null(settings.Minimisation);
         if (checkingDisabled) Assert.True(settings.CheckingDisabledDnssecMaterial);
         Assert.Equal("MissingAnchorKey", settings.KeySecret);
         Assert.False(Directory.Exists(settings.StoreDirectory));
+    }
+
+    [Theory]
+    [InlineData("recursive", false, false, 1)]
+    [InlineData("recursive-refresh", true, false, 128)]
+    [InlineData("recursive-checking-disabled", false, true, 128)]
+    [InlineData("recursive-refresh-checking-disabled", true, true, 1)]
+    public async Task EveryProfileCanExplicitlySelectBoundedQnameMinimisation(string mode, bool refresh, bool checkingDisabled, int steps)
+    {
+        using var fixture = new ConfigurationFixture();
+        var input = fixture.Configuration(refresh, checkingDisabled);
+        input["qnameMinimisation"] = new JsonObject { ["maximumSteps"] = steps };
+        var snapshot = await fixture.LoadAsync(mode, input.ToJsonString()).ConfigureAwait(true);
+        var settings = RecursiveStartupConfiguration.FromSecrets(snapshot, mode);
+        Assert.NotNull(settings.Minimisation);
+        Assert.Equal(steps, settings.Minimisation.MaximumSteps);
+        Assert.False(Directory.Exists(settings.StoreDirectory));
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("[]")]
+    [InlineData("{\"maximumSteps\":0}")]
+    [InlineData("{\"maximumSteps\":129}")]
+    [InlineData("{\"maximumSteps\":\"PROTECTED_VALUE\"}")]
+    [InlineData("{\"maximumSteps\":1,\"maximumSteps\":2}")]
+    [InlineData("{\"maximumSteps\":1,\"PROTECTED_VALUE\":true}")]
+    public async Task InvalidMinimisationPolicyRefusesBeforeKeyOrStoreUse(string policy)
+    {
+        const string mode = "recursive";
+        using var fixture = new ConfigurationFixture();
+        var input = fixture.Configuration(refresh: false, checkingDisabled: false).ToJsonString();
+        var snapshot = await fixture.LoadAsync(mode, input[..^1] + ",\"qnameMinimisation\":" + policy + "}").ConfigureAwait(true);
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => RecursiveStartup.RunAsync(snapshot, mode)).ConfigureAwait(true);
+        Assert.DoesNotContain("PROTECTED_VALUE", error.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("MissingAnchorKey", error.Message, StringComparison.Ordinal);
+        Assert.Null(error.InnerException);
+        Assert.False(Directory.Exists(fixture.StoreDirectory));
     }
 
     [Theory]

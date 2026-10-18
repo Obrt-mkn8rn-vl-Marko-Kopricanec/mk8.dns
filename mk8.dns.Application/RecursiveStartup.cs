@@ -55,7 +55,7 @@ internal static class RecursiveStartup
     private static ValueTask<DnssecClientHost> CreateHostAsync(RecursiveStartupConfiguration settings,
         DnssecAnchorRefresher refresher, DnssecUpstreamClient upstream, DnssecSignatureVerifier verifier, TimeProvider time)
     {
-        var epochPolicy = new DnssecTrustEpochPolicy(maximumActiveRequests: settings.MaximumRequests);
+        var epochPolicy = new DnssecTrustEpochPolicy(maximumActiveRequests: settings.MaximumRequests, minimisation: settings.Minimisation);
         if (settings.CheckingDisabledDnssecMaterial is not { } material)
         {
             return DnssecClientHost.CreateAsync(refresher, upstream, verifier, settings.Roots, epochPolicy,
